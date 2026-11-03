@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Pos;
 
 use App\Exceptions\AccessException;
+use App\Services\Cash\CashSessions;
 use App\Services\Orders\OrderEngine;
+use App\Support\Access\AccessScope;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PosOrderController
 {
-    private const VIEWS = ['pending' => 'pending_payment', 'active' => 'active', 'today' => null];
+    private const VIEWS = ['pending' => 'pending_payment', 'active' => 'active', 'paid' => 'paid', 'today' => null];
 
     public function __construct(private OrderEngine $orders) {}
 
@@ -26,12 +28,29 @@ class PosOrderController
             'view' => $view,
             'q' => $q,
             'list' => $this->orders->list($request->user(), $outlet, ['status' => self::VIEWS[$view], 'q' => $q, 'page' => $request->query('page', 1)]),
+            'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
     }
 
     public function show(Request $request, string $order): Response
     {
-        return Inertia::render('pos/orders/show', ['order' => $this->load($request, $order)]);
+        $detail = $this->load($request, $order);
+        $user = $request->user();
+        $scope = AccessScope::outlet($detail['outletId']);
+
+        return Inertia::render('pos/orders/show', [
+            'order' => $detail,
+            // Hanya untuk menampilkan tombol; setiap aksi diperiksa ulang di server.
+            'flags' => [
+                'canConfirmCash' => $user->can('payment.confirm_cash', $scope),
+                'canCancel' => $user->can('order.void', $scope),
+                'canDecide' => ($user->can('approval.approve', $scope) || $user->can('approval.reject', $scope))
+                    && ($detail['pendingApproval']['requestedBy'] ?? null) !== $user->id,
+                'canRefund' => $user->can('payment.refund', $scope),
+            ],
+            'cashSessionOpen' => CashSessions::hasOpen($detail['outletId']),
+            'topic' => OrderEngine::outletTopic($detail['outletId']),
+        ]);
     }
 
     /** Struk 58–80 mm, dicetak lewat dialog print browser (PRD §46). */

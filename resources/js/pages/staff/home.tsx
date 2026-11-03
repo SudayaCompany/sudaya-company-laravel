@@ -58,7 +58,7 @@ const SHORTCUTS: Shortcut[] = [
     description: "Antrean produksi New → Ready",
     icon: MonitorIcon,
     permission: "kds.view",
-    href: null,
+    href: "/kds",
   },
   {
     label: "Stok",

@@ -12,23 +12,21 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\SetPasswordController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\KdsController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderStatusController;
+use App\Http\Controllers\Pos\CashController;
+use App\Http\Controllers\Pos\OrderActionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\PosOrderController;
 use App\Http\Controllers\StaffController;
 use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::inertia('/', 'home');
 
-// Halaman modul yang belum dipindahkan ke Laravel, agar tautan dan redirect
-// setelah login tidak berakhir 404. Tidak ada fungsi bisnis di sini.
-$pending = fn (string $module) => fn () => Inertia::render('pending', ['module' => $module]);
-
-// Menu customer (M2). Checkout dibangun di M3; quote hanya menghitung harga.
+// Menu customer, checkout guest, status pesanan, dan kiosk.
 Route::get('/order', [OrderController::class, 'show']);
 Route::post('/order/quote', [OrderController::class, 'quote']);
 Route::post('/order/checkout', CheckoutController::class);
@@ -40,18 +38,27 @@ Route::post('/login', [LoginController::class, 'store']);
 Route::post('/logout', LogoutController::class);
 Route::get('/auth/confirm', ConfirmController::class);
 
-Route::middleware(['auth', EnsureActiveStaff::class])->group(function () use ($pending) {
+Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
     Route::get('/auth/set-password', [SetPasswordController::class, 'show']);
     Route::post('/auth/set-password', [SetPasswordController::class, 'store']);
 
-    Route::middleware(AuthorizeRoute::class)->group(function () use ($pending) {
+    Route::middleware(AuthorizeRoute::class)->group(function () {
         Route::get('/staff', StaffController::class);
         Route::get('/pos', [PosController::class, 'index']);
         Route::post('/pos/orders', [PosController::class, 'store']);
         Route::get('/pos/orders', [PosOrderController::class, 'index']);
         Route::get('/pos/orders/{order}', [PosOrderController::class, 'show']);
         Route::get('/pos/orders/{order}/receipt', [PosOrderController::class, 'receipt']);
-        Route::get('/kds', $pending('Barista Display'));
+        Route::post('/pos/orders/{order}/pay', [OrderActionController::class, 'pay']);
+        Route::post('/pos/orders/{order}/cancel', [OrderActionController::class, 'cancel']);
+        Route::post('/pos/orders/{order}/refund', [OrderActionController::class, 'refund']);
+        Route::post('/pos/approvals/{approval}/decide', [OrderActionController::class, 'decide']);
+        Route::get('/pos/cash', [CashController::class, 'index']);
+        Route::post('/pos/cash/open', [CashController::class, 'open']);
+        Route::post('/pos/cash/movements', [CashController::class, 'movement']);
+        Route::post('/pos/cash/close', [CashController::class, 'close']);
+        Route::get('/kds', KdsController::class);
+        Route::post('/kds/orders/{order}/status', [OrderActionController::class, 'status']);
 
         Route::prefix('admin')->group(function () {
             Route::get('/', DashboardController::class);

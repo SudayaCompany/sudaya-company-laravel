@@ -106,6 +106,8 @@ export type StaffOrder = {
   deliveryAddress: string | null;
   cancelReason: string | null;
   expiresAt: string | null;
+  paidAt: string | null;
+  pendingApproval: { id: string; reason: string; requestedBy: string; requestedByName: string; createdAt: string } | null;
   outlet: { id: string; name: string; timezone: string };
   lines: OrderLine[];
   payments: {

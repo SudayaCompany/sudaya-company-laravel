@@ -1,7 +1,8 @@
-import { Head, Link, router, usePoll } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { ChevronLeftIcon, ChevronRightIcon, ReceiptTextIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/orders/order-parts";
 import { buttonVariants } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -27,7 +28,8 @@ type Row = {
 type Props = {
   outlet: { id: string; name: string; timezone: string };
   outlets: { id: string; name: string }[];
-  view: "pending" | "active" | "today";
+  view: "pending" | "active" | "paid" | "today";
+  topic: string;
   q: string | null;
   list: { rows: Row[]; total: number; page: number; pageCount: number };
 };
@@ -35,6 +37,7 @@ type Props = {
 const VIEWS = [
   { id: "pending", label: "Menunggu bayar" },
   { id: "active", label: "Diproses" },
+  { id: "paid", label: "Lunas" },
   { id: "today", label: "Semua hari ini" },
 ] as const;
 
@@ -45,10 +48,8 @@ function query(params: Record<string, string | number | null | undefined>) {
   return text ? `?${text}` : "";
 }
 
-export default function PosOrdersPage({ outlet, outlets, view, q, list }: Props) {
+export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }: Props) {
   const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: outlet.timezone });
-  // Realtime staf ada di M4; sementara daftar dimuat ulang berkala.
-  usePoll(20_000, { only: ["list"] });
 
   return (
     <PosLayout outletId={outlet.id}>
@@ -59,6 +60,7 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list }: Props)
             <h1 className="text-xl font-semibold">Pesanan hari ini</h1>
             <p className="text-sm text-muted-foreground">{outlet.name}</p>
           </div>
+          <LiveRefresh topic={topic} only={["list"]} />
           {outlets.length > 1 ? (
             <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/pos/orders${query({ outlet: e.target.value, view })}`)}>
               {outlets.map((o) => (

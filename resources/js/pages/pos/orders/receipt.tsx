@@ -8,13 +8,17 @@ import { ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
 // Struk 58–80 mm dicetak lewat dialog print browser (PRD §46).
 export default function ReceiptPage({ order }: { order: StaffOrder }) {
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short", timeZone: order.outlet.timezone });
+  // Hanya pembayaran yang benar-benar lunas yang dicetak sebagai lunas.
   const payment = order.payments.find((p) => p.status === "paid");
+  const refunded = order.payments.some((p) => p.status === "refunded");
 
   return (
     <div className="flex flex-col items-center gap-4 p-4 print:p-0">
       <Head title="Struk">
         <meta name="robots" content="noindex, nofollow" />
       </Head>
+      {/* Kertas thermal 80 mm; area cetak 76 mm. */}
+      <style>{"@page { size: 80mm auto; margin: 2mm; } @media print { html, body { background: #fff; } }"}</style>
       <Button onClick={() => window.print()} className="print:hidden">
         <PrinterIcon /> Cetak
       </Button>
@@ -32,6 +36,7 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
           {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
         </p>
         {order.customerName ? <p>Customer: {order.customerName}</p> : null}
+        {payment?.paidAt ? <p>Dibayar: {time.format(new Date(payment.paidAt))}</p> : null}
         {payment?.confirmedByName ? <p>Kasir: {payment.confirmedByName}</p> : null}
         <hr className="my-2 border-dashed border-black" />
         {order.lines.map((line) => (
@@ -59,7 +64,11 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
         {payment ? (
           <>
             <div className="flex justify-between">
-              <span>Tunai</span>
+              <span>Metode</span>
+              <span>{payment.method === "cash" ? "Tunai" : payment.method.toUpperCase()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Diterima</span>
               <span>{formatRupiah(payment.tenderedAmount ?? payment.amount)}</span>
             </div>
             <div className="flex justify-between">
@@ -67,6 +76,8 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
               <span>{formatRupiah(payment.changeAmount ?? 0)}</span>
             </div>
           </>
+        ) : refunded ? (
+          <p className="mt-1 text-center font-bold">*** DIREFUND ***</p>
         ) : (
           <p className="mt-1 text-center font-bold">*** BELUM DIBAYAR ***</p>
         )}

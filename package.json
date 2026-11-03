@@ -27,6 +27,7 @@
         "@base-ui/react": "^1.9.0",
         "@inertiajs/react": "^3.10.0",
         "@inertiajs/vite": "^3.10.0",
+        "@supabase/realtime-js": "2.118.0",
         "@vitejs/plugin-react": "^6.2.1",
         "class-variance-authority": "^0.7.1",
         "cn": "^0.4.0",

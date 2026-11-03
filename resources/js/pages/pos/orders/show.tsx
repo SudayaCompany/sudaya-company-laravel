@@ -1,8 +1,9 @@
-import { Head, Link, usePoll } from "@inertiajs/react";
-import { ArrowLeftIcon, PrinterIcon } from "lucide-react";
+import { Head, Link } from "@inertiajs/react";
+import { ArrowLeftIcon } from "lucide-react";
 
+import { LiveRefresh } from "@/components/orders/live-refresh";
+import { OrderActions, type OrderActionFlags } from "@/components/orders/order-actions";
 import { OrderLines, OrderStatusBadge, PaymentStatusBadge } from "@/components/orders/order-parts";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PosLayout } from "@/layouts/pos-layout";
 import { formatRupiah } from "@/lib/format";
@@ -27,10 +28,9 @@ const HISTORY_LABELS: Record<string, string> = {
 const METHOD_LABELS: Record<string, string> = { cash: "Tunai", qris: "QRIS" };
 
 /** Detail order untuk staf. Riwayat diambil dari audit log. */
-export default function PosOrderPage({ order }: { order: StaffOrder }) {
+export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: { order: StaffOrder; flags: OrderActionFlags; cashSessionOpen: boolean; topic: string }) {
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "medium", timeZone: order.outlet.timezone });
   const unpaid = order.status === "pending_payment";
-  usePoll(20_000, { only: ["order"] }, { autoStart: unpaid });
 
   return (
     <PosLayout outletId={order.outletId}>
@@ -40,9 +40,7 @@ export default function PosOrderPage({ order }: { order: StaffOrder }) {
           <Link href={`/pos/orders?outlet=${order.outletId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeftIcon className="size-4" /> Daftar pesanan
           </Link>
-          <a href={`/pos/orders/${order.id}/receipt`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <PrinterIcon /> Struk
-          </a>
+          <LiveRefresh topic={topic} only={["order", "flags", "cashSessionOpen"]} />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
@@ -148,11 +146,12 @@ export default function PosOrderPage({ order }: { order: StaffOrder }) {
                     ) : null}
                   </div>
                 ))}
-                {unpaid ? (
-                  <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                    Konfirmasi pembayaran tunai belum aktif di sistem ini. Pesanan tetap menunggu pembayaran dan belum masuk antrean barista.
+                {order.status === "cancelled" && order.paymentStatus === "paid" ? (
+                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
                   </p>
                 ) : null}
+                <OrderActions order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
               </CardContent>
             </Card>
 

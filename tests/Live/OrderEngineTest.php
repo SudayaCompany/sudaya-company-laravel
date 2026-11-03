@@ -18,6 +18,8 @@ use Illuminate\Support\Str;
  */
 class OrderEngineTest extends LiveTestCase
 {
+    use RunsConcurrently;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -139,40 +141,6 @@ class OrderEngineTest extends LiveTestCase
     private function orderRow(string $id): object
     {
         return DB::table('orders')->where('id', $id)->first();
-    }
-
-    /**
-     * Menjalankan beberapa checkout bersamaan di proses PHP terpisah. Semua proses
-     * menunggu waktu mulai yang sama setelah koneksi DB terbuka.
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function concurrently(array $jobs): array
-    {
-        $startAt = microtime(true) + 12;
-        $php = PHP_BINARY;
-        $script = base_path('tests/Live/bin/create-order.php');
-        $procs = [];
-        foreach ($jobs as $job) {
-            $proc = proc_open([$php, $script], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, base_path());
-            fwrite($pipes[0], json_encode([...$job, 'startAt' => $startAt]));
-            fclose($pipes[0]);
-            $procs[] = [$proc, $pipes];
-        }
-        $results = [];
-        foreach ($procs as [$proc, $pipes]) {
-            $out = stream_get_contents($pipes[1]);
-            $err = stream_get_contents($pipes[2]);
-            fclose($pipes[1]);
-            fclose($pipes[2]);
-            proc_close($proc);
-            $decoded = json_decode($out, true);
-            $this->assertIsArray($decoded, "proses checkout gagal: {$out} {$err}");
-            $results[] = $decoded;
-        }
-        $this->assertSame(array_fill(0, count($jobs), false), array_column($results, 'late'), 'semua proses harus siap sebelum waktu mulai bersama');
-
-        return $results;
     }
 
     // --- membuat order (semua channel memakai engine yang sama) ------------------------
@@ -373,23 +341,24 @@ class OrderEngineTest extends LiveTestCase
     {
         $f = static::$fixture;
         $input = $this->delivery();
-        $job = ['channel' => 'pos', 'outlet' => ['id' => $f['A']['outletId']], 'actorId' => $f['cashierA']['id'], 'checkout' => $input];
+        $job = ['op' => 'create', 'channel' => 'pos', 'outlet' => ['id' => $f['A']['outletId']], 'actorId' => $f['cashierA']['id'], 'input' => $input];
         $results = $this->concurrently([$job, $job, $job]);
+        $created = array_column($results, 'result');
 
         $this->assertSame([true, true, true], array_column($results, 'ok'), json_encode($results));
-        $this->assertCount(1, array_unique(array_column($results, 'orderId')));
-        $this->assertCount(1, array_filter($results, fn ($r) => ! $r['replayed']));
+        $this->assertCount(1, array_unique(array_column($created, 'orderId')));
+        $this->assertCount(1, array_filter($created, fn ($r) => ! $r['replayed']));
         $this->assertSame(1, DB::table('orders')->where('idempotency_key', $input['idempotencyKey'])->count());
-        $this->assertSame(1, DB::table('payments')->where('order_id', $results[0]['orderId'])->count());
-        $this->assertSame(1, DB::table('order_items')->where('order_id', $results[0]['orderId'])->count());
-        $this->assertSame(1, $this->ctx()->countAudit($f['A']['id'], 'order.created', $results[0]['orderId']));
+        $this->assertSame(1, DB::table('payments')->where('order_id', $created[0]['orderId'])->count());
+        $this->assertSame(1, DB::table('order_items')->where('order_id', $created[0]['orderId'])->count());
+        $this->assertSame(1, $this->ctx()->countAudit($f['A']['id'], 'order.created', $created[0]['orderId']));
     }
 
     public function test_permintaan_bersamaan_isi_berbeda_satu_menang_sisanya_konflik(): void
     {
         $f = static::$fixture;
         $input = $this->delivery();
-        $job = fn (array $checkout) => ['channel' => 'website', 'outlet' => ['code' => $f['A']['outletCode']], 'checkout' => $checkout];
+        $job = fn (array $checkout) => ['op' => 'create', 'channel' => 'website', 'outlet' => ['code' => $f['A']['outletCode']], 'input' => $checkout];
         $results = $this->concurrently([$job($input), $job([...$input, 'deliveryAddress' => 'Jl. Sudirman No. 99'])]);
 
         $won = array_values(array_filter($results, fn ($r) => $r['ok']));

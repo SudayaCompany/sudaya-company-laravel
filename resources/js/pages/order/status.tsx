@@ -1,10 +1,11 @@
-import { Head, Link, usePoll } from "@inertiajs/react";
+import { Head, Link } from "@inertiajs/react";
 import { CheckIcon, ClockIcon, CoffeeIcon, SearchXIcon, XCircleIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Brand } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { buttonVariants } from "@/components/ui/button";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { formatPriceDelta, formatRupiah } from "@/lib/format";
 import { customerStatusLabel, ORDER_TYPE_LABELS, PAYMENT_STATUS_LABELS, type OrderLine, type OrderStatus, type OrderType, type PaymentStatus } from "@/lib/orders";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ type GuestOrder = {
   timezone: string;
   paymentMethod: string | null;
   lines: OrderLine[];
+  topic: string;
 };
 
 const STEPS: { status: OrderStatus[]; label: string }[] = [
@@ -64,8 +66,8 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
   const timeFormat = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", dateStyle: "medium", timeZone: order.timezone });
   const deadline = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: order.timezone });
 
-  // Cadangan tanpa realtime: muat ulang status secara berkala selama pesanan belum selesai.
-  usePoll(15_000, { only: ["order"] }, { autoStart: !finished });
+  // Realtime selama pesanan belum selesai; polling 15 detik bila Realtime tidak tersambung.
+  useRealtimeRefresh(finished ? null : order.topic, ["order"], 15_000);
 
   return (
     <>

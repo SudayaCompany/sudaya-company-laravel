@@ -7,9 +7,10 @@ export type AuthProps = {
     roles: string[];
   };
   navigation: string[];
+  permissions: string[];
 } | null;
 
-export type SharedProps = { auth: AuthProps };
+export type SharedProps = { auth: AuthProps; realtime: { url: string; key: string } | null };
 
 export type Flash = { success?: string; error?: string; link?: string };
 

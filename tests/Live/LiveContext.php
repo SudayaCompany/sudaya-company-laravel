@@ -148,8 +148,13 @@ final class LiveContext
     {
         if ($this->companyIds !== []) {
             // Data transaksi merujuk users (created_by/confirmed_by), jadi dihapus sebelum
-            // akun Auth. order_items dan order_item_modifiers ikut cascade.
+            // akun Auth. order_items dan order_item_modifiers ikut cascade. Urutan mengikuti FK:
+            // pergerakan kas → refund → pembayaran → sesi kas → approval → order.
+            DB::table('cash_movements')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('refunds')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('payments')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('cash_sessions')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('approvals')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('orders')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('order_number_counters')
                 ->whereIn('outlet_id', DB::table('outlets')->whereIn('company_id', $this->companyIds)->select('id'))
@@ -181,6 +186,8 @@ final class LiveContext
             }
             // Katalog dulu (FK ke brand); cascade ke outlet_products, product_modifier_groups, modifiers.
             DB::table('products')->whereIn('company_id', $this->companyIds)->delete();
+            // Item stok yang dibuat test inventory guard (tautan outlet_products sudah terhapus di atas).
+            DB::table('inventory_items')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('modifier_groups')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('categories')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('users')->whereIn('company_id', $this->companyIds)->delete();

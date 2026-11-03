@@ -1,6 +1,7 @@
 import { Head, Link, router } from "@inertiajs/react";
 import { BanknoteIcon, CoffeeIcon, Loader2Icon, MinusIcon, PlusIcon, PrinterIcon, SearchIcon, ShoppingCartIcon, Trash2Icon } from "lucide-react";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 
 import { ItemNotesField, ModifierGroupField, QuantityStepper, useProductSelection } from "@/components/catalog/product-options";
 import { ConfirmAction } from "@/components/confirm-action";
@@ -31,17 +32,19 @@ function useIsDesktop() {
 }
 
 type PosLine = { key: string; product: StorefrontProduct; modifierIds: string[]; quantity: number; notes: string | null };
-type Placed = { orderId: string; reference: string; total: number; replayed: boolean };
+type Placed = { orderId: string; reference: string; total: number; replayed: boolean; orderNumber: string | null; change: number | null; warning: string | null };
 
 type Props = {
   outlet: { id: string; name: string };
   outlets: { id: string; name: string }[];
   categories: { id: string; name: string }[];
   products: StorefrontProduct[];
+  canConfirmCash: boolean;
+  cashSessionOpen: boolean;
 };
 
 /** Terminal kasir. Harga di layar perkiraan; harga sah dihitung order engine di server. */
-export default function PosPage({ outlet, outlets, categories, products }: Props) {
+export default function PosPage({ outlet, outlets, categories, products, canConfirmCash, cashSessionOpen }: Props) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [picking, setPicking] = useState<StorefrontProduct | null>(null);
@@ -70,6 +73,8 @@ export default function PosPage({ outlet, outlets, categories, products }: Props
       outletId={outlet.id}
       lines={lines}
       setLines={setLines}
+      canConfirmCash={canConfirmCash}
+      cashSessionOpen={cashSessionOpen}
       onPlaced={(placed) => {
         setCartOpen(false);
         setResult(placed);
@@ -230,11 +235,15 @@ function PosCart({
   outletId,
   lines,
   setLines,
+  canConfirmCash,
+  cashSessionOpen,
   onPlaced,
 }: {
   outletId: string;
   lines: PosLine[];
   setLines: React.Dispatch<React.SetStateAction<PosLine[]>>;
+  canConfirmCash: boolean;
+  cashSessionOpen: boolean;
   onPlaced: (result: Placed) => void;
 }) {
   const [type, setType] = useState<OrderType>("takeaway");
@@ -246,9 +255,12 @@ function PosCart({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [tendered, setTendered] = useState("");
   // Satu key per isi keranjang: klik ganda atau retry tidak membuat order ganda.
   const idempotencyKey = useRef<string | null>(null);
   const total = estimateTotal(lines);
+  const tenderedAmount = tendered.trim() === "" ? null : Number(tendered);
+  const cashValid = tenderedAmount !== null && Number.isInteger(tenderedAmount) && tenderedAmount >= total;
 
   function changeLines(update: (current: PosLine[]) => PosLine[]) {
     idempotencyKey.current = null;
@@ -265,10 +277,11 @@ function PosCart({
     setDeliveryAddress("");
     setNotes("");
     setError(null);
+    setTendered("");
     setType("takeaway");
   }
 
-  function submit() {
+  function submit(payNow: boolean) {
     idempotencyKey.current ??= crypto.randomUUID();
     const checkout = {
       idempotencyKey: idempotencyKey.current,
@@ -286,7 +299,7 @@ function PosCart({
     // Validasi lengkap di server (CheckoutInput); pesan error tampil sebagai toast + di bawah total.
     router.post(
       "/pos/orders",
-      { outletId, checkout },
+      { outletId, checkout, tenderedAmount: payNow ? tenderedAmount : null },
       {
         preserveScroll: true,
         preserveState: true,
@@ -300,6 +313,7 @@ function PosCart({
           }
           if (placed) {
             reset();
+            if (placed.warning) toast.warning(placed.warning);
             onPlaced(placed);
           }
         },
@@ -459,20 +473,70 @@ function PosCart({
           <span>Total</span>
           <span className="tabular-nums">{formatRupiah(total)}</span>
         </div>
-        {/* Konfirmasi tunai, sesi kas, dan nomor antrean ada di modul pembayaran berikutnya. */}
-        <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          <BanknoteIcon className="size-4 shrink-0" aria-hidden />
-          <span>Konfirmasi pembayaran tunai belum aktif. Pesanan disimpan dengan status menunggu pembayaran.</span>
-        </div>
         {error ? (
           <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
         ) : null}
-        <Button size="lg" className="h-12" disabled={lines.length === 0 || submitting} onClick={submit}>
-          {submitting ? <Loader2Icon className="animate-spin" /> : null}
-          Simpan pesanan (bayar di kasir)
-        </Button>
+        {canConfirmCash && !cashSessionOpen ? (
+          <>
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Sesi kas belum dibuka.{" "}
+              <Link href={`/pos/cash?outlet=${outletId}`} className="font-medium underline">
+                Buka sesi kas
+              </Link>{" "}
+              untuk menerima uang tunai.
+            </p>
+            <Button variant="outline" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+              Simpan, bayar nanti
+            </Button>
+          </>
+        ) : canConfirmCash ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="pos-tendered">Uang tunai diterima</Label>
+              <div className="flex gap-1.5">
+                <Input
+                  id="pos-tendered"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={tendered}
+                  onChange={(e) => setTendered(e.target.value)}
+                  className="h-10 min-w-0 tabular-nums"
+                />
+                <Button type="button" variant="outline" className="h-10" disabled={total === 0} onClick={() => setTendered(String(total))}>
+                  Pas
+                </Button>
+                {[50_000, 100_000].map((v) => (
+                  <Button key={v} type="button" variant="outline" className="h-10" disabled={v < total} onClick={() => setTendered(String(v))}>
+                    {v / 1000}rb
+                  </Button>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Kembalian: <span className="font-medium text-foreground tabular-nums">{cashValid ? formatRupiah(tenderedAmount! - total) : "—"}</span>
+              </p>
+            </div>
+            <Button
+              size="lg"
+              className="h-12 bg-success text-base text-success-foreground hover:bg-success/90"
+              disabled={lines.length === 0 || !cashValid || submitting}
+              onClick={() => submit(true)}
+            >
+              {submitting ? <Loader2Icon className="animate-spin" /> : <BanknoteIcon />}
+              Bayar tunai & proses
+            </Button>
+            <Button variant="outline" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+              Simpan, bayar nanti
+            </Button>
+          </>
+        ) : (
+          <Button size="lg" className="h-12" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+            {submitting ? <Loader2Icon className="animate-spin" /> : null}
+            Simpan pesanan (bayar di kasir)
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -485,13 +549,19 @@ function ResultDialog({ result, onClose }: { result: Placed | null; onClose: () 
         {result ? (
           <>
             <DialogHeader>
-              <DialogTitle>{result.replayed ? "Pesanan sudah tersimpan" : "Pesanan disimpan"}</DialogTitle>
-              <DialogDescription>Menunggu pembayaran di kasir. Nomor antrean diberikan setelah pembayaran dikonfirmasi.</DialogDescription>
+              <DialogTitle>{result.orderNumber ? "Pembayaran berhasil" : result.replayed ? "Pesanan sudah tersimpan" : "Pesanan disimpan"}</DialogTitle>
+              <DialogDescription>
+                {result.orderNumber ? "Pesanan masuk antrean barista." : "Menunggu pembayaran di kasir. Nomor antrean diberikan setelah pembayaran dikonfirmasi."}
+              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-1 py-2 text-center">
-              <span className="text-sm text-muted-foreground">Kode pesanan</span>
-              <span className="font-mono text-4xl font-bold">{result.reference}</span>
+              <span className="text-sm text-muted-foreground">{result.orderNumber ? "Nomor antrean" : "Kode pesanan"}</span>
+              <span className="font-mono text-4xl font-bold" data-testid="result-number">
+                {result.orderNumber ?? result.reference}
+              </span>
               <span className="tabular-nums">Total {formatRupiah(result.total)}</span>
+              {result.change !== null ? <span className="text-lg font-semibold tabular-nums">Kembalian {formatRupiah(result.change)}</span> : null}
+              {result.warning ? <span className="text-sm text-destructive">{result.warning}</span> : null}
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col">
               <a href={`/pos/orders/${result.orderId}/receipt`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline", className: "w-full" })}>

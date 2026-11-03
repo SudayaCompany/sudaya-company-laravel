@@ -5,18 +5,21 @@ import { LogoutButton } from "@/components/logout-button";
 import { cn } from "@/lib/utils";
 import type { SharedProps } from "@/types";
 
-// Kas (M4) dan KDS (M4) belum dipindahkan, jadi tidak ditampilkan di navigasi.
-const NAV = [
-  { href: "/pos", label: "Kasir" },
-  { href: "/pos/orders", label: "Pesanan" },
-  { href: "/staff", label: "Staff" },
+// Tampil bila user punya izinnya; setiap halaman tetap memeriksa izin di server.
+const NAV: { href: string; label: string; visible: (auth: NonNullable<SharedProps["auth"]>) => boolean }[] = [
+  { href: "/pos", label: "Kasir", visible: () => true },
+  { href: "/pos/orders", label: "Pesanan", visible: () => true },
+  { href: "/pos/cash", label: "Kas", visible: (auth) => auth.permissions.includes("cash.view") },
+  { href: "/kds", label: "KDS", visible: (auth) => auth.navigation.includes("/kds") },
+  { href: "/staff", label: "Staff", visible: (auth) => auth.navigation.includes("/staff") },
 ];
 
 /** Layout POS; navigasi mempertahankan ?outlet= saat berpindah halaman. */
 export function PosLayout({ outletId, children }: { outletId?: string; children: React.ReactNode }) {
   const { url, props } = usePage<SharedProps>();
   const pathname = url.split("?")[0];
-  const items = NAV.filter((item) => item.href !== "/staff" || props.auth?.navigation.includes("/staff"));
+  const auth = props.auth;
+  const items = auth ? NAV.filter((item) => item.visible(auth)) : [];
 
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-muted/30">

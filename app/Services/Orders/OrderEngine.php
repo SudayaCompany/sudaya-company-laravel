@@ -10,6 +10,7 @@ use App\Services\Auth\AccessLoader;
 use App\Services\Catalog\CatalogInput;
 use App\Services\Catalog\Storefront;
 use App\Support\Access\AccessScope;
+use App\Support\Orders\OrderFlow;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -49,6 +50,14 @@ final class OrderEngine
     public static function outletTopic(string $outletId): string
     {
         return "outlet-orders:{$outletId}";
+    }
+
+    /** Sinyal realtime tanpa data; dipanggil di dalam transaksi sehingga terkirim hanya bila commit. */
+    public static function notify(array $topics): void
+    {
+        foreach ($topics as $topic) {
+            DB::select("select realtime.send('{}'::jsonb, 'changed', ?, false)", [$topic]);
+        }
     }
 
     /**
@@ -218,8 +227,7 @@ final class OrderEngine
                     'paymentMethod' => $input['paymentMethod'],
                 ],
             ], $context);
-            // Sinyal realtime tanpa data; ikut transaksi sehingga terkirim hanya bila commit.
-            DB::select("select realtime.send('{}'::jsonb, 'changed', ?, false)", [self::outletTopic($row->id)]);
+            self::notify([self::outletTopic($row->id)]);
 
             return ['orderId' => $orderId, 'reference' => self::reference($orderId), 'total' => $subtotal, 'replayed' => false, 'accessToken' => $token['token'] ?? null];
         });
@@ -251,10 +259,24 @@ final class OrderEngine
             ->orderBy('audit_logs.created_at')
             ->get(['audit_logs.id', 'audit_logs.action', 'audit_logs.created_at', 'audit_logs.reason', 'actor_user.full_name as actor_name']);
         $creator = $order->created_by === null ? null : DB::table('users')->where('id', $order->created_by)->value('full_name');
+        $approval = DB::table('approvals')
+            ->join('users as requester', 'requester.id', '=', 'approvals.requested_by')
+            ->where('approvals.type', 'void')
+            ->where('approvals.reference_id', $order->id)
+            ->where('approvals.status', 'pending')
+            ->first(['approvals.id', 'approvals.reason', 'approvals.requested_by', 'requester.full_name as requested_by_name', 'approvals.created_at']);
 
         return [
             ...$this->publicOrder($order),
             'outletId' => $order->outlet_id,
+            'paidAt' => $this->iso($order->paid_at),
+            'pendingApproval' => $approval === null ? null : [
+                'id' => $approval->id,
+                'reason' => $approval->reason,
+                'requestedBy' => $approval->requested_by,
+                'requestedByName' => $approval->requested_by_name,
+                'createdAt' => $this->iso($approval->created_at),
+            ],
             'customerPhone' => $order->customer_phone,
             'locationNote' => $order->location_note,
             'deliveryAddress' => $order->delivery_address,
@@ -299,7 +321,9 @@ final class OrderEngine
             ->where('orders.company_id', $actor->company_id)
             ->whereRaw('(orders.created_at at time zone ?)::date = ?::date', [$outlet['timezone'], $params['date'] ?? $today])
             ->when($params['status'] === 'pending_payment', fn ($q) => $q->where('orders.status', 'pending_payment'))
-            ->when($params['status'] === 'active', fn ($q) => $q->whereIn('orders.status', ['queued', 'preparing', 'ready']))
+            ->when($params['status'] === 'active', fn ($q) => $q->whereIn('orders.status', OrderFlow::ACTIVE_QUEUE))
+            // Transaksi lunas hari ini, termasuk yang kemudian di-refund (tetap tercatat).
+            ->when($params['status'] === 'paid', fn ($q) => $q->whereIn('orders.payment_status', ['paid', 'refunded']))
             ->when(($params['q'] ?? null) !== null, function ($q) use ($params) {
                 $pattern = '%'.addcslashes($params['q'], '\\%_').'%';
                 $prefix = addcslashes(strtoupper($params['q']), '\\%_').'%';
@@ -361,7 +385,58 @@ final class OrderEngine
             'timezone' => $order->timezone,
             'paymentMethod' => $method,
             'lines' => $this->lines([$order->id])[$order->id] ?? [],
+            // Topik realtime turunan hash token: hanya pemegang token yang tahu.
+            'topic' => GuestTokens::topic($order->access_token_hash),
         ];
+    }
+
+    // --- KDS -------------------------------------------------------------------------
+
+    /**
+     * Papan KDS (PRD §38): order lunas yang belum selesai, urut FIFO waktu bayar,
+     * ditambah 12 order yang selesai dalam 3 jam terakhir. Order belum dibayar tidak tampil.
+     */
+    public function kdsBoard(User $actor, array $outlet): array
+    {
+        if (! $actor->can('kds.view', AccessScope::outlet($outlet['id']))) {
+            throw AccessException::forbidden();
+        }
+        $columns = ['id', 'order_number', 'queue_number', 'status', 'type', 'channel', 'customer_name', 'table_number', 'location_note', 'notes', 'paid_at', 'preparing_at', 'ready_at', 'completed_at'];
+        $active = DB::table('orders')
+            ->where('outlet_id', $outlet['id'])
+            ->where('company_id', $actor->company_id)
+            ->where('payment_status', 'paid')
+            ->whereIn('status', OrderFlow::ACTIVE_QUEUE)
+            ->orderBy('paid_at')->orderBy('queue_number')
+            ->get($columns);
+        $completed = DB::table('orders')
+            ->where('outlet_id', $outlet['id'])
+            ->where('company_id', $actor->company_id)
+            ->where('status', 'completed')
+            ->where('completed_at', '>=', DB::raw("now() - interval '3 hours'"))
+            ->orderByDesc('completed_at')
+            ->limit(12)
+            ->get($columns);
+        $rows = $active->concat($completed);
+        $lines = $this->lines($rows->pluck('id')->all());
+
+        return $rows->map(fn ($o) => [
+            'id' => $o->id,
+            'orderNumber' => $o->order_number,
+            'queueNumber' => $o->queue_number === null ? null : (int) $o->queue_number,
+            'status' => $o->status,
+            'type' => $o->type,
+            'channel' => $o->channel,
+            'customerName' => $o->customer_name,
+            'tableNumber' => $o->table_number,
+            'locationNote' => $o->location_note,
+            'notes' => $o->notes,
+            'paidAt' => $this->iso($o->paid_at),
+            'preparingAt' => $this->iso($o->preparing_at),
+            'readyAt' => $this->iso($o->ready_at),
+            'completedAt' => $this->iso($o->completed_at),
+            'lines' => $lines[$o->id] ?? [],
+        ])->values()->all();
     }
 
     // --- Bantuan -------------------------------------------------------------------

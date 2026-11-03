@@ -9,7 +9,7 @@ use Inertia\Middleware;
 class HandleInertiaRequests extends Middleware
 {
     /** Menu yang sudah dipindahkan ke Laravel. Tambah saat modulnya selesai. */
-    private const NAVIGATION = ['/admin', '/admin/products', '/admin/categories', '/admin/modifiers', '/admin/users', '/admin/roles', '/admin/audit', '/staff', '/pos'];
+    private const NAVIGATION = ['/admin', '/admin/products', '/admin/categories', '/admin/modifiers', '/admin/users', '/admin/roles', '/admin/audit', '/staff', '/pos', '/kds'];
 
     protected $rootView = 'app';
 
@@ -23,6 +23,12 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => fn () => $this->auth($request),
+            // Kunci publishable memang publik (dipakai browser untuk Realtime). Sinyal realtime
+            // tidak berisi data; data selalu dimuat ulang lewat server yang memeriksa izin.
+            'realtime' => fn () => config('services.supabase.url') && config('services.supabase.publishable_key') ? [
+                'url' => rtrim((string) config('services.supabase.url'), '/'),
+                'key' => (string) config('services.supabase.publishable_key'),
+            ] : null,
         ];
     }
 
@@ -46,6 +52,8 @@ class HandleInertiaRequests extends Middleware
                 self::NAVIGATION,
                 fn (string $path) => RouteAccess::canAccess($user->grants(), $path),
             )),
+            // Nama permission (di scope mana pun) untuk menampilkan menu; izin tetap dicek di server.
+            'permissions' => array_values(array_unique(array_merge([], ...array_map(fn ($grant) => $grant->permissions, $user->grants())))),
         ];
     }
 }
