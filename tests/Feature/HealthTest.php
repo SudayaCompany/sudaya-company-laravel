@@ -29,8 +29,6 @@ class HealthTest extends TestCase
 
     public function test_halaman_awal_memakai_inertia(): void
     {
-        $this->get('/')->assertOk()->assertInertia(
-            fn ($page) => $page->component('welcome', shouldExist: true)->has('app.framework'),
-        );
+        $this->get('/')->assertOk()->assertInertia(fn ($page) => $page->component('home', shouldExist: true));
     }
 }

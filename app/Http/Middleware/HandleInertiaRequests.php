@@ -2,42 +2,50 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Access\RouteAccess;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
-     *
-     * @var string
-     */
+    /** Menu yang sudah dipindahkan ke Laravel. Tambah saat modulnya selesai. */
+    private const NAVIGATION = ['/admin', '/admin/users', '/admin/roles', '/admin/audit'];
+
     protected $rootView = 'app';
 
-    /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @see https://inertiajs.com/shared-data
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
         return [
             ...parent::share($request),
-            //
+            'auth' => fn () => $this->auth($request),
+        ];
+    }
+
+    /** Token Supabase tidak pernah ikut ke sini. */
+    private function auth(Request $request): ?array
+    {
+        $user = $request->user();
+        if ($user === null || ! $user->isStaffActive()) {
+            return null;
+        }
+
+        return [
+            'user' => [
+                'id' => $user->id,
+                'fullName' => $user->full_name,
+                'email' => $user->email,
+                'company' => $user->company->name,
+                'roles' => $user->roleNames(),
+            ],
+            'navigation' => array_values(array_filter(
+                self::NAVIGATION,
+                fn (string $path) => RouteAccess::canAccess($user->grants(), $path),
+            )),
         ];
     }
 }

@@ -53,6 +53,13 @@ return [
             'lock_path' => storage_path('framework/cache/locks'),
         ],
 
+        // Token Supabase. Path sendiri agar `cache:clear` tidak me-logout staf.
+        'auth_tokens' => [
+            'driver' => env('AUTH_TOKEN_CACHE_DRIVER', 'file'),
+            'path' => storage_path('framework/auth-tokens/data'),
+            'lock_path' => storage_path('framework/auth-tokens/locks'),
+        ],
+
         'storage' => [
             'driver' => 'storage',
             'disk' => env('CACHE_STORAGE_DISK'),
