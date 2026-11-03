@@ -1,13 +1,17 @@
 <?php
 
 use App\Http\Controllers\Admin\AuditController;
+use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ModifierController;
+use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\ConfirmController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\SetPasswordController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\StaffController;
 use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
@@ -20,7 +24,9 @@ Route::inertia('/', 'home');
 // setelah login tidak berakhir 404. Tidak ada fungsi bisnis di sini.
 $pending = fn (string $module) => fn () => Inertia::render('pending', ['module' => $module]);
 
-Route::get('/order', $pending('Sudaya Order'));
+// Menu customer (M2). Checkout dibangun di M3; quote hanya menghitung harga.
+Route::get('/order', [OrderController::class, 'show']);
+Route::post('/order/quote', [OrderController::class, 'quote']);
 Route::get('/kiosk', $pending('Sudaya Kiosk'));
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -51,6 +57,26 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () use ($p
             Route::post('/roles/set-permission', [RoleController::class, 'setPermission']);
 
             Route::get('/audit', AuditController::class);
+
+            Route::get('/categories', [CategoryController::class, 'index']);
+            Route::post('/categories', [CategoryController::class, 'store']);
+            Route::put('/categories/{category}', [CategoryController::class, 'update']);
+            Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+
+            Route::get('/modifiers', [ModifierController::class, 'index']);
+            Route::post('/modifiers', [ModifierController::class, 'store']);
+            Route::put('/modifiers/{group}', [ModifierController::class, 'update']);
+            Route::delete('/modifiers/{group}', [ModifierController::class, 'destroy']);
+
+            Route::get('/products', [ProductController::class, 'index']);
+            Route::get('/products/create', [ProductController::class, 'create']);
+            Route::post('/products', [ProductController::class, 'store']);
+            Route::get('/products/{product}/edit', [ProductController::class, 'edit']);
+            // POST, bukan PUT: form multipart (foto) tidak bisa dikirim dengan PUT di PHP.
+            Route::post('/products/{product}', [ProductController::class, 'update']);
+            Route::patch('/products/{product}/active', [ProductController::class, 'setActive']);
+            Route::patch('/products/{product}/availability', [ProductController::class, 'setAvailability']);
+            Route::delete('/products/{product}', [ProductController::class, 'destroy']);
         });
     });
 });

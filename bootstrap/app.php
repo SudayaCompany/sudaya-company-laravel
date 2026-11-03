@@ -64,6 +64,12 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return $response;
             }
+            // Sama dengan runAction Next.js: error tak terduga pada aksi tampil sebagai pesan umum.
+            if ($status === 500 && $request->header('X-Inertia') && ! $request->isMethodSafe() && ! config('app.debug')) {
+                Inertia::flash('error', 'Terjadi kesalahan. Coba lagi.');
+
+                return back();
+            }
             if ($status === 419 && $request->header('X-Inertia')) {
                 Inertia::flash('error', 'Halaman kedaluwarsa. Coba lagi.');
 

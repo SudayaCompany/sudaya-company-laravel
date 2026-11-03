@@ -34,6 +34,7 @@ Bebannya kecil. Yang menentukan pilihan hosting adalah tiga hal berikut, bukan C
 | WebSocket server | Tidak | Realtime langsung dari browser ke Supabase |
 | Memori | 128–256 MB per proses PHP | Laravel standar. Diukur ulang di M8 |
 | `php.ini` production | `display_errors=Off`, `zend.exception_ignore_args=On`, `expose_php=Off` | Stack trace tanpa argumen fungsi |
+| Batas upload | `upload_max_filesize` minimal `2M` (foto menu), `post_max_size` minimal `8M` | Batas 2 MB foto ditegakkan aplikasi; bukti foto inventory nanti 3 MB |
 | Jumlah server | Satu | Sesi dan store token berupa file. Lebih dari satu server butuh store bersama (database atau Redis) |
 
 ## Perbandingan

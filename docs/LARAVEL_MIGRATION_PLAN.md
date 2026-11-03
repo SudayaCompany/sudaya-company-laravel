@@ -32,7 +32,7 @@ Owner menetapkan urutan M1–M9 di bawah. Roadmap lama (2 November) membagi modu
 |---|---|---|---|---|
 | M0 | Fondasi Laravel, Inertia, koneksi Supabase, health check | - | M0 | Selesai |
 | M1 | Login/logout, Supabase Auth, sesi, user management, role/permission, scope company/outlet, audit, rate limit login, header keamanan | `lib/auth`, `lib/security`, `lib/supabase`, `login`, `auth`, `admin/users`, `admin/roles`, `admin/audit` | M1 + sebagian M7 | **DONE — Development Verified** (3 November) |
-| M2 | Kategori, produk, harga, modifier, foto, sold out | `lib/catalog`, `admin/products`, `admin/categories`, `admin/modifiers` | M2 | Belum mulai |
+| M2 | Kategori, produk, harga, modifier, foto, sold out, menu customer `/order` dengan keranjang (checkout di M3) | `lib/catalog`, `admin/products`, `admin/categories`, `admin/modifiers`, `order` | M2 | **DONE — Development Verified** (3 November) |
 | M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | Belum mulai |
 | M4 | Pembayaran cash, antrean terpadu, nomor antrean, KDS, realtime atau polling | `lib/orders` (pembayaran, KDS), `kds` | sebagian M3 | Belum mulai |
 | M5 | Stok masuk/keluar, opname, waste, ledger, ketersediaan | `lib/inventory` | M5 | Belum mulai |

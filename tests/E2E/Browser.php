@@ -31,7 +31,7 @@ final class Browser
     }
 
     /** POST dengan token CSRF dari cookie XSRF-TOKEN, sama seperti klien Inertia. */
-    public function post(string $path, array $data = [], bool $withCsrf = true): ResponseInterface
+    public function post(string $path, array $data = [], bool $withCsrf = true, string $method = 'POST'): ResponseInterface
     {
         if ($withCsrf && $this->cookie('XSRF-TOKEN') === null) {
             $this->get('/login');
@@ -41,7 +41,7 @@ final class Browser
             $headers['X-XSRF-TOKEN'] = urldecode((string) $this->cookie('XSRF-TOKEN'));
         }
 
-        return $this->client->post($path, ['json' => $data, 'headers' => $headers]);
+        return $this->client->request($method, $path, ['json' => $data, 'headers' => $headers]);
     }
 
     public function cookie(string $name): ?string

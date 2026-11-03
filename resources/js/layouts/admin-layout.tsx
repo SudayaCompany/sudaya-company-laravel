@@ -1,5 +1,13 @@
 import { Link, usePage } from "@inertiajs/react";
-import { KeyRoundIcon, LayoutDashboardIcon, ScrollTextIcon, UsersIcon } from "lucide-react";
+import {
+  CoffeeIcon,
+  KeyRoundIcon,
+  LayoutDashboardIcon,
+  ScrollTextIcon,
+  SlidersHorizontalIcon,
+  TagsIcon,
+  UsersIcon,
+} from "lucide-react";
 
 import { Brand } from "@/components/brand";
 import { LogoutButton } from "@/components/logout-button";
@@ -8,6 +16,9 @@ import type { SharedProps } from "@/types";
 
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: <LayoutDashboardIcon /> },
+  { href: "/admin/products", label: "Produk", icon: <CoffeeIcon /> },
+  { href: "/admin/categories", label: "Kategori", icon: <TagsIcon /> },
+  { href: "/admin/modifiers", label: "Modifier", icon: <SlidersHorizontalIcon /> },
   { href: "/admin/users", label: "Pengguna", icon: <UsersIcon /> },
   { href: "/admin/roles", label: "Role & Permission", icon: <KeyRoundIcon /> },
   { href: "/admin/audit", label: "Audit Log", icon: <ScrollTextIcon /> },

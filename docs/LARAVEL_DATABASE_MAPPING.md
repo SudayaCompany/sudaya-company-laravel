@@ -33,6 +33,24 @@ Semua tabel memakai nama, kolom, dan constraint yang sudah ada. Tidak ada tabel 
 | `audit_logs` | `AuditLog`, hanya baca | UUID | tulis lewat `AuditLogger` dengan `clock_timestamp()` |
 | `rate_limit_counters` | Query Builder (SQL upsert) | `key` sha256 | dibersihkan `pg_cron` |
 
+### M2 (katalog)
+
+Diaudit 3 November 2026. Semua tabel sudah ada; **tidak ada tabel, kolom, atau migration baru.**
+
+| Tabel | Akses Laravel | Aturan DB yang dipertahankan |
+|---|---|---|
+| `categories` | Query Builder di `CatalogAdmin` | Unik `(brand_id, slug)` hanya untuk baris `deleted_at is null`; soft delete lewat `deleted_at` |
+| `products` | Query Builder | Unik `(brand_id, slug)` dan `(brand_id, sku)` hanya untuk baris aktif; `image_path` berisi path Storage, bukan URL; `order_items.product_id` merujuk tanpa cascade sehingga produk tidak pernah dihapus fisik |
+| `outlet_products` | upsert per `(outlet_id, product_id)` | `is_available` manual, `price_override`, `inventory_item_id` untuk produk jadi |
+| `modifier_groups` | Query Builder | enum `modifier_selection` (`single`, `multiple`) |
+| `modifiers` | Query Builder | cascade dari grup; `order_item_modifiers` menyimpan snapshot nama dan harga, jadi opsi boleh dihapus |
+| `product_modifier_groups` | Query Builder | PK `(product_id, group_id)`, cascade dari produk dan grup |
+| `inventory_items` | hanya dibaca untuk ketersediaan | `stock_qty >= 0` (check constraint) |
+
+Pelanggaran unique index (`23505`) diterjemahkan ke pesan yang sama dengan Next.js berdasarkan nama constraint.
+
+**Supabase Storage:** bucket `menu-images` publik untuk dibaca (batas 2 MB, hanya JPG/PNG/WebP di level bucket). `inventory-evidence` dan `attendance-evidence` privat. `storage.objects` tidak punya policy untuk anon atau authenticated, jadi hanya service role di server yang bisa menulis. Tidak ada bucket baru.
+
 Pola untuk modul berikutnya:
 
 - **Operasi transaksi** (order, pembayaran, stok, kas) memakai `DB::transaction` dan Query Builder dengan `lockForUpdate()` atau `sharedLock()`, sama dengan `FOR UPDATE` dan `FOR SHARE` di Drizzle.

@@ -161,6 +161,14 @@ final class LiveContext
         }
 
         if ($this->companyIds !== []) {
+            // Foto menu test: <companyId>/<brandId>/<file>.
+            foreach ($this->companyIds as $companyId) {
+                $this->removeStorageFolder('menu-images', $companyId);
+            }
+            // Katalog dulu (FK ke brand); cascade ke outlet_products, product_modifier_groups, modifiers.
+            DB::table('products')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('modifier_groups')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('categories')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('users')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('roles')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('outlets')->whereIn('company_id', $this->companyIds)->delete();
@@ -169,6 +177,19 @@ final class LiveContext
         }
         if ($this->rateLimitKeys !== []) {
             DB::table('rate_limit_counters')->whereIn('key', array_keys($this->rateLimitKeys))->delete();
+        }
+    }
+
+    /** Hapus semua objek di bawah <prefix>/<subfolder>/ milik company test. */
+    private function removeStorageFolder(string $bucket, string $prefix): void
+    {
+        $folders = $this->admin()->post("/storage/v1/object/list/{$bucket}", ['prefix' => $prefix, 'limit' => 1000])->json() ?? [];
+        foreach ($folders as $folder) {
+            $files = $this->admin()->post("/storage/v1/object/list/{$bucket}", ['prefix' => "{$prefix}/{$folder['name']}", 'limit' => 1000])->json() ?? [];
+            $paths = array_map(fn ($file) => "{$prefix}/{$folder['name']}/{$file['name']}", $files);
+            if ($paths !== []) {
+                $this->admin()->delete("/storage/v1/object/{$bucket}", ['prefixes' => $paths])->throw();
+            }
         }
     }
 
