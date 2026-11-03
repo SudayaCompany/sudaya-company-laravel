@@ -11,7 +11,11 @@ use App\Http\Controllers\Auth\ConfirmController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\SetPasswordController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderStatusController;
+use App\Http\Controllers\Pos\PosController;
+use App\Http\Controllers\Pos\PosOrderController;
 use App\Http\Controllers\StaffController;
 use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
@@ -27,7 +31,9 @@ $pending = fn (string $module) => fn () => Inertia::render('pending', ['module' 
 // Menu customer (M2). Checkout dibangun di M3; quote hanya menghitung harga.
 Route::get('/order', [OrderController::class, 'show']);
 Route::post('/order/quote', [OrderController::class, 'quote']);
-Route::get('/kiosk', $pending('Sudaya Kiosk'));
+Route::post('/order/checkout', CheckoutController::class);
+Route::get('/order/status/{order}', OrderStatusController::class);
+Route::get('/kiosk', [OrderController::class, 'kiosk']);
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);
@@ -40,7 +46,11 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () use ($p
 
     Route::middleware(AuthorizeRoute::class)->group(function () use ($pending) {
         Route::get('/staff', StaffController::class);
-        Route::get('/pos', $pending('POS'));
+        Route::get('/pos', [PosController::class, 'index']);
+        Route::post('/pos/orders', [PosController::class, 'store']);
+        Route::get('/pos/orders', [PosOrderController::class, 'index']);
+        Route::get('/pos/orders/{order}', [PosOrderController::class, 'show']);
+        Route::get('/pos/orders/{order}/receipt', [PosOrderController::class, 'receipt']);
         Route::get('/kds', $pending('Barista Display'));
 
         Route::prefix('admin')->group(function () {

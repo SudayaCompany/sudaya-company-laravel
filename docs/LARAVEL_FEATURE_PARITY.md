@@ -7,8 +7,8 @@ Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 | Modul | Status | Bukti |
 |---|---|---|
 | M1 Auth, sesi, RBAC, user, audit | **DONE — Development Verified** (disetujui owner 3 November 2026) | Unit/feature 72/72, live 49/49, E2E 18/18, browser 75/75 |
-| M2 Katalog dan menu | **DONE — Development Verified** (disetujui owner 3 November 2026); keranjang PARTIAL sampai checkout M3 | Unit katalog 30, live katalog 21, E2E katalog 4, browser 57/57. Regresi penuh: unit 102/102, live+E2E 92/92 |
-| M3 Order engine | NOT STARTED | |
+| M2 Katalog dan menu | **DONE — Development Verified** (disetujui owner 3 November 2026). Keranjang kini lengkap dengan checkout M3 | Unit katalog 30, live katalog 21, E2E katalog 4, browser 57/57. Regresi penuh: unit 102/102, live+E2E 92/92 |
+| M3 Order engine, POS, QR, kiosk | **Siap review** (Development Verified, menunggu persetujuan owner) | Unit order 27, live order 19, E2E order 6, browser 137/137. Regresi penuh 3 November: unit/feature 129/129, live 89/89 (exit 0), E2E 28/28 (exit 0), database dev bersih |
 | M4 Pembayaran dan KDS | NOT STARTED | QRIS BLOCKED (EXT-001) |
 | M5 Inventory | NOT STARTED | |
 | M6 Finance | NOT STARTED | |
@@ -59,10 +59,39 @@ Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 | Menu customer `/order`: hanya produk dan kategori aktif, sold out ditandai, harga outlet, modifier aktif, tanpa kolom internal, nomor meja, outlet tak dikenal | `storefront.ts`, `order/page.tsx` | `Storefront`, `OrderController` | Live, E2E, browser | PARITY VERIFIED |
 | Cache menu dibuang saat admin mengubah menu | `updateTag` | versi cache per brand | Live, E2E | PARITY VERIFIED |
 | Quote keranjang di server, harga dari browser diabaikan, batas jumlah 1–50, stok produk jadi, rate limit 300/menit per IP | `quote.ts`, `order/actions.ts` | `Storefront::quote`, `POST /order/quote` | Unit, live, E2E | PARITY VERIFIED |
-| Keranjang di browser | `cart.tsx` | `order/index.tsx` | Browser | PARTIAL: tampil, quote, ubah jumlah, hapus. Checkout sengaja belum aktif sampai M3 |
+| Keranjang di browser | `cart.tsx` | `components/storefront/storefront.tsx` | Browser | PARITY VERIFIED (checkout aktif di M3) |
 | Halaman admin produk, kategori, modifier | `admin/*` | Inertia, komponen sama | Browser | PARITY VERIFIED |
 | Ketersediaan dari stok produk jadi (`inventory_item_id`) | storefront | sama, dibaca dari DB | Belum ada data inventory di Laravel | PARTIAL: logika dan query sudah ada, diuji penuh di M5 |
-| Kiosk `/kiosk` | `StorefrontView mode="kiosk"` | Belum | - | NOT STARTED, menunggu M3 |
+| Kiosk `/kiosk` | `StorefrontView mode="kiosk"` | `kiosk/index.tsx` | Lihat M3 | PARITY VERIFIED di M3 |
+
+## M3 rinci
+
+Lingkup M3: pembuatan order semua channel, validasi harga di server, idempotensi, POS, QR/web, kiosk, order menunggu pembayaran, dan akses guest. Konfirmasi tunai, ledger pembayaran, nomor antrean, KDS, dan realtime staf ada di M4. Di M3 tidak ada jalur yang menandai order lunas.
+
+| Perilaku | Next.js | Laravel | Test Laravel | Status |
+|---|---|---|---|---|
+| Satu order engine untuk POS, QR meja, QR kasir, web, kiosk | `engine.ts` `createOrder` | `OrderEngine::create` | Live `OrderEngineTest` | PARITY VERIFIED |
+| Validasi input checkout dan pesan error (tipe, HP, meja, catatan, 1–50 baris, jumlah bulat 1–50, delivery, nama untuk channel publik) | `schemas.ts` (Zod) | `CheckoutInput` | Unit `OrdersTest` (19 kasus), live, E2E | PARITY VERIFIED |
+| Harga, subtotal, total dari DB; field harga/status dari browser diabaikan; snapshot item dan modifier | `createOrder` | sama | Unit, live, E2E, browser | PARITY VERIFIED |
+| Produk sold out, nonaktif, modifier salah grup, opsi wajib kosong ditolak dengan nama produk | `quote.ts` | `Storefront::quote` | Live | PARITY VERIFIED |
+| QRIS ditolak ("Pembayaran online belum tersedia"); hanya tunai di kasir | `createOrder` | sama | Live, E2E, browser (opsi QRIS nonaktif) | PARITY VERIFIED |
+| Order baru selalu `pending_payment`/`pending`, tagihan `payments` status `pending` tanpa sesi kas, tanpa nomor antrean | `createOrder` | sama | Live, E2E | PARITY VERIFIED |
+| Idempotensi `(outlet_id, idempotency_key)`, retry identik = order sama, isi berbeda = konflik 409 dengan pesan sama, harga berubah tetap retry, order lama tanpa `request_hash` tetap replay | `createOrder`, `request-hash.ts` | `insert … on conflict do nothing`, `CheckoutInput::requestHash` | Unit (hash sama persis dengan referensi Next.js), live | PARITY VERIFIED |
+| Request bersamaan: 3 proses identik → 1 order, 1 tagihan, 1 audit; 2 proses isi berbeda → 1 menang, 1 konflik | `batch1-pos.test.ts` | sama | Live, proses PHP terpisah yang mulai bersamaan | PARITY VERIFIED |
+| Token guest: 32 byte acak, hanya hash di DB, cookie HttpOnly per order di path `/order/status`, SameSite Lax, Secure di production, 3 hari; retry menerbitkan token baru; konflik tidak memutar token | `tokens.ts`, `api/orders` | `GuestTokens`, `CheckoutController` | Unit, live, E2E | PARITY VERIFIED |
+| Halaman status hanya dengan cookie pemilik, data publik saja, `no-referrer`, `noindex`, `no-store`, hitung mundur batas bayar, polling saat pending | `order/status/[id]` | `OrderStatusController`, `order/status.tsx` | E2E, browser | PARITY VERIFIED, lihat perbedaan 13 |
+| Kiosk: hanya dine in/takeaway, tanpa nomor HP, tanpa cookie token, layar konfirmasi kode lalu kembali ke menu | `kiosk/page.tsx` | `kiosk/index.tsx` | E2E, browser | PARITY VERIFIED |
+| Checkout publik: 415 non-JSON, 413 > 64 KB, 400 body/channel salah (channel `pos` tidak bisa dipilih), 403 origin asing, 419 tanpa CSRF, 422 invalid, 409 konflik, 201/200 | `api/orders/route.ts` | `CheckoutController` | E2E | PARITY VERIFIED |
+| Rate limit checkout: perangkat 6, kiosk 40, IP 60 (atau 120 per outlet bila IP tidak diketahui), retry 120 per 10 menit; 429 + `Retry-After`; retry order lama tidak memakai kuota | `checkout-limits.ts` | `CheckoutLimits`, `RateLimits` | Unit, E2E | PARITY VERIFIED |
+| Kedaluwarsa order belum dibayar memakai `public.expire_pending_orders` dan job pg_cron yang sudah ada (tepat satu job) | `0004_ops_functions.sql` | tidak ada job baru | Live | PARITY VERIFIED |
+| POS: hanya staf dengan `order.create` di outlet itu; company lain `not_found`; owner 403; barista/kasir boleh | `posCheckoutAction` | `PosController::store` | Live, E2E, browser | PARITY VERIFIED |
+| Terminal POS: cari, kategori, picker modifier, keranjang samping (desktop) atau sheet (HP/tablet), tipe pesanan, idempotency key direset saat isi berubah atau konflik | `pos-terminal.tsx` | `pos/index.tsx` | Browser (HP, tablet, desktop) | PARITY VERIFIED untuk lingkup M3, lihat perbedaan 14 |
+| Daftar pesanan hari ini (menunggu bayar, diproses, semua), cari kode/nomor/nama, detail dengan riwayat audit, struk 76 mm "BELUM DIBAYAR" | `pos/orders/*`, `order-detail.tsx` | `PosOrderController`, `pos/orders/*.tsx` | Live, E2E, browser | PARITY VERIFIED |
+| Order belum dibayar tidak masuk daftar "Diproses" (antrean produksi) | `listOrders` | `OrderEngine::list` | Live | PARITY VERIFIED |
+| Audit `order.created` tanpa token; sinyal realtime tanpa data di `outlet-orders:<id>` di dalam transaksi | `createOrder`, `realtime.ts` | sama | Live | PARITY VERIFIED |
+| Isolasi company dan izin outlet untuk detail/daftar/struk (404 tanpa bocor info) | `getOrderDetail` | `OrderEngine::detail` | Live, E2E | PARITY VERIFIED |
+
+Pengukuran (laptop development ke Supabase dev eu-west-1, bukan angka production): checkout membutuhkan 12 query, tetap sama untuk 1, 5, maupun 20 baris item (tidak ada N+1). Retry 9 query, status guest 4, detail staf 6, daftar 2, menu POS 5. Satu round-trip query dari laptop ±0,59 detik, jadi checkout ±7 detik di laptop hampir seluruhnya waktu jaringan. Angka production harus diukur ulang dari server yang satu region dengan database.
 
 ## Perbedaan yang disengaja
 
@@ -76,8 +105,12 @@ Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 8. **Reset password staf oleh admin (GL-5)** ditambahkan dan belum ada di Next.js. Aturannya sama dengan aksi user lain: perlu `user.manage` company-wide, tidak untuk akun sendiri, akun target harus didominasi, link hanya tampil sekali, dan token tidak masuk audit.
 9. **Idle timeout sesi** 7 hari (`SESSION_LIFETIME=10080`). Next.js praktis tidak punya idle timeout.
 10. **Harga kosong ditolak.** Zod mengubah teks kosong menjadi 0, jadi Next.js menerima harga kosong sebagai Rp 0. Laravel menolaknya dengan pesan "Harga harus berupa angka." Harga Rp 0 tetap bisa diisi secara eksplisit.
-11. **Checkout di menu customer belum aktif.** Next.js sudah punya checkout dan pembayaran. Di Laravel, checkout dibangun di M3 bersama order engine. Keranjang menyatakannya terus terang, dan tidak ada order atau pembayaran yang dibuat.
+11. **Checkout bertahap.** Selama M2 checkout belum aktif. Sejak M3 checkout aktif, tetapi pembayaran tunai baru dikonfirmasi di M4. Sampai saat itu order tetap menunggu pembayaran dan tidak masuk antrean.
 12. **Error tak terduga pada aksi admin** tampil sebagai pesan "Terjadi kesalahan. Coba lagi.", sama dengan `runAction` Next.js, bukan halaman 500.
+13. **Status guest tanpa realtime.** Next.js memperbarui halaman status lewat Supabase Realtime. Di M3 Laravel halaman memuat ulang status tiap 15 detik selama belum selesai. Realtime menyusul di M4 bersama KDS. Sinyal realtime sudah dikirim dari order engine.
+14. **POS tanpa tombol bayar tunai.** Tombol "Bayar tunai & proses", uang diterima/kembalian, dan peringatan sesi kas ada di M4. Di M3 hanya ada "Simpan pesanan (bayar di kasir)" dengan keterangan bahwa konfirmasi tunai belum aktif. Menu Kas dan KDS belum tampil di navigasi POS.
+15. **Kosongkan keranjang POS minta konfirmasi** dan tombol hapus item dijauhkan dari tombol jumlah agar tidak salah tekan. Next.js langsung mengosongkan.
+16. **Normalisasi id.** Laravel mengubah UUID dan idempotency key ke huruf kecil sebelum disimpan dan di-hash. Client bawaan selalu mengirim huruf kecil, jadi hasilnya sama dengan Next.js.
 
 ## Test Next.js yang tidak dipindahkan
 
@@ -85,7 +118,9 @@ Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 |---|---|
 | `batch1-security` "cookie session ditulis httpOnly oleh client server" | Diganti: Laravel tidak menulis cookie Supabase. Pemeriksaan cookie sesi Laravel ada di `RoutesTest` |
 | `routes.test.ts` 3b dan 4b (memanggil Supabase langsung) | Menguji Supabase, bukan aplikasi. Perilaku yang sama tercakup di test login aplikasi |
-| `routes.test.ts` /order "Menu belum tersedia", /kiosk | Modul M2 dan M3. Untuk sekarang hanya halaman "belum tersedia" yang diuji |
+| `routes.test.ts` /order "Menu belum tersedia", /kiosk | Tercakup di M3: E2E `OrdersTest` (kiosk tanpa outlet, outlet tak dikenal) dan browser (menu kosong di /order dan /kiosk) |
+| `orders.test.ts` bagian pembayaran cash, nomor antrean, KDS, pembatalan, approval, realtime pembayaran | Lingkup M4. Dipindahkan saat M4 |
+| `batch1-pos.test.ts` "retry identik mengembalikan … nomor yang sama" (bagian pembayaran) | Bagian order tercakup di M3; bagian konfirmasi pembayaran ulang di M4 |
 
 Jumlah test Next.js terkait M1: 87 (unit 34, integrasi 36, E2E 17). Semua perilakunya tercakup kecuali yang tercantum di atas.
 

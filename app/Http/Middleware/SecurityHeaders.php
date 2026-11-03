@@ -20,7 +20,10 @@ class SecurityHeaders
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        // Halaman tertentu (status pesanan guest) memasang kebijakan yang lebih ketat.
+        if (! $response->headers->has('Referrer-Policy')) {
+            $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        }
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=(), browsing-topics=()');
         $response->headers->set('Content-Security-Policy', $this->contentSecurityPolicy($nonce));

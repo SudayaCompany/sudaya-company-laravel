@@ -51,7 +51,7 @@ const SHORTCUTS: Shortcut[] = [
     description: "Input pesanan customer & pembayaran",
     icon: ShoppingBagIcon,
     permission: "order.create",
-    href: null,
+    href: "/pos",
   },
   {
     label: "Barista Display",

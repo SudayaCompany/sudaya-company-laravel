@@ -4,6 +4,7 @@ namespace Tests\Live;
 
 use App\Models\User;
 use App\Services\Auth\AccessLoader;
+use App\Services\Security\LoginLimits;
 use App\Services\Security\RateLimits;
 use App\Services\Seed\InitialData;
 use Illuminate\Http\Client\PendingRequest;
@@ -146,6 +147,15 @@ final class LiveContext
     public function cleanup(): void
     {
         if ($this->companyIds !== []) {
+            // Data transaksi merujuk users (created_by/confirmed_by), jadi dihapus sebelum
+            // akun Auth. order_items dan order_item_modifiers ikut cascade.
+            DB::table('payments')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('orders')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('order_number_counters')
+                ->whereIn('outlet_id', DB::table('outlets')->whereIn('company_id', $this->companyIds)->select('id'))
+                ->delete();
+            DB::table('customers')->whereIn('company_id', $this->companyIds)->delete();
+            // Setelah orders: pg_cron bisa menulis `order.expired` selama order pending masih ada.
             // Audit log append-only: DELETE hanya dengan flag maintenance di transaksi
             // yang sama, dan dibatasi ke company test run ini.
             DB::transaction(function () {
@@ -155,9 +165,13 @@ final class LiveContext
         }
 
         // ON DELETE CASCADE ke public.users lalu user_roles.
-        $authIds = DB::table('auth.users')->where('email', 'like', $this->emailPrefix.'%')->pluck('id');
-        foreach ($authIds as $id) {
-            $this->admin()->delete("/auth/v1/admin/users/{$id}")->throw();
+        $authUsers = DB::table('auth.users')->where('email', 'like', $this->emailPrefix.'%')->get(['id', 'email']);
+        foreach ($authUsers as $user) {
+            // Counter login akun test (tanpa IP tepercaya di lingkungan test), dari jalur login mana pun.
+            foreach (LoginLimits::rules($user->email, null) as $rule) {
+                $this->trackRateLimitKey($rule['key']);
+            }
+            $this->admin()->delete("/auth/v1/admin/users/{$user->id}")->throw();
         }
 
         if ($this->companyIds !== []) {

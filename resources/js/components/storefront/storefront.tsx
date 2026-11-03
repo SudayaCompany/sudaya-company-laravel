@@ -1,0 +1,661 @@
+import { Head, router } from "@inertiajs/react";
+import {
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  CoffeeIcon,
+  Loader2Icon,
+  MapPinIcon,
+  MinusIcon,
+  PlusIcon,
+  ShoppingBagIcon,
+  Trash2Icon,
+  UtensilsIcon,
+} from "lucide-react";
+import { createContext, use, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
+
+import { Brand } from "@/components/brand";
+import { ItemNotesField, ModifierGroupField, QuantityStepper, useProductSelection } from "@/components/catalog/product-options";
+import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { type CartLine, type CartQuote, requestQuote, useCartLines } from "@/lib/catalog/cart";
+import { MAX_LINE_QUANTITY, type PricingProduct } from "@/lib/catalog/pricing";
+import { formatPriceDelta, formatRupiah } from "@/lib/format";
+import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, PAYMENT_OPTIONS, placeOrder, type OrderType } from "@/lib/orders";
+import { cn } from "@/lib/utils";
+
+export type StorefrontProduct = PricingProduct & {
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  categoryId: string;
+  defaultModifierIds: string[];
+};
+
+export type Storefront = {
+  outlet: { id: string; code: string; name: string };
+  brand: { id: string; name: string };
+  categories: { id: string; name: string; slug: string }[];
+  products: StorefrontProduct[];
+};
+
+export type StorefrontMode = "order" | "kiosk";
+type PublicChannel = "qr_table" | "qr_counter" | "website" | "kiosk";
+
+type CartContextValue = {
+  outlet: string;
+  channel: PublicChannel;
+  mode: StorefrontMode;
+  table: string | null;
+  lines: CartLine[];
+  quote: CartQuote | null;
+  add: (line: CartLine) => void;
+  setQuantity: (index: number, quantity: number) => void;
+  remove: (index: number) => void;
+  clear: () => void;
+};
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+function useCart() {
+  const cart = use(CartContext);
+  if (!cart) throw new Error("useCart harus di dalam CartProvider");
+  return cart;
+}
+
+const sameLine = (a: CartLine, b: CartLine) =>
+  a.productId === b.productId && (a.notes ?? "") === (b.notes ?? "") && [...a.modifierIds].sort().join() === [...b.modifierIds].sort().join();
+
+function CartProvider({
+  outlet,
+  channel,
+  mode,
+  table,
+  children,
+}: {
+  outlet: string;
+  channel: PublicChannel;
+  mode: StorefrontMode;
+  table: string | null;
+  children: React.ReactNode;
+}) {
+  const { lines, save } = useCartLines(mode === "kiosk" ? `kiosk:${outlet}` : outlet);
+  const linesKey = JSON.stringify(lines);
+  const [quote, setQuote] = useState<{ for: string; value: CartQuote } | null>(null);
+
+  // Hitung ulang di server setiap isi keranjang berubah.
+  useEffect(() => {
+    if (lines.length === 0) return;
+    let active = true;
+    requestQuote(outlet, lines).then((value) => active && setQuote({ for: linesKey, value }));
+    return () => {
+      active = false;
+    };
+    // linesKey mewakili isi `lines`.
+  }, [outlet, linesKey]);
+
+  const value = useMemo<CartContextValue>(
+    () => ({
+      outlet,
+      channel,
+      mode,
+      table,
+      lines,
+      quote: lines.length === 0 ? null : quote?.for === linesKey ? quote.value : null,
+      add: (line) => {
+        const existing = lines.findIndex((l) => sameLine(l, line));
+        save(
+          existing === -1
+            ? [...lines, line]
+            : lines.map((l, i) => (i === existing ? { ...l, quantity: Math.min(l.quantity + line.quantity, MAX_LINE_QUANTITY) } : l)),
+        );
+      },
+      setQuantity: (index, quantity) => {
+        if (quantity < 1) return save(lines.filter((_, i) => i !== index));
+        save(lines.map((l, i) => (i === index ? { ...l, quantity: Math.min(quantity, MAX_LINE_QUANTITY) } : l)));
+      },
+      remove: (index) => save(lines.filter((_, i) => i !== index)),
+      clear: () => save([]),
+    }),
+    [outlet, channel, mode, table, lines, linesKey, quote, save],
+  );
+
+  return <CartContext value={value}>{children}</CartContext>;
+}
+
+/** Menu customer untuk QR, web, dan kiosk. Semua checkout lewat order engine yang sama. */
+export function StorefrontView({
+  storefront,
+  table,
+  channel,
+  mode = "order",
+}: {
+  storefront: Storefront;
+  table: string | null;
+  channel: PublicChannel;
+  mode?: StorefrontMode;
+}) {
+  const kiosk = mode === "kiosk";
+  const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
+  const sections = storefront.categories
+    .map((category) => ({ category, products: storefront.products.filter((p) => p.categoryId === category.id) }))
+    .filter((s) => s.products.length > 0);
+
+  return (
+    <CartProvider outlet={storefront.outlet.code} channel={channel} mode={mode} table={table}>
+      <Head title={kiosk ? "Kiosk" : "Menu"} />
+      <div className="flex min-h-svh flex-col bg-background">
+        <header className="relative overflow-hidden bg-neutral-950 text-white">
+          <div className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-brand/20 blur-3xl" aria-hidden />
+          <div className="relative mx-auto w-full max-w-5xl px-4 pt-6 pb-8">
+            <Brand tone="light" className="text-lg" />
+            <h1 className={cn("mt-6 font-semibold tracking-tight text-balance", kiosk ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl")}>
+              {kiosk ? "Pesan di sini, bayar di kasir" : "Mau ngopi apa hari ini?"}
+            </h1>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-400">
+              <span className="inline-flex items-center gap-1">
+                <MapPinIcon className="size-3.5" aria-hidden /> {storefront.outlet.name}
+              </span>
+              {table ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white">
+                  <UtensilsIcon className="size-3.5" aria-hidden /> Meja {table}
+                </span>
+              ) : null}
+            </p>
+          </div>
+        </header>
+
+        {sections.length === 0 ? (
+          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+            <EmptyState icon={CoffeeIcon} title="Menu belum tersedia" description="Menu outlet ini sedang disiapkan. Silakan pesan langsung ke kasir." />
+          </main>
+        ) : (
+          <>
+            <nav aria-label="Kategori menu" className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
+              <div className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none]">
+                {sections.map(({ category }) => (
+                  <a
+                    key={category.id}
+                    href={`#kategori-${category.slug}`}
+                    className={cn("shrink-0 rounded-full border font-medium transition-colors hover:border-foreground", kiosk ? "px-6 py-3 text-lg" : "px-4 py-1.5 text-sm")}
+                  >
+                    {category.name}
+                  </a>
+                ))}
+              </div>
+            </nav>
+
+            <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 pt-6 pb-32">
+              {sections.map(({ category, products }) => (
+                <section key={category.id} id={`kategori-${category.slug}`} className="scroll-mt-20">
+                  <h2 className={cn("mb-3 font-semibold tracking-tight", kiosk ? "text-2xl" : "text-lg")}>{category.name}</h2>
+                  <div className={cn("grid gap-3", kiosk ? "grid-cols-2 gap-4 md:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4")}>
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} large={kiosk} onOpen={() => setOpenProduct(product)} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </main>
+          </>
+        )}
+
+        <ProductSheet product={openProduct} onOpenChange={(open) => !open && setOpenProduct(null)} />
+        <CartBar />
+      </div>
+    </CartProvider>
+  );
+}
+
+function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; large: boolean; onOpen: () => void }) {
+  const soldOut = !product.isAvailable;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group flex flex-col overflow-hidden rounded-2xl border bg-card text-left transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      aria-label={`${product.name}, ${formatRupiah(product.price)}${soldOut ? ", sold out" : ""}`}
+    >
+      <div className="relative aspect-square bg-muted">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt="" loading="lazy" className={cn("size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]", soldOut && "grayscale")} />
+        ) : (
+          <CoffeeIcon className="absolute inset-0 m-auto size-10 text-muted-foreground/40" aria-hidden />
+        )}
+        {soldOut ? (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/45">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-neutral-950">Sold out</span>
+          </span>
+        ) : null}
+      </div>
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <p className={cn("line-clamp-2 font-medium", large ? "text-lg" : "text-sm")}>{product.name}</p>
+        <div className="mt-auto flex min-h-8 items-center justify-between pt-1">
+          <span className={cn("font-semibold tabular-nums", large ? "text-lg" : "text-sm")}>{formatRupiah(product.price)}</span>
+          {soldOut ? null : (
+            <span className="flex size-7 items-center justify-center rounded-full bg-neutral-950 text-white transition-colors group-hover:bg-brand group-hover:text-brand-foreground">
+              <PlusIcon className="size-4" aria-hidden />
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ProductSheet({ product, onOpenChange }: { product: StorefrontProduct | null; onOpenChange: (open: boolean) => void }) {
+  const { mode } = useCart();
+  return (
+    <Sheet open={product !== null} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 overflow-hidden rounded-t-2xl p-0", mode === "kiosk" ? "max-w-2xl" : "max-w-lg")}>
+        {product ? <ProductDetail key={product.id} product={product} onDone={() => onOpenChange(false)} /> : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone: () => void }) {
+  const cart = useCart();
+  const large = cart.mode === "kiosk";
+  const selection = useProductSelection(product);
+  const { priced, quantity } = selection;
+  const [adding, startAdding] = useTransition();
+
+  function add() {
+    const line = { productId: product.id, modifierIds: selection.selected, quantity, notes: selection.notes.trim() || null };
+    startAdding(async () => {
+      // Validasi ke server sebelum masuk keranjang (harga dan ketersediaan terbaru).
+      const quote = await requestQuote(cart.outlet, [line]);
+      const result = quote.ok ? quote.lines[0] : null;
+      if (!result?.ok) {
+        toast.error(result ? result.error : quote.ok ? "Gagal menambahkan." : quote.error);
+        return;
+      }
+      cart.add(line);
+      toast.success(`${product.name} ditambahkan.`);
+      onDone();
+    });
+  }
+
+  return (
+    <div className="flex max-h-[92svh] flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="relative aspect-4/3 bg-muted">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} className="size-full object-cover" />
+          ) : (
+            <CoffeeIcon className="absolute inset-0 m-auto size-12 text-muted-foreground/50" aria-hidden />
+          )}
+        </div>
+        <div className="flex flex-col gap-1 p-4">
+          <SheetTitle className={large ? "text-2xl" : "text-xl"}>{product.name}</SheetTitle>
+          {product.description ? <SheetDescription>{product.description}</SheetDescription> : <SheetDescription className="sr-only">Detail produk</SheetDescription>}
+          <p className={cn("mt-1 font-semibold tabular-nums", large && "text-lg")}>{formatRupiah(product.price)}</p>
+          {!product.isAvailable ? (
+            <Badge variant="destructive" className="mt-1 w-fit">
+              Sold out
+            </Badge>
+          ) : null}
+        </div>
+
+        {product.groups.map((group) => (
+          <ModifierGroupField
+            key={group.id}
+            group={group}
+            large={large}
+            selected={selection.selected}
+            disabled={!product.isAvailable}
+            onChange={(ids) => selection.setGroupSelection(group, ids)}
+          />
+        ))}
+        <ItemNotesField value={selection.notes} onChange={selection.setNotes} disabled={!product.isAvailable} />
+      </div>
+
+      <SheetFooter className="flex-row items-center gap-3 border-t bg-background p-4">
+        <QuantityStepper value={quantity} onChange={selection.setQuantity} disabled={!product.isAvailable} large={large} />
+        <Button size="lg" className={cn("flex-1", large ? "h-14 text-lg" : "h-11")} disabled={!priced.ok || adding} onClick={add}>
+          {adding ? <Loader2Icon className="animate-spin" /> : null}
+          {!product.isAvailable ? "Sold out" : priced.ok ? `Tambah · ${formatRupiah(priced.unitPrice * quantity)}` : priced.error}
+        </Button>
+      </SheetFooter>
+    </div>
+  );
+}
+
+function CartBar() {
+  const cart = useCart();
+  const [open, setOpen] = useState(false);
+  const [placed, setPlaced] = useState<{ reference: string; total: number } | null>(null);
+  const kiosk = cart.mode === "kiosk";
+
+  return (
+    <>
+      {cart.lines.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className={cn(
+              "mx-auto flex w-full max-w-lg items-center gap-3 rounded-2xl bg-neutral-950 px-4 text-left text-white shadow-xl transition-transform active:scale-[0.99]",
+              kiosk ? "max-w-2xl py-5" : "py-3",
+            )}
+          >
+            <span className={cn("flex items-center justify-center rounded-xl bg-brand text-brand-foreground", kiosk ? "size-14" : "size-10")}>
+              <ShoppingBagIcon className={kiosk ? "size-7" : "size-5"} aria-hidden />
+            </span>
+            <span className="flex-1">
+              <span className={cn("block font-medium", kiosk ? "text-lg" : "text-sm")}>{cart.lines.reduce((sum, l) => sum + l.quantity, 0)} item</span>
+              <span className={cn("block text-neutral-400", kiosk ? "text-sm" : "text-xs")}>Lihat keranjang</span>
+            </span>
+            <span className={cn("font-semibold tabular-nums", kiosk ? "text-xl" : "text-base")}>
+              {cart.quote?.ok ? formatRupiah(cart.quote.total) : <Loader2Icon className="size-4 animate-spin" />}
+            </span>
+          </button>
+        </div>
+      ) : null}
+      <CartSheet open={open} onOpenChange={setOpen} onKioskPlaced={setPlaced} />
+      {placed ? <KioskConfirmation {...placed} onDone={() => setPlaced(null)} /> : null}
+    </>
+  );
+}
+
+function CartSheet({
+  open,
+  onOpenChange,
+  onKioskPlaced,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onKioskPlaced: (placed: { reference: string; total: number }) => void;
+}) {
+  const cart = useCart();
+  const [step, setStep] = useState<"cart" | "checkout">("cart");
+  const quote = cart.quote;
+  const kiosk = cart.mode === "kiosk";
+  const canCheckout = quote?.ok === true && quote.lines.every((l) => l.ok) && cart.lines.length > 0;
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setStep("cart");
+      }}
+    >
+      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 rounded-t-2xl p-0", kiosk ? "max-w-2xl" : "max-w-lg")}>
+        {step === "cart" ? (
+          <>
+            <SheetHeader className="border-b p-4">
+              <SheetTitle className={kiosk ? "text-2xl" : undefined}>Keranjang</SheetTitle>
+              <SheetDescription>Harga dihitung ulang dari menu terbaru.</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {quote && !quote.ok ? (
+                <p role="alert" className="p-4 text-sm text-destructive">
+                  {quote.error}
+                </p>
+              ) : null}
+              {cart.lines.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Keranjang kosong.</p> : null}
+              <ul className="flex flex-col divide-y">
+                {cart.lines.map((line, index) => {
+                  const quoted = quote?.ok ? quote.lines[index] : null;
+                  return (
+                    <li key={`${line.productId}:${line.modifierIds.join()}:${line.notes ?? ""}`} className="flex items-start gap-3 p-4">
+                      <div className="min-w-0 flex-1">
+                        <p className={cn("font-medium", kiosk && "text-lg")}>{quoted?.name ?? "Memuat…"}</p>
+                        {quoted?.ok && quoted.modifiers.length ? (
+                          <p className="text-xs text-muted-foreground">
+                            {quoted.modifiers.map((m) => `${m.name}${m.priceDelta ? ` (${formatPriceDelta(m.priceDelta)})` : ""}`).join(", ")}
+                          </p>
+                        ) : null}
+                        {line.notes ? <p className="text-xs text-muted-foreground italic">“{line.notes}”</p> : null}
+                        {quoted && !quoted.ok ? <p className="text-xs text-destructive">{quoted.error}</p> : null}
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button size={kiosk ? "icon-lg" : "icon-sm"} variant="outline" aria-label="Kurangi" onClick={() => cart.setQuantity(index, line.quantity - 1)}>
+                            <MinusIcon />
+                          </Button>
+                          <span className="w-6 text-center text-sm tabular-nums">{line.quantity}</span>
+                          <Button
+                            size={kiosk ? "icon-lg" : "icon-sm"}
+                            variant="outline"
+                            aria-label="Tambah"
+                            disabled={line.quantity >= MAX_LINE_QUANTITY}
+                            onClick={() => cart.setQuantity(index, line.quantity + 1)}
+                          >
+                            <PlusIcon />
+                          </Button>
+                          <Button size={kiosk ? "icon-lg" : "icon-sm"} variant="ghost" aria-label={`Hapus ${quoted?.name ?? "item"}`} onClick={() => cart.remove(index)}>
+                            <Trash2Icon className="text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium tabular-nums">{quoted?.ok ? formatRupiah(quoted.lineTotal) : "—"}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            <SheetFooter className="gap-2 border-t p-4">
+              <div className="flex items-center justify-between text-base font-semibold">
+                <span>Total</span>
+                <span className="tabular-nums">
+                  {quote?.ok ? formatRupiah(quote.total) : cart.lines.length ? <Loader2Icon className="size-4 animate-spin" /> : formatRupiah(0)}
+                </span>
+              </div>
+              <Button size="lg" className={kiosk ? "h-14 text-lg" : "h-11"} disabled={!canCheckout} onClick={() => setStep("checkout")}>
+                Lanjut ke checkout
+              </Button>
+            </SheetFooter>
+          </>
+        ) : (
+          <CheckoutForm
+            onBack={() => setStep("cart")}
+            onPlaced={(result) => {
+              onOpenChange(false);
+              setStep("cart");
+              if (kiosk) onKioskPlaced(result);
+            }}
+          />
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (result: { reference: string; total: number }) => void }) {
+  const cart = useCart();
+  const kiosk = cart.mode === "kiosk";
+  const [type, setType] = useState<OrderType>(cart.table ? "dine_in" : "takeaway");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, startSubmit] = useTransition();
+  // Satu key per percobaan checkout: klik ganda atau retry menghasilkan order yang sama.
+  const idempotencyKey = useRef<string | null>(null);
+  const types: OrderType[] = kiosk ? ["dine_in", "takeaway"] : ["dine_in", "takeaway", "delivery"];
+  const total = cart.quote?.ok ? cart.quote.total : null;
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const text = (name: string) => String(form.get(name) ?? "").trim() || undefined;
+    idempotencyKey.current ??= crypto.randomUUID();
+    setError(null);
+    startSubmit(async () => {
+      const result = await placeOrder({
+        outlet: cart.outlet,
+        channel: cart.channel,
+        checkout: {
+          idempotencyKey: idempotencyKey.current,
+          type,
+          customerName: text("customerName"),
+          customerPhone: text("customerPhone"),
+          tableNumber: type === "dine_in" ? text("tableNumber") : undefined,
+          locationNote: type === "dine_in" ? text("locationNote") : undefined,
+          deliveryAddress: type === "delivery" ? text("deliveryAddress") : undefined,
+          notes: text("notes"),
+          paymentMethod: "cash",
+          lines: cart.lines.map((l) => ({ productId: l.productId, modifierIds: l.modifierIds, quantity: l.quantity, notes: l.notes ?? undefined })),
+        },
+      });
+      if (!result.ok) {
+        if (result.error === ORDER_CONFLICT_MESSAGE) idempotencyKey.current = null;
+        setError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      idempotencyKey.current = null;
+      cart.clear();
+      onPlaced(result);
+      if (!kiosk) router.visit(`/order/status/${result.orderId}`);
+    });
+  }
+
+  const fieldClass = kiosk ? "h-12 text-lg" : "h-10";
+
+  return (
+    <form onSubmit={submit} className="flex max-h-[92svh] min-h-0 flex-col" noValidate>
+      <SheetHeader className="border-b p-4">
+        <div className="flex items-center gap-2">
+          <Button type="button" size="icon-sm" variant="ghost" onClick={onBack} aria-label="Kembali ke keranjang">
+            <ArrowLeftIcon />
+          </Button>
+          <SheetTitle className={kiosk ? "text-2xl" : undefined}>Checkout</SheetTitle>
+        </div>
+        <SheetDescription>Isi data pemesan. Pembayaran dikonfirmasi kasir.</SheetDescription>
+      </SheetHeader>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">Tipe pesanan</legend>
+          <div className={cn("grid gap-2", types.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+            {types.map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={type === t}
+                onClick={() => setType(t)}
+                className={cn(
+                  "rounded-xl border px-3 text-sm font-medium transition-colors",
+                  kiosk ? "py-4 text-lg" : "py-2.5",
+                  type === t ? "border-neutral-950 bg-neutral-950 text-white" : "hover:border-foreground",
+                )}
+              >
+                {ORDER_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        {type === "dine_in" ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tableNumber">Nomor meja{kiosk ? " (opsional)" : ""}</Label>
+              <Input id="tableNumber" name="tableNumber" defaultValue={cart.table ?? ""} maxLength={10} className={fieldClass} placeholder="mis. T03" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="locationNote">
+                Lokasi/keterangan <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+              </Label>
+              <Input id="locationNote" name="locationNote" maxLength={100} className={fieldClass} placeholder="mis. teras, dekat jendela" />
+            </div>
+          </>
+        ) : null}
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="customerName">Nama pemesan</Label>
+          <Input id="customerName" name="customerName" required minLength={2} maxLength={60} autoComplete="name" className={fieldClass} />
+        </div>
+
+        {kiosk ? null : (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="customerPhone">
+              Nomor HP {type === "delivery" ? "" : <span className="text-xs font-normal text-muted-foreground">(opsional)</span>}
+            </Label>
+            <Input id="customerPhone" name="customerPhone" type="tel" inputMode="tel" autoComplete="tel" className={fieldClass} placeholder="0812xxxxxxx" />
+          </div>
+        )}
+
+        {type === "delivery" ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="deliveryAddress">Alamat lengkap</Label>
+            <Textarea id="deliveryAddress" name="deliveryAddress" maxLength={300} rows={3} autoComplete="street-address" placeholder="Jalan, nomor, patokan" />
+            {/* Belum ada aturan ongkir resmi, jadi biaya antar tidak ditampilkan atau dihitung. */}
+            <p className="text-xs text-muted-foreground">Ongkir & waktu antar dikonfirmasi langsung oleh outlet.</p>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="notes">
+            Catatan pesanan <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+          </Label>
+          <Textarea id="notes" name="notes" maxLength={300} rows={2} />
+        </div>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">Pembayaran</legend>
+          {PAYMENT_OPTIONS.map((option) => (
+            <label
+              key={option.method}
+              className={cn("flex items-center gap-3 rounded-xl border p-3 text-sm", option.available ? "cursor-pointer has-checked:border-neutral-950" : "cursor-not-allowed opacity-50")}
+            >
+              <input type="radio" name="paymentMethod" value={option.method} defaultChecked={option.method === "cash"} disabled={!option.available} className="accent-neutral-950" />
+              <span className="flex-1 font-medium">{option.label}</span>
+              <span className="text-xs text-muted-foreground">{option.note}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        {error ? (
+          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
+
+      <SheetFooter className="border-t p-4">
+        <Button type="submit" size="lg" className={kiosk ? "h-14 text-lg" : "h-11"} disabled={submitting || total === null}>
+          {submitting ? <Loader2Icon className="animate-spin" /> : null}
+          {submitting ? "Mengirim…" : `Kirim pesanan · ${total === null ? "…" : formatRupiah(total)}`}
+        </Button>
+      </SheetFooter>
+    </form>
+  );
+}
+
+/** Layar konfirmasi kiosk; kembali ke menu otomatis untuk customer berikutnya. */
+function KioskConfirmation({ reference, total, onDone }: { reference: string; total: number; onDone: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 45_000);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+
+  return (
+    // z-[60]: di atas sheet keranjang (z-50) yang masih beranimasi menutup.
+    <div role="dialog" aria-modal="true" aria-labelledby="kiosk-done" className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-950/95 p-6 text-white">
+      <div className="flex w-full max-w-xl flex-col items-center gap-6 text-center">
+        <CheckCircle2Icon className="size-16 text-success" aria-hidden />
+        <h2 id="kiosk-done" className="text-3xl font-semibold">
+          Pesanan diterima
+        </h2>
+        <div className="rounded-2xl bg-white/10 px-8 py-5">
+          <p className="text-sm text-neutral-400">Kode pesanan</p>
+          <p className="font-mono text-5xl font-bold tracking-widest">{reference}</p>
+        </div>
+        <p className="text-lg">
+          Status pembayaran: <span className="font-semibold text-brand">Menunggu pembayaran</span>
+        </p>
+        <p className="text-neutral-300">
+          Silakan bayar <span className="font-semibold text-white">{formatRupiah(total)}</span> di kasir dengan menyebutkan kode di atas. Nomor antrean diberikan setelah
+          pembayaran.
+        </p>
+        <Button size="lg" className="h-14 w-full max-w-xs bg-brand text-lg text-brand-foreground hover:bg-brand/90" onClick={onDone}>
+          Selesai
+        </Button>
+      </div>
+    </div>
+  );
+}

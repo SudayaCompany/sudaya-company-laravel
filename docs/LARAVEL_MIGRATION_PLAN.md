@@ -33,7 +33,7 @@ Owner menetapkan urutan M1–M9 di bawah. Roadmap lama (2 November) membagi modu
 | M0 | Fondasi Laravel, Inertia, koneksi Supabase, health check | - | M0 | Selesai |
 | M1 | Login/logout, Supabase Auth, sesi, user management, role/permission, scope company/outlet, audit, rate limit login, header keamanan | `lib/auth`, `lib/security`, `lib/supabase`, `login`, `auth`, `admin/users`, `admin/roles`, `admin/audit` | M1 + sebagian M7 | **DONE — Development Verified** (3 November) |
 | M2 | Kategori, produk, harga, modifier, foto, sold out, menu customer `/order` dengan keranjang (checkout di M3) | `lib/catalog`, `admin/products`, `admin/categories`, `admin/modifiers`, `order` | M2 | **DONE — Development Verified** (3 November) |
-| M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | Belum mulai |
+| M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | **Siap review** (3 November, Development Verified, belum di-commit) |
 | M4 | Pembayaran cash, antrean terpadu, nomor antrean, KDS, realtime atau polling | `lib/orders` (pembayaran, KDS), `kds` | sebagian M3 | Belum mulai |
 | M5 | Stok masuk/keluar, opname, waste, ledger, ketersediaan | `lib/inventory` | M5 | Belum mulai |
 | M6 | Sesi kas, refund, rekonsiliasi, laporan, dashboard | `lib/cash`, `lib/reports` | M4 | Belum mulai |
@@ -84,6 +84,18 @@ Bila Supabase tidak terjangkau dan token sudah kedaluwarsa, server menjawab 503 
 - Riwayat Inertia dienkripsi dan dibersihkan saat logout, agar tombol Back di perangkat outlet tidak menampilkan data akun sebelumnya.
 - Log query tanpa nilai parameter.
 
+## M3: yang dibangun
+
+**Order engine.** `OrderEngine::create` dipakai semua channel. Harga dihitung ulang dari DB lewat `Storefront::quote`. Order, item, modifier, tagihan `payments` berstatus `pending`, audit `order.created`, dan sinyal realtime ditulis dalam satu transaksi. Duplikat dicegah oleh `insert … on conflict (outlet_id, idempotency_key) do nothing`. Retry dibandingkan memakai `request_hash`, yang algoritmanya sama persis dengan Next.js. Tidak ada tabel atau migration baru.
+
+**Kedaluwarsa.** `expires_at = now() + TTL outlet` dihitung dengan waktu DB. Pembatalan tetap dikerjakan job pg_cron `sudaya-expire-pending-orders` yang sudah ada. Laravel tidak menambah scheduler.
+
+**Checkout publik.** `POST /order/checkout` dipanggil lewat JSON fetch dengan CSRF, dan origin diperiksa. Rate limit per perangkat (cookie `sdy_did`) dan per IP tepercaya atau per outlet. Token status disimpan di cookie HttpOnly per order, kecuali di kiosk.
+
+**Halaman.** `/order` (QR/web), `/order/status/{id}`, `/kiosk`, `/pos`, `/pos/orders`, `/pos/orders/{id}`, `/pos/orders/{id}/receipt`. Status guest dan daftar staf memakai polling sampai realtime M4.
+
+**Belum di M3 (sengaja).** Konfirmasi tunai, nomor antrean, KDS, sesi kas, pembatalan, dan realtime browser. Order M3 tetap `pending_payment` sampai M4.
+
 ## Pengujian
 
 | Lapis | Perintah | Isi |
@@ -97,7 +109,9 @@ Fixture memakai prefix `test-<runId>-` dan email `sudaya-test-<runId>-`, sama de
 
 ## Kecepatan
 
-M1 selesai dalam satu sesi kerja (2–3 November), termasuk test dan dokumen. Bagian terlama adalah test live, karena latensi laptop ke database eu-west-1 tinggi: 2,6 detik untuk koneksi dan 0,6 detik per query. Belum ada perkiraan tanggal untuk M2–M9. M3 dan M4 berukuran sekitar dua kali M1 dan memerlukan test konkurensi.
+M1 selesai dalam satu sesi kerja (2–3 November), termasuk test dan dokumen. Bagian terlama adalah test live, karena latensi laptop ke database eu-west-1 tinggi: 2,6 detik untuk koneksi dan 0,6 detik per query. M2 dan M3 masing-masing selesai dalam satu sesi kerja (3 November). Belum ada perkiraan tanggal untuk M4–M9.
+
+Pengukuran M3 dari laptop: checkout 12 query, tetap sama berapa pun jumlah item, sekitar 7 detik karena tiap query ±0,59 detik ke eu-west-1. Ini bukan angka production. Ukur ulang dari hosting yang satu region dengan database sebelum go-live.
 
 ## Risiko
 

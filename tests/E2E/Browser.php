@@ -44,6 +44,23 @@ final class Browser
         return $this->client->request($method, $path, ['json' => $data, 'headers' => $headers]);
     }
 
+    /** fetch() JSON seperti placeOrder() di browser: body mentah, header bisa ditimpa. */
+    public function json(string $path, array|string $body, array $headers = [], bool $withCsrf = true): ResponseInterface
+    {
+        if ($withCsrf && $this->cookie('XSRF-TOKEN') === null) {
+            $this->get('/login');
+        }
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Origin' => $this->base,
+            ...($withCsrf ? ['X-XSRF-TOKEN' => urldecode((string) $this->cookie('XSRF-TOKEN'))] : []),
+            ...$headers,
+        ];
+
+        return $this->client->request('POST', $path, ['body' => is_string($body) ? $body : json_encode($body), 'headers' => $headers]);
+    }
+
     public function cookie(string $name): ?string
     {
         return $this->jar->getCookieByName($name)?->getValue();

@@ -32,7 +32,24 @@ class OrderController
             return Inertia::render('order/index', ['notice' => 'not_found']);
         }
 
-        return Inertia::render('order/index', ['storefront' => $menu, 'table' => $table]);
+        // Channel dicatat untuk laporan: QR meja, QR kasir (?src=qr), atau web.
+        $channel = $table !== null ? 'qr_table' : ($request->query('src') === 'qr' ? 'qr_counter' : 'website');
+
+        return Inertia::render('order/index', ['storefront' => $menu, 'table' => $table, 'channel' => $channel]);
+    }
+
+    /**
+     * Kiosk publik di outlet: /kiosk?outlet=SDY01. Tidak ada tautan ke area staf
+     * atau admin dan tidak menyimpan token order (perangkat dipakai bersama).
+     */
+    public function kiosk(Request $request, Storefront $storefront): Response
+    {
+        $outletCode = is_string($request->query('outlet')) ? $request->query('outlet') : $storefront->defaultOutletCode();
+        $menu = $outletCode === null ? null : $storefront->cached($outletCode);
+
+        return Inertia::render('kiosk/index', $menu === null
+            ? ['notice' => $outletCode === null ? 'unconfigured' : 'not_found']
+            : ['storefront' => $menu]);
     }
 
     /**
