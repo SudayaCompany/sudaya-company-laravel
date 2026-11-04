@@ -9,6 +9,7 @@ use App\Services\Audit\AuditLogger;
 use App\Services\Auth\AccessLoader;
 use App\Services\Catalog\CatalogInput;
 use App\Services\Catalog\Storefront;
+use App\Services\Outlets\OutletSettings;
 use App\Support\Access\AccessScope;
 use App\Support\Orders\OrderFlow;
 use Carbon\CarbonImmutable;
@@ -168,6 +169,17 @@ final class OrderEngine
             }
 
             $orderId = $inserted->id;
+            // QR meja (EXT-026): meja harus terdaftar dan aktif di outlet ini. Dicek setelah insert
+            // agar retry order lama tetap dikembalikan; order baru yang gagal ikut di-rollback.
+            // POS, kiosk, web, dan takeaway dari QR meja tidak terpengaruh.
+            if ($channel === 'qr_table' && $input['type'] === 'dine_in') {
+                if ($input['tableNumber'] === null) {
+                    throw new AccessException('invalid', 'Nomor meja wajib untuk pesanan dari QR meja.');
+                }
+                if (! OutletSettings::isActiveTable($row->id, $input['tableNumber'])) {
+                    throw new AccessException('invalid', "Meja {$input['tableNumber']} tidak terdaftar atau sedang tidak aktif. Silakan tanyakan kasir.");
+                }
+            }
             // Id item dibuat di sini agar item dan modifier masuk dalam satu insert masing-masing.
             $items = [];
             $modifiers = [];

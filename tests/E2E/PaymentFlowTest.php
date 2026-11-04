@@ -50,6 +50,9 @@ class PaymentFlowTest extends ServerTestCase
         ]);
         DB::table('outlet_products')->updateOrInsert(['outlet_id' => $A['outletId'], 'product_id' => $stocked], ['inventory_item_id' => $item, 'is_available' => true]);
 
+        // Meja resmi untuk pesanan QR meja dine in (sejak daftar meja, EXT-026).
+        DB::table('outlet_tables')->insert(['company_id' => $A['id'], 'outlet_id' => $A['outletId'], 'number' => 'T7']);
+
         return ['A' => $A, ...$users, 'latte' => $latte, 'matcha' => $matcha, 'large' => $large, 'stocked' => $stocked];
     }
 

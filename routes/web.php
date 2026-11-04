@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ModifierController;
+use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\UserController;
@@ -74,6 +75,12 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/roles/set-permission', [RoleController::class, 'setPermission']);
 
             Route::get('/audit', AuditController::class);
+
+            Route::get('/outlets', [OutletController::class, 'index']);
+            Route::get('/outlets/{outlet}', [OutletController::class, 'edit']);
+            Route::put('/outlets/{outlet}', [OutletController::class, 'update']);
+            Route::post('/outlets/{outlet}/tables', [OutletController::class, 'storeTables']);
+            Route::patch('/outlet-tables/{table}', [OutletController::class, 'updateTable']);
 
             Route::get('/categories', [CategoryController::class, 'index']);
             Route::post('/categories', [CategoryController::class, 'store']);

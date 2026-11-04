@@ -9,7 +9,7 @@ use Inertia\Middleware;
 class HandleInertiaRequests extends Middleware
 {
     /** Menu yang sudah dipindahkan ke Laravel. Tambah saat modulnya selesai. */
-    private const NAVIGATION = ['/admin', '/admin/products', '/admin/categories', '/admin/modifiers', '/admin/users', '/admin/roles', '/admin/audit', '/staff', '/pos', '/kds'];
+    private const NAVIGATION = ['/admin', '/admin/products', '/admin/categories', '/admin/modifiers', '/admin/outlets', '/admin/users', '/admin/roles', '/admin/audit', '/staff', '/pos', '/kds'];
 
     protected $rootView = 'app';
 

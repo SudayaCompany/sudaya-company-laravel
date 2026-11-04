@@ -58,7 +58,7 @@ Tanda di kolom "Jenis":
 | Langkah | Jenis |
 |---|---|
 | Schema staging dibuat dari 10 migration Drizzle, setelah dibaca | Persetujuan owner |
-| `php artisan migrate` **tidak dijalankan** (Laravel M1–M4 tanpa migration). Bila nanti ada, baca `--pretend` dulu dan pastikan migration pertama mengaktifkan RLS di tabel `migrations` | Persetujuan owner |
+| Migration Laravel: baca file di `database/migrations`, lalu `php artisan migrate --force`. Migration pertama mengaktifkan RLS di tabel `migrations`. Jangan berhenti di `--pretend`: perintah itu sudah membuat tabel `migrations` tanpa RLS | Persetujuan owner |
 | Seed (`php artisan db:seed`) dan bootstrap Super Admin | Persetujuan owner |
 | Verifikasi checklist pasca-migration di SUPABASE_STAGING_PLAN | Otomatis |
 

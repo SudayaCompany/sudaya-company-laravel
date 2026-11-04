@@ -554,7 +554,16 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           <>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="tableNumber">Nomor meja{kiosk ? " (opsional)" : ""}</Label>
-              <Input id="tableNumber" name="tableNumber" defaultValue={cart.table ?? ""} maxLength={10} className={fieldClass} placeholder="mis. T03" />
+              <Input
+                id="tableNumber"
+                name="tableNumber"
+                defaultValue={cart.table ?? ""}
+                // QR meja: nomor meja dari QR yang sudah divalidasi, tidak diketik ulang.
+                readOnly={cart.channel === "qr_table"}
+                maxLength={10}
+                className={cn(fieldClass, cart.channel === "qr_table" && "bg-muted")}
+                placeholder="mis. T03"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="locationNote">

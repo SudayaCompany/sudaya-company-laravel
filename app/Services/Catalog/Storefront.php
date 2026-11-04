@@ -52,6 +52,13 @@ final class Storefront
         Cache::forever("storefront:brand:{$brandId}:version", (int) Cache::get("storefront:brand:{$brandId}:version", 0) + 1);
     }
 
+    /** Setelah nama atau status outlet berubah: buang juga cache brand per kode (outlet nonaktif tercache kosong). */
+    public function forgetOutlet(string $outletCode, string $brandId): void
+    {
+        Cache::forget('storefront:outlet:'.strtoupper($outletCode).':brand');
+        $this->forgetBrand($brandId);
+    }
+
     /** Kode outlet default bila QR tidak menyertakan ?outlet= (hanya jika outlet aktif tunggal). */
     public function defaultOutletCode(): ?string
     {

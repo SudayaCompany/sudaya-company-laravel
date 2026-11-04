@@ -69,6 +69,8 @@ class OrderEngineTest extends LiveTestCase
 
         $menu = app(Storefront::class)->load($A['outletCode']);
         $modifiers = collect($menu['products'])->firstWhere('id', $latte)['groups'][0]['modifiers'];
+        // Meja resmi untuk pesanan QR meja dine in (sejak daftar meja, EXT-026).
+        DB::table('outlet_tables')->insert(['company_id' => $A['id'], 'outlet_id' => $A['outletId'], 'number' => 'T03']);
 
         return [
             'A' => $A, 'B' => $B, ...$users,

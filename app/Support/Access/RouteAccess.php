@@ -13,6 +13,8 @@ final class RouteAccess
         '/admin/products' => ['product.view'],
         '/admin/categories' => ['product.view'],
         '/admin/modifiers' => ['product.view'],
+        '/admin/outlets' => ['settings.manage'],
+        '/admin/outlet-tables' => ['settings.manage'],
         '/admin/orders' => ['order.view'],
         '/admin/reports' => ['report.sales'],
         '/admin/inventory/stock-in' => ['inventory.receive'],

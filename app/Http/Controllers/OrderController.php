@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Catalog\Storefront;
+use App\Services\Outlets\OutletSettings;
 use App\Services\Security\ClientIp;
 use App\Services\Security\RateLimits;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,8 @@ class OrderController
     public function show(Request $request, Storefront $storefront): Response
     {
         // QR meja: /order?outlet=SDY01&table=T03 (PRD §110).
-        $table = is_string($request->query('table')) && preg_match(self::TABLE_PATTERN, $request->query('table')) === 1 ? $request->query('table') : null;
+        $rawTable = $request->query('table');
+        $table = is_string($rawTable) && preg_match(self::TABLE_PATTERN, $rawTable) === 1 ? strtoupper($rawTable) : null;
         $outletCode = is_string($request->query('outlet')) ? $request->query('outlet') : $storefront->defaultOutletCode();
 
         if ($outletCode === null) {
@@ -30,6 +32,10 @@ class OrderController
         $menu = $storefront->cached($outletCode);
         if ($menu === null) {
             return Inertia::render('order/index', ['notice' => 'not_found']);
+        }
+        // QR meja hanya sah untuk meja terdaftar dan aktif (EXT-026). Pemeriksaan ulang ada di checkout.
+        if ($rawTable !== null && ($table === null || ! OutletSettings::isActiveTable($menu['outlet']['id'], $table))) {
+            return Inertia::render('order/index', ['notice' => 'table_unknown', 'outletName' => $menu['outlet']['name']]);
         }
 
         // Channel dicatat untuk laporan: QR meja, QR kasir (?src=qr), atau web.

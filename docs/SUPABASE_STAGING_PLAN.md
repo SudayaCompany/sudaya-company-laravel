@@ -46,13 +46,16 @@ Tujuan utama checklist ini: perintah migration, seed, dan bootstrap **tidak pern
 
 ## Schema
 
-Sumber schema satu-satunya adalah 10 migration Drizzle di repo Next.js, `drizzle/0000_init.sql` sampai `0009_cash_movements.sql`. Laravel M1–M4 tidak menambah migration.
+Schema berasal dari 10 migration Drizzle di repo Next.js (`drizzle/0000_init.sql` sampai `0009_cash_movements.sql`), lalu migration Laravel di `database/migrations` (sejak 4 November: `2026_11_04_000001_create_outlet_tables`, yang mengaktifkan RLS di tabel `migrations` dan membuat `outlet_tables` ber-RLS).
+
+> **Jebakan:** `php artisan migrate --pretend` tetap membuat tabel `migrations` (tanpa RLS) walaupun SQL lain hanya ditampilkan. Di staging/production, segera jalankan `php artisan migrate` setelah review, lalu cek checklist nomor 8, atau review SQL langsung dari file migration tanpa `--pretend`.
 
 | Langkah | Perintah | Persetujuan |
 |---|---|---|
 | Review isi migration, terutama `0004_ops_functions.sql` (fungsi + pg_cron), `0007_audit_logs_immutable.sql` (trigger audit), `0009_cash_movements.sql` (kas, unique index sesi terbuka) | Baca file | — |
 | Terapkan migration ke staging | `npm run db:migrate` di repo Next.js, dengan environment staging terpisah dan session pooler | Owner |
 | Buat bucket Storage | `npm run storage:setup` (repo Next.js) | Owner |
+| Migration Laravel (tabel meja, RLS `migrations`) | `php artisan migrate --force` (repo Laravel) setelah file migration dibaca | Owner |
 | Seed role, permission, company/brand/outlet awal | `php artisan db:seed` (repo Laravel) | Owner |
 | Super Admin pertama | Buat user di Supabase Dashboard → `php artisan sudaya:admin-bootstrap --email=... --name="..."` | Owner |
 
