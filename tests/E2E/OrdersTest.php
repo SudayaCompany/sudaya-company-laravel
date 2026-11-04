@@ -243,10 +243,10 @@ class OrdersTest extends ServerTestCase
         $this->assertSame(403, $guest->json('/order/checkout', ['outlet' => $outlet, 'channel' => 'website', 'checkout' => $this->checkout()], ['Origin' => '', 'Sec-Fetch-Site' => 'cross-site'])->getStatusCode());
         $this->assertSame(403, $guest->json('/order/checkout', ['outlet' => $outlet, 'channel' => 'website', 'checkout' => $this->checkout()], ['Origin' => 'null'])->getStatusCode());
 
-        // Tidak ada endpoint yang membuat order lunas di M3.
+        // Guest tidak bisa membuat order lunas. Sejak M4 endpoint bayar ada, tetapi khusus staf berizin.
         $order = self::body($this->place($guest, $this->checkout()))['orderId'];
-        foreach (["/order/status/{$order}", "/pos/orders/{$order}/pay", '/order/checkout/pay'] as $path) {
-            $this->assertContains($guest->json($path, ['status' => 'paid', 'tenderedAmount' => 100000])->getStatusCode(), [302, 404, 405]);
+        foreach (["/order/status/{$order}" => 405, "/pos/orders/{$order}/pay" => 401, '/order/checkout/pay' => 404] as $path => $status) {
+            $this->assertSame($status, $guest->json($path, ['status' => 'paid', 'tenderedAmount' => 100000])->getStatusCode(), $path);
         }
         $this->assertSame(['pending_payment', 'pending'], array_values((array) DB::table('orders')->where('id', $order)->first(['status', 'payment_status'])));
         $this->assertSame(0, DB::table('payments')->where('order_id', $order)->where('status', 'paid')->count());

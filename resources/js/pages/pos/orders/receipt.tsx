@@ -1,5 +1,6 @@
 import { Head } from "@inertiajs/react";
 import { PrinterIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/lib/format";
@@ -11,18 +12,25 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
   // Hanya pembayaran yang benar-benar lunas yang dicetak sebagai lunas.
   const payment = order.payments.find((p) => p.status === "paid");
   const refunded = order.payments.some((p) => p.status === "refunded");
+  const article = useRef<HTMLElement>(null);
+  // Kertas roll thermal: lebar 80 mm, tinggi mengikuti isi struk (1 px CSS = 25,4/96 mm).
+  // `size: 80mm auto` tidak valid dan dibuang browser, jadi tinggi dihitung dari isi.
+  const [pageHeight, setPageHeight] = useState(200);
+  useLayoutEffect(() => {
+    if (article.current) setPageHeight(Math.ceil((article.current.getBoundingClientRect().height * 25.4) / 96) + 4);
+  }, [order]);
 
   return (
     <div className="flex flex-col items-center gap-4 p-4 print:p-0">
       <Head title="Struk">
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      {/* Kertas thermal 80 mm; area cetak 76 mm. */}
-      <style>{"@page { size: 80mm auto; margin: 2mm; } @media print { html, body { background: #fff; } }"}</style>
+      {/* Kertas thermal 80 mm; area cetak 76 mm dengan margin 2 mm. */}
+      <style>{`@page { size: 80mm ${pageHeight}mm; margin: 2mm; } @media print { html, body { background: #fff; } }`}</style>
       <Button onClick={() => window.print()} className="print:hidden">
         <PrinterIcon /> Cetak
       </Button>
-      <article className="w-[76mm] bg-white p-3 font-mono text-[12px] leading-snug break-words text-black shadow print:shadow-none">
+      <article ref={article} className="w-[76mm] bg-white p-3 font-mono text-[12px] leading-snug break-words text-black shadow print:shadow-none">
         <header className="text-center">
           <p className="text-base font-bold">SUDAYA COFFEE</p>
           <p>{order.outlet.name}</p>

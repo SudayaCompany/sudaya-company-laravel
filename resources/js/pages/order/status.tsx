@@ -67,15 +67,19 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
   const deadline = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: order.timezone });
 
   // Realtime selama pesanan belum selesai; polling 15 detik bila Realtime tidak tersambung.
-  useRealtimeRefresh(finished ? null : order.topic, ["order"], 15_000);
+  const connection = useRealtimeRefresh(finished ? null : order.topic, ["order"], 15_000);
 
   return (
     <>
-      <section className={cn("flex flex-col gap-4 rounded-2xl p-5", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-neutral-950 text-white")}>
-        <div className="flex items-start justify-between gap-3">
+      <section
+        data-realtime={finished ? "idle" : connection}
+        className={cn("flex flex-col gap-4 rounded-2xl p-5", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-neutral-950 text-white")}
+      >
+        {/* flex-wrap: di HP sempit badge turun ke baris berikutnya, nomor antrean tidak terpotong. */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className={cn("text-sm", unpaid || cancelled ? "text-muted-foreground" : "text-neutral-400")}>{order.orderNumber ? "Nomor antrean" : "Kode pesanan"}</p>
-            <p className="font-mono text-4xl font-bold tracking-wider">{order.orderNumber ?? order.reference}</p>
+            <p className="font-mono text-4xl font-bold tracking-wider whitespace-nowrap">{order.orderNumber ?? order.reference}</p>
           </div>
           <span
             className={cn(

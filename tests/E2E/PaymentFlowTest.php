@@ -36,8 +36,21 @@ class PaymentFlowTest extends ServerTestCase
         $catalog = app(CatalogAdmin::class);
         $coffee = $catalog->createCategory($admin, $A['brandId'], ['name' => 'Coffee'], $audit)['id'];
         $latte = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Iced Latte', 'categoryId' => $coffee, 'basePrice' => '25000', 'isActive' => true, 'modifierGroupIds' => []], null, $audit)['id'];
+        $size = $catalog->createModifierGroup($admin, $A['brandId'], [
+            'name' => 'Size', 'selection' => 'single', 'isRequired' => true, 'minSelect' => 1, 'maxSelect' => 1,
+            'options' => [['name' => 'Regular', 'priceDelta' => 0, 'isDefault' => true], ['name' => 'Large', 'priceDelta' => 6000]],
+        ], $audit)['id'];
+        $matcha = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Matcha', 'categoryId' => $coffee, 'basePrice' => '28000', 'isActive' => true, 'modifierGroupIds' => [$size]], null, $audit)['id'];
+        $large = DB::table('modifiers')->where('group_id', $size)->where('name', 'Large')->value('id');
+        // Produk jadi tertaut stok: pembayaran harus ditolak inventory guard.
+        $stocked = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Roti Stok', 'categoryId' => $coffee, 'basePrice' => '20000', 'isActive' => true, 'modifierGroupIds' => []], null, $audit)['id'];
+        $item = DB::table('inventory_items')->insertGetId([
+            'company_id' => $A['id'], 'brand_id' => $A['brandId'], 'outlet_id' => $A['outletId'],
+            'sku' => 'STK-E2E-'.$ctx->runId, 'name' => 'Roti Stok', 'kind' => 'finished_good', 'unit' => 'pcs', 'stock_qty' => 10,
+        ]);
+        DB::table('outlet_products')->updateOrInsert(['outlet_id' => $A['outletId'], 'product_id' => $stocked], ['inventory_item_id' => $item, 'is_available' => true]);
 
-        return ['A' => $A, ...$users, 'latte' => $latte];
+        return ['A' => $A, ...$users, 'latte' => $latte, 'matcha' => $matcha, 'large' => $large, 'stocked' => $stocked];
     }
 
     private function f(string $key): mixed
@@ -67,6 +80,19 @@ class PaymentFlowTest extends ServerTestCase
         return Browser::page($browser->get(Browser::location($response)))['flash'] ?? [];
     }
 
+    /** Simpan (dan bayar) dari terminal POS lewat JSON, seperti `postJson` di browser. */
+    private function pos(Browser $browser, array $data): array
+    {
+        $browser->get('/pos');
+        $response = $browser->json('/pos/orders', $data);
+        $this->assertContains($response->getStatusCode(), [200, 201], (string) $response->getBody());
+        $this->assertStringContainsString('no-store', $response->getHeaderLine('Cache-Control'));
+        $body = json_decode((string) $response->getBody(), true);
+        $this->assertTrue($body['ok']);
+
+        return $body;
+    }
+
     private function props(Browser $browser, string $path): array
     {
         return Browser::page($browser->get($path))['props'];
@@ -81,7 +107,7 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertSame([true, false], [$pos['canConfirmCash'], $pos['cashSessionOpen']]);
 
         // Tanpa sesi kas: order tersimpan, pembayaran ditolak dengan pesan jelas.
-        $flash = $this->act($cashier, '/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 30_000]);
+        $flash = ['placed' => $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 30_000])];
         $unpaidId = $flash['placed']['orderId'];
         $this->assertNull($flash['placed']['orderNumber']);
         $this->assertStringContainsString('Sesi kas belum dibuka', $flash['placed']['warning']);
@@ -91,7 +117,7 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertTrue($this->props($cashier, '/pos')['cashSessionOpen']);
 
         // POS: buat + bayar sekaligus.
-        $flash = $this->act($cashier, '/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 30_000]);
+        $flash = ['placed' => $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 30_000])];
         $posOrder = $flash['placed'];
         $this->assertMatchesRegularExpression('/^.+-\d{3}$/', $posOrder['orderNumber']);
         $this->assertSame([5_000, null], [$posOrder['change'], $posOrder['warning']]);
@@ -155,7 +181,7 @@ class PaymentFlowTest extends ServerTestCase
         if (! $this->props($cashier, '/pos')['cashSessionOpen']) {
             $this->act($cashier, '/pos/cash/open', ['outletId' => $outletId, 'openingAmount' => 50_000], '/pos/cash');
         }
-        $order = $this->act($cashier, '/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 25_000])['placed'];
+        $order = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 25_000]);
 
         $barista = $this->login($this->f('barista'));
         $flash = $this->act($barista, "/pos/orders/{$order['orderId']}/cancel", ['reason' => 'customer batal'], "/pos/orders/{$order['orderId']}");
@@ -182,7 +208,7 @@ class PaymentFlowTest extends ServerTestCase
     {
         $outletId = $this->f('A')['outletId'];
         $cashier = $this->login($this->f('cashier'));
-        $order = $this->act($cashier, '/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout()])['placed'];
+        $order = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout()]);
 
         $barista = $this->login($this->f('barista'));
         $this->assertSame('Anda tidak memiliki izin untuk tindakan ini.', $this->act($barista, "/pos/orders/{$order['orderId']}/pay", ['tenderedAmount' => 25_000])['error'] ?? null);
@@ -202,5 +228,74 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertSame('pending_payment', DB::table('orders')->where('id', $order['orderId'])->value('status'));
         // Id rusak: pesan error, bukan 500.
         $this->assertSame('ID tidak valid.', $this->act($cashier, '/pos/orders/bukan-uuid/pay', ['tenderedAmount' => 1])['error'] ?? null);
+        // Terminal POS (JSON): error validasi dan izin sebagai JSON, tanpa CSRF 419.
+        $empty = $cashier->json('/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout(['lines' => []])]);
+        $this->assertSame([422, ['ok' => false, 'error' => 'Keranjang masih kosong.']], [$empty->getStatusCode(), json_decode((string) $empty->getBody(), true)]);
+        $owner = $this->login($this->f('owner'));
+        $this->assertSame(403, $owner->json('/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout()])->getStatusCode());
+        $this->assertSame(419, $cashier->json('/pos/orders', ['outletId' => $outletId, 'checkout' => $this->checkout()], withCsrf: false)->getStatusCode());
+    }
+
+    public function test_kiosk_dengan_modifier_dibayar_kasir_lalu_masuk_kds(): void
+    {
+        $cashier = $this->login($this->f('cashier'));
+        $this->ensureCashSession($cashier);
+
+        // Guest di kiosk: harga modifier dihitung server, tidak ada cookie token di perangkat bersama.
+        $kiosk = $this->browser();
+        $response = $kiosk->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'kiosk', 'checkout' => $this->checkout([
+            'type' => 'dine_in',
+            'lines' => [['productId' => $this->f('matcha'), 'modifierIds' => [$this->f('large')], 'quantity' => 2, 'unitPrice' => 1]],
+        ])]);
+        $this->ctx()->trackRateLimitKey('checkout:outlet:'.$this->f('A')['outletCode']);
+        $this->assertSame(201, $response->getStatusCode(), (string) $response->getBody());
+        $placed = json_decode((string) $response->getBody(), true);
+        $this->assertSame((28_000 + 6_000) * 2, $placed['total']);
+        $this->assertStringNotContainsString('sdy_order_', implode(';', $response->getHeader('Set-Cookie')));
+
+        // Kasir mencari kode referensi kiosk di daftar menunggu bayar lalu menerima uang.
+        $pending = $this->props($cashier, '/pos/orders?view=pending&q='.$placed['reference'])['list']['rows'];
+        $this->assertSame([$placed['orderId']], array_column($pending, 'id'));
+        $this->assertSame('kiosk', $pending[0]['channel']);
+        $flash = $this->act($cashier, "/pos/orders/{$placed['orderId']}/pay", ['tenderedAmount' => 70_000], "/pos/orders/{$placed['orderId']}");
+        $this->assertStringContainsString('kembalian Rp 2.000', $flash['success'] ?? '');
+
+        $barista = $this->login($this->f('barista'));
+        $card = collect($this->props($barista, '/kds')['orders'])->firstWhere('id', $placed['orderId']);
+        $this->assertSame('queued', $card['status']);
+        $this->assertSame([['Matcha', 2, ['Large']]], array_map(fn ($l) => [$l['productName'], $l['quantity'], array_column($l['modifiers'], 'name')], $card['lines']));
+    }
+
+    public function test_inventory_guard_lewat_pos_dan_detail(): void
+    {
+        $outletId = $this->f('A')['outletId'];
+        $cashier = $this->login($this->f('cashier'));
+        $this->ensureCashSession($cashier);
+        $counter = fn () => (int) DB::table('order_number_counters')->where('outlet_id', $outletId)->max('last_number');
+        $before = $counter();
+
+        // Buat + bayar dari POS: order tersimpan belum dibayar, kasir mendapat alasan jelas.
+        $placed = $this->pos($cashier, [
+            'outletId' => $outletId,
+            'checkout' => $this->checkout(['lines' => [['productId' => $this->f('stocked'), 'modifierIds' => [], 'quantity' => 1]]]),
+            'tenderedAmount' => 20_000,
+        ]);
+        $this->assertNull($placed['orderNumber']);
+        $this->assertStringContainsString('Roti Stok terhubung ke stok', $placed['warning']);
+
+        // Bayar ulang dari halaman detail: tetap ditolak.
+        $flash = $this->act($cashier, "/pos/orders/{$placed['orderId']}/pay", ['tenderedAmount' => 20_000], "/pos/orders/{$placed['orderId']}");
+        $this->assertStringStartsWith('Pembayaran belum bisa diproses', $flash['error'] ?? '');
+        $this->assertSame($before, $counter());
+        $this->assertSame(['pending_payment', 'pending', null], array_values((array) DB::table('orders')->where('id', $placed['orderId'])->first(['status', 'payment_status', 'queue_number'])));
+        $this->assertSame(['pending'], DB::table('payments')->where('order_id', $placed['orderId'])->pluck('status')->all());
+        $this->assertSame(0, DB::table('audit_logs')->where('entity_id', $placed['orderId'])->where('action', 'payment.confirmed')->count());
+    }
+
+    private function ensureCashSession(Browser $cashier): void
+    {
+        if (! $this->props($cashier, '/pos')['cashSessionOpen']) {
+            $this->act($cashier, '/pos/cash/open', ['outletId' => $this->f('A')['outletId'], 'openingAmount' => 100_000], '/pos/cash');
+        }
     }
 }

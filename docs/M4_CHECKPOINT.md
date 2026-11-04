@@ -1,5 +1,7 @@
 # Checkpoint M4 — 3 November 2026, 16.40
 
+> **Diperbarui 4 November 2026:** semua langkah di bawah sudah dikerjakan. Hasil final ada di `LARAVEL_FEATURE_PARITY.md` §M4 rinci dan `GO_LIVE_READINESS.md`. Dokumen ini disimpan sebagai catatan pemulihan.
+
 M4 (pembayaran tunai, antrean, KDS, kas, pembatalan, refund, inventory guard) **belum selesai**. Kode sudah ditulis dan tes live inti lolos, tetapi E2E, QA browser, regresi penuh, dan dokumen go-live belum dikerjakan. Pekerjaan diamankan sebagai commit WIP lokal, belum di-push, dan belum disetujui owner.
 
 ## Yang sudah dibangun

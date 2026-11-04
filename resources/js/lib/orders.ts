@@ -129,25 +129,31 @@ function xsrfToken() {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-export type PlaceOrderResult =
-  | { ok: true; orderId: string; reference: string; total: number }
-  | { ok: false; error: string; retryAfter?: number };
+export type JsonResult<T> = ({ ok: true } & T) | { ok: false; error: string; retryAfter?: number };
 
-/** Checkout guest ke server. Idempotency key dipertahankan pemanggil, jadi retry tidak membuat order ganda. */
-export async function placeOrder(input: { outlet: string; channel: OrderChannel; checkout: Record<string, unknown> }): Promise<PlaceOrderResult> {
+/** POST JSON ke server dengan token CSRF; error jaringan dan sesi kedaluwarsa jadi pesan yang bisa dibaca. */
+export async function postJson<T>(url: string, body: unknown): Promise<JsonResult<T>> {
   try {
-    const response = await fetch("/order/checkout", {
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-XSRF-TOKEN": xsrfToken() },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
       credentials: "same-origin",
       cache: "no-store",
     });
-    const data = (await response.json().catch(() => null)) as PlaceOrderResult | null;
+    const data = (await response.json().catch(() => null)) as JsonResult<T> | null;
     if (data && typeof data.ok === "boolean") return data;
     if (response.status === 419) return { ok: false, error: "Halaman kedaluwarsa. Muat ulang lalu coba lagi." };
+    if (response.status === 401) return { ok: false, error: "Sesi berakhir. Silakan login ulang." };
     return { ok: false, error: "Pesanan gagal dikirim. Coba lagi." };
   } catch {
     return { ok: false, error: "Koneksi terputus. Periksa internet lalu coba lagi." };
   }
+}
+
+export type PlaceOrderResult = JsonResult<{ orderId: string; reference: string; total: number }>;
+
+/** Checkout guest ke server. Idempotency key dipertahankan pemanggil, jadi retry tidak membuat order ganda. */
+export function placeOrder(input: { outlet: string; channel: OrderChannel; checkout: Record<string, unknown> }): Promise<PlaceOrderResult> {
+  return postJson("/order/checkout", input);
 }

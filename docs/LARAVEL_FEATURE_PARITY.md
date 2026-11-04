@@ -1,6 +1,6 @@
 # Paritas fitur Laravel terhadap Next.js
 
-Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTIAL, PARITY VERIFIED, BLOCKED. Status PARITY VERIFIED hanya diberikan bila test padanan lolos di Laravel, bukan karena halamannya sudah ada. PARTIAL berarti sebagian perilaku sudah setara dan sisanya tercatat.
+Diperbarui 4 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTIAL, PARITY VERIFIED, BLOCKED. Status PARITY VERIFIED hanya diberikan bila test padanan lolos di Laravel, bukan karena halamannya sudah ada. PARTIAL berarti sebagian perilaku sudah setara dan sisanya tercatat.
 
 ## Ringkasan per modul
 
@@ -8,8 +8,8 @@ Diperbarui 3 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 |---|---|---|
 | M1 Auth, sesi, RBAC, user, audit | **DONE — Development Verified** (disetujui owner 3 November 2026) | Unit/feature 72/72, live 49/49, E2E 18/18, browser 75/75 |
 | M2 Katalog dan menu | **DONE — Development Verified** (disetujui owner 3 November 2026). Keranjang kini lengkap dengan checkout M3 | Unit katalog 30, live katalog 21, E2E katalog 4, browser 57/57. Regresi penuh: unit 102/102, live+E2E 92/92 |
-| M3 Order engine, POS, QR, kiosk | **Siap review** (Development Verified, menunggu persetujuan owner) | Unit order 27, live order 19, E2E order 6, browser 137/137. Regresi penuh 3 November: unit/feature 129/129, live 89/89 (exit 0), E2E 28/28 (exit 0), database dev bersih |
-| M4 Pembayaran dan KDS | NOT STARTED | QRIS BLOCKED (EXT-001) |
+| M3 Order engine, POS, QR, kiosk | **DONE — Development Verified** (disetujui owner 3 November 2026, `32ab6d2`) | Unit order 27, live order 19, E2E order 6, browser 137/137. Regresi penuh 3 November: unit/feature 129/129, live 89/89 (exit 0), E2E 28/28 (exit 0), database dev bersih |
+| M4 Pembayaran tunai, kas, antrean, KDS, pembatalan, refund | **DONE — Development Verified** (disetujui owner 4 November 2026; residual QA wajib ditutup sebelum staging/UAT dinyatakan lulus, lihat `GO_LIVE_READINESS.md`) | Live `PaymentFlowTest` 18, E2E `PaymentFlowTest` 5, browser M4. Regresi penuh 4 November: unit 129/129, live 107/107, E2E 33/33 (setelah 1 test M3 diperbarui). QRIS BLOCKED (EXT-001) |
 | M5 Inventory | NOT STARTED | |
 | M6 Finance | NOT STARTED | |
 | M7 Karyawan dan absensi | NOT STARTED | Biometrik BLOCKED (EXT-003) |
@@ -93,6 +93,33 @@ Lingkup M3: pembuatan order semua channel, validasi harga di server, idempotensi
 
 Pengukuran (laptop development ke Supabase dev eu-west-1, bukan angka production): checkout membutuhkan 12 query, tetap sama untuk 1, 5, maupun 20 baris item (tidak ada N+1). Retry 9 query, status guest 4, detail staf 6, daftar 2, menu POS 5. Satu round-trip query dari laptop ±0,59 detik, jadi checkout ±7 detik di laptop hampir seluruhnya waktu jaringan. Angka production harus diukur ulang dari server yang satu region dengan database.
 
+## M4 rinci
+
+Lingkup disetujui owner 3 November 2026 untuk soft launch: sesi kas minimum, bayar tunai, antrean, KDS, status pelanggan, struk, pembatalan dengan approval, refund tunai penuh, dan inventory guard. Laporan, ekspor, dan stok penuh tetap di M5/M6.
+
+| Perilaku | Next.js | Laravel | Test Laravel | Status |
+|---|---|---|---|---|
+| Sesi kas: satu sesi terbuka per outlet (unique index parsial), modal awal, kas masuk/keluar beralasan, kas keluar ≤ saldo | `cash/engine.ts` | `CashSessions` | Live, E2E, browser | PARITY VERIFIED |
+| Tutup kas: saldo seharusnya dihitung ulang (modal + penjualan tunai + kas masuk − kas keluar − refund), selisih wajib beralasan, sesi tertutup tidak menerima pembayaran | `closeCashSession` | `CashSessions::close` | Live (angka per komponen + audit), E2E, browser | PARITY VERIFIED |
+| Bayar tunai: hanya `payment.confirm_cash`, order harus `pending_payment`, uang diterima ≥ total, kembalian, terikat sesi kas terbuka (lock share) | `confirmCashPayment` | `OrderWorkflow::confirmCash` | Live, E2E, browser | PARITY VERIFIED |
+| Idempotensi pembayaran: bayar ulang → nomor sama (`alreadyPaid`), 3 proses bersamaan → 1 pembayaran, 1 nomor, 1 audit | sama | sama, row lock order | Live multi-proses, E2E | PARITY VERIFIED |
+| Nomor antrean per outlet per tanggal operasional (zona waktu outlet), upsert counter, `paid_at` diambil setelah lock sehingga urutan KDS = urutan nomor | sama | sama | Live: 4 pembayaran bersamaan → nomor berurutan | PARITY VERIFIED |
+| Pembayaran vs tutup kas bersamaan: saldo saat tutup selalu = modal + penjualan sesi itu | lock share/update | sama | Live multi-proses | PARITY VERIFIED |
+| Pembayaran order yang sudah lewat `expires_at`: ditolak, pembatalan otomatis ikut ter-commit lewat `expire_pending_orders` | sama | sama | Live | PARITY VERIFIED |
+| Buat + bayar sekaligus dari POS; bila pembayaran gagal, order tetap tersimpan dengan peringatan | `posCheckoutAction` | `PosController::store` | E2E, browser | PARITY VERIFIED |
+| KDS: hanya order lunas, FIFO waktu bayar, New/Preparing/Ready/Completed, `from` mencegah lompat dua langkah, mundur butuh `kds.manage`, waktu tunggu | `getKdsBoard`, `updateOrderStatus` | `OrderEngine::kdsBoard`, `OrderWorkflow::updateStatus` | Live, E2E, browser | PARITY VERIFIED |
+| Realtime: sinyal tanpa data di dalam transaksi ke `outlet-orders:<id>` dan topik guest; browser berlangganan Supabase Realtime, polling bila gagal (KDS 5 detik, lainnya 15 detik) | `use-realtime-refresh.ts` | `useRealtimeRefresh` (`@supabase/realtime-js` 2.118.0) | Live (pesan realtime), browser (mode `live`) | PARITY VERIFIED, lihat catatan latensi |
+| Status pelanggan: Menunggu pembayaran → Pesanan diterima → Sedang dibuat → Siap diambil → Selesai | `order/status` | `order/status.tsx` | Live, E2E, browser | PARITY VERIFIED |
+| Pembatalan: belum bayar langsung batal beralasan; lunas → approval `void`; pemohon tidak bisa memutuskan; status bayar tetap `paid` sampai refund | `cancelOrder`, `decideCancellation` | sama | Live, E2E, browser | PARITY VERIFIED |
+| Refund tunai penuh: hanya order lunas yang pembatalannya disetujui, dari sesi kas terbuka, saldo laci harus cukup, `refunds` + `cash_movements` + status, tidak bisa dua kali | `refundCashOrder` | `OrderWorkflow::refundCash` | Live (termasuk 2 proses bersamaan dan refund vs tutup kas), E2E, browser | PARITY VERIFIED |
+| Struk lunas 80 mm: nomor antrean, kode, waktu pesan dan bayar, kasir, item + modifier, total, metode, diterima, kembali; BELUM DIBAYAR / DIREFUND / DIBATALKAN | `receipt/page.tsx` | `pos/orders/receipt.tsx` | E2E props, browser (mode print, PDF 80 mm satu halaman) | PARITY VERIFIED, lihat perbedaan 18 |
+| Daftar pesanan: tampilan Lunas (termasuk yang direfund) | filter `payment` | `view=paid` | Live, E2E, browser | PARITY VERIFIED |
+| Pemotongan stok produk jadi saat bayar | `postSaleMovements` | Inventory guard: pembayaran ditolak bila produk tertaut `outlet_products.inventory_item_id` | Live (tanpa perubahan apa pun, termasuk 2 proses bersamaan), E2E | PARTIAL: pengganti aman sampai M5, lihat perbedaan 17 |
+
+Hasil uji M4 (4 November 2026, Supabase dev): Pint, TypeScript, build lolos; unit/feature 129/129; live 107/107 (637 assertion, termasuk `PaymentFlowTest` 18 dan `OrderEngineTest` 19 setelah refactor helper konkurensi); E2E 32/33 pada regresi penuh, lalu `OrdersTest` 6/6 setelah test M3 berpremis "belum ada endpoint bayar" diperbarui untuk M4 (guest kini mendapat 401 di endpoint bayar staf; order tetap belum dibayar); browser M3 137/137, browser M4 56/58 + bagian 2 23/24 + cek desktop 2/2, latensi realtime 12/12. Kegagalan browser yang tersisa adalah artefak server QA satu proses atau cek probe di layar HP. Jumlah query per operasi: bayar tunai 12, bayar ulang 2, ubah status KDS 6, papan KDS 4 (6 order), detail order 8, refund 13, tutup kas 8.
+
+Realtime (browser, Supabase dev, server QA `php -S` satu proses di laptop): KDS dan halaman status pelanggan tersambung mode `live` (bukan polling). Diukur terpisah dari durasi request: sinyal push tiba di halaman pelanggan 227–240 ms setelah aksi kasir/barista, dan di KDS bahkan sebelum kasir menerima respons (sinyal dikirim saat commit). Data tampil setelah satu request reload, ±4,7–8,5 detik di server dev laptop (±7,4 detik per request staf, diukur langsung). Antrean menit-an saat 4 layar aktif bersamaan adalah artefak server satu proses. Latensi production harus diukur di staging dengan PHP-FPM multi-worker di region yang sama dengan database.
+
 ## Perbedaan yang disengaja
 
 1. **403 sungguhan.** Next.js menjawab halaman terlarang dengan status 200 lalu menampilkan 403 (batasan PPR). Laravel menjawab HTTP 403.
@@ -107,10 +134,13 @@ Pengukuran (laptop development ke Supabase dev eu-west-1, bukan angka production
 10. **Harga kosong ditolak.** Zod mengubah teks kosong menjadi 0, jadi Next.js menerima harga kosong sebagai Rp 0. Laravel menolaknya dengan pesan "Harga harus berupa angka." Harga Rp 0 tetap bisa diisi secara eksplisit.
 11. **Checkout bertahap.** Selama M2 checkout belum aktif. Sejak M3 checkout aktif, tetapi pembayaran tunai baru dikonfirmasi di M4. Sampai saat itu order tetap menunggu pembayaran dan tidak masuk antrean.
 12. **Error tak terduga pada aksi admin** tampil sebagai pesan "Terjadi kesalahan. Coba lagi.", sama dengan `runAction` Next.js, bukan halaman 500.
-13. **Status guest tanpa realtime.** Next.js memperbarui halaman status lewat Supabase Realtime. Di M3 Laravel halaman memuat ulang status tiap 15 detik selama belum selesai. Realtime menyusul di M4 bersama KDS. Sinyal realtime sudah dikirim dari order engine.
-14. **POS tanpa tombol bayar tunai.** Tombol "Bayar tunai & proses", uang diterima/kembalian, dan peringatan sesi kas ada di M4. Di M3 hanya ada "Simpan pesanan (bayar di kasir)" dengan keterangan bahwa konfirmasi tunai belum aktif. Menu Kas dan KDS belum tampil di navigasi POS.
+13. **Status guest tanpa realtime (M3 saja).** Sejak M4 halaman status berlangganan Supabase Realtime seperti Next.js, dengan polling 15 detik sebagai cadangan.
+14. **POS tanpa tombol bayar tunai (M3 saja).** Sejak M4 tombol "Bayar tunai & proses", uang diterima/kembalian, dan peringatan sesi kas sudah ada, sama dengan Next.js.
 15. **Kosongkan keranjang POS minta konfirmasi** dan tombol hapus item dijauhkan dari tombol jumlah agar tidak salah tekan. Next.js langsung mengosongkan.
 16. **Normalisasi id.** Laravel mengubah UUID dan idempotency key ke huruf kecil sebelum disimpan dan di-hash. Client bawaan selalu mengirim huruf kecil, jadi hasilnya sama dengan Next.js.
+17. **Inventory guard menggantikan pemotongan stok.** Next.js memotong stok produk jadi saat bayar dan mengembalikannya saat pembatalan disetujui. Laravel belum punya ledger stok (M5), jadi pembayaran order yang berisi produk tertaut stok ditolak dengan pesan untuk kasir, sebelum ada pembayaran, kas, nomor antrean, atau perubahan status. Tautan stok tidak diubah.
+18. **Ukuran halaman struk.** Laravel menetapkan `@page` 80 mm × tinggi isi struk agar print browser tidak memakai kertas A4/Letter. Next.js hanya mengatur lebar elemen.
+19. **Navigasi POS menampilkan Kas dan KDS** sesuai izin user. Halaman `/admin/orders` Next.js belum dipindahkan, sehingga Owner (punya `approval.approve`, tanpa `order.create`) belum bisa menyetujui pembatalan dari Laravel; Manager menyetujui dari POS.
 
 ## Test Next.js yang tidak dipindahkan
 
@@ -119,8 +149,9 @@ Pengukuran (laptop development ke Supabase dev eu-west-1, bukan angka production
 | `batch1-security` "cookie session ditulis httpOnly oleh client server" | Diganti: Laravel tidak menulis cookie Supabase. Pemeriksaan cookie sesi Laravel ada di `RoutesTest` |
 | `routes.test.ts` 3b dan 4b (memanggil Supabase langsung) | Menguji Supabase, bukan aplikasi. Perilaku yang sama tercakup di test login aplikasi |
 | `routes.test.ts` /order "Menu belum tersedia", /kiosk | Tercakup di M3: E2E `OrdersTest` (kiosk tanpa outlet, outlet tak dikenal) dan browser (menu kosong di /order dan /kiosk) |
-| `orders.test.ts` bagian pembayaran cash, nomor antrean, KDS, pembatalan, approval, realtime pembayaran | Lingkup M4. Dipindahkan saat M4 |
-| `batch1-pos.test.ts` "retry identik mengembalikan … nomor yang sama" (bagian pembayaran) | Bagian order tercakup di M3; bagian konfirmasi pembayaran ulang di M4 |
+| `orders.test.ts` bagian pembayaran cash, nomor antrean, KDS, pembatalan, approval, realtime pembayaran | Tercakup di M4 (`PaymentFlowTest` live dan E2E) |
+| `batch1-pos.test.ts` "retry identik mengembalikan … nomor yang sama" (bagian pembayaran) | Tercakup: M3 (order) dan M4 (bayar ulang → nomor sama, `alreadyPaid`) |
+| Pemotongan stok produk jadi saat bayar dan reversal saat batal (`inventory/ledger.ts`) | Ditunda ke M5. Diganti inventory guard yang menolak pembayaran produk tertaut stok |
 
 Jumlah test Next.js terkait M1: 87 (unit 34, integrasi 36, E2E 17). Semua perilakunya tercakup kecuali yang tercantum di atas.
 

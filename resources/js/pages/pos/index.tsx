@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PosLayout } from "@/layouts/pos-layout";
 import { MAX_LINE_QUANTITY, priceSelection } from "@/lib/catalog/pricing";
 import { formatPriceDelta, formatRupiah } from "@/lib/format";
-import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, type OrderType } from "@/lib/orders";
+import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, postJson, type OrderType } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 const DESKTOP_QUERY = "(min-width: 1024px)";
@@ -296,29 +296,23 @@ function PosCart({
       lines: lines.map((l) => ({ productId: l.product.id, modifierIds: l.modifierIds, quantity: l.quantity, notes: l.notes ?? undefined })),
     };
     setError(null);
-    // Validasi lengkap di server (CheckoutInput); pesan error tampil sebagai toast + di bawah total.
-    router.post(
-      "/pos/orders",
-      { outletId, checkout, tenderedAmount: payNow ? tenderedAmount : null },
-      {
-        preserveScroll: true,
-        preserveState: true,
-        onStart: () => setSubmitting(true),
-        onFinish: () => setSubmitting(false),
-        onFlash: (flash) => {
-          const { placed, error: message } = flash as { placed?: Placed; error?: string };
-          if (message) {
-            if (message === ORDER_CONFLICT_MESSAGE) idempotencyKey.current = null;
-            setError(message);
-          }
-          if (placed) {
-            reset();
-            if (placed.warning) toast.warning(placed.warning);
-            onPlaced(placed);
-          }
-        },
-      },
-    );
+    setSubmitting(true);
+    // Validasi lengkap di server (CheckoutInput). Hasil dibaca dari respons JSON, bukan flash
+    // sesi, agar reload tab lain di sesi yang sama tidak menghilangkan nomor antrean/kembalian.
+    // Bila koneksi putus, idempotency key tetap: kirim ulang menghasilkan order yang sama.
+    postJson<Placed>("/pos/orders", { outletId, checkout, tenderedAmount: payNow ? tenderedAmount : null })
+      .then((result) => {
+        if (!result.ok) {
+          if (result.error === ORDER_CONFLICT_MESSAGE) idempotencyKey.current = null;
+          setError(result.error);
+          toast.error(result.error);
+          return;
+        }
+        reset();
+        if (result.warning) toast.warning(result.warning);
+        onPlaced(result);
+      })
+      .finally(() => setSubmitting(false));
   }
 
   return (

@@ -10,6 +10,7 @@ use App\Services\Orders\OrderEngine;
 use App\Services\Orders\OrderWorkflow;
 use App\Support\Access\AccessScope;
 use App\Support\Money;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -39,8 +40,12 @@ class PosController
     /**
      * Membuat order POS, lalu (opsional) langsung membayar tunai. Bila pembayaran
      * gagal, order tetap tersimpan sebagai belum dibayar dan kasir diberi tahu.
+     *
+     * Terminal POS memanggil endpoint ini sebagai JSON: hasilnya (nomor antrean,
+     * kembalian) langsung di respons, tidak lewat flash sesi yang bisa terambil oleh
+     * reload tab lain di sesi yang sama (mis. KDS di tablet kasir).
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
         $outletId = $request->input('outletId');
         $context = AuditContext::fromRequest($request);
@@ -70,6 +75,9 @@ class PosController
                     $placed['warning'] = "Pesanan disimpan sebagai belum dibayar: {$error->getMessage()}";
                 }
             }
+        }
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, ...$placed], $created['replayed'] ? 200 : 201)->header('Cache-Control', 'no-store');
         }
         Inertia::flash('placed', $placed);
 

@@ -33,11 +33,11 @@ Owner menetapkan urutan M1–M9 di bawah. Roadmap lama (2 November) membagi modu
 | M0 | Fondasi Laravel, Inertia, koneksi Supabase, health check | - | M0 | Selesai |
 | M1 | Login/logout, Supabase Auth, sesi, user management, role/permission, scope company/outlet, audit, rate limit login, header keamanan | `lib/auth`, `lib/security`, `lib/supabase`, `login`, `auth`, `admin/users`, `admin/roles`, `admin/audit` | M1 + sebagian M7 | **DONE — Development Verified** (3 November) |
 | M2 | Kategori, produk, harga, modifier, foto, sold out, menu customer `/order` dengan keranjang (checkout di M3) | `lib/catalog`, `admin/products`, `admin/categories`, `admin/modifiers`, `order` | M2 | **DONE — Development Verified** (3 November) |
-| M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | **Siap review** (3 November, Development Verified, belum di-commit) |
-| M4 | Pembayaran cash, antrean terpadu, nomor antrean, KDS, realtime atau polling | `lib/orders` (pembayaran, KDS), `kds` | sebagian M3 | Belum mulai |
-| M5 | Stok masuk/keluar, opname, waste, ledger, ketersediaan | `lib/inventory` | M5 | Belum mulai |
-| M6 | Sesi kas, refund, rekonsiliasi, laporan, dashboard | `lib/cash`, `lib/reports` | M4 | Belum mulai |
-| M7 | Karyawan, GPS, check-in/out, tugas luar, laporan absensi, abstraksi provider biometrik | `lib/attendance`, `staff` | M6 | Belum mulai |
+| M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | **DONE — Development Verified** (disetujui 3 November, `32ab6d2`) |
+| M4 | Pembayaran cash, antrean terpadu, nomor antrean, KDS, realtime atau polling; ditambah sesi kas minimum, pembatalan + approval, refund tunai penuh, inventory guard (keputusan owner 3 November) | `lib/orders` (pembayaran, KDS), `kds`, sebagian `lib/cash` | sebagian M3 | **DONE — Development Verified** (disetujui 4 November; commit WIP `9bc5bbd` + commit final M4) |
+| M5 | Stok masuk/keluar, opname, waste, ledger, ketersediaan, pemotongan stok saat bayar (menggantikan inventory guard M4) | `lib/inventory` | M5 | Ditunda sampai setelah soft launch |
+| M6 | Laporan, dashboard, ekspor (sesi kas, refund, dan rekonsiliasi dasar sudah masuk M4) | `lib/cash`, `lib/reports` | M4 | Ditunda sampai setelah soft launch |
+| M7 | Karyawan, GPS, check-in/out, tugas luar, laporan absensi, abstraksi provider biometrik | `lib/attendance`, `staff` | M6 | Ditunda sampai setelah soft launch |
 | M8 | Hardening: keamanan, performa, PWA, scheduler, rate limit, monitoring, backup/restore | - | M8 | Belum mulai |
 | M9 | Paritas penuh, staging, UAT outlet, cutover production | - | M9 | Belum mulai |
 
@@ -96,6 +96,18 @@ Bila Supabase tidak terjangkau dan token sudah kedaluwarsa, server menjawab 503 
 
 **Belum di M3 (sengaja).** Konfirmasi tunai, nomor antrean, KDS, sesi kas, pembatalan, dan realtime browser. Order M3 tetap `pending_payment` sampai M4.
 
+## M4: yang dibangun
+
+**Sesi kas.** `CashSessions` (buka, kas masuk/keluar, tutup, ringkasan). Saldo seharusnya selalu dihitung ulang dari `payments` dan `cash_movements`. Pembayaran mengunci sesi dengan `FOR SHARE`, sedangkan tutup kas dan refund memakai `FOR UPDATE`, sehingga tutup kas menunggu pembayaran yang sedang berjalan.
+
+**Pembayaran dan antrean.** `OrderWorkflow::confirmCash` mengunci baris order, memeriksa kedaluwarsa dengan waktu DB, lalu menjalankan inventory guard. Setelah itu mengambil nomor dari `order_number_counters` (upsert per outlet dan tanggal operasional), memperbarui tagihan `pending` menjadi `paid`, dan mengubah order menjadi `queued`, semuanya dalam satu transaksi. Audit dan sinyal realtime ikut di transaksi yang sama.
+
+**KDS, pembatalan, refund.** `OrderWorkflow::updateStatus`, `cancel`, `decideCancellation`, `refundCash`. Aturan sama dengan Next.js, tanpa reversal stok karena belum ada ledger stok di Laravel.
+
+**Realtime.** Browser berlangganan Supabase Realtime (`@supabase/realtime-js`, kunci publishable) untuk sinyal tanpa data. Data selalu dimuat ulang lewat Inertia partial reload yang diperiksa izin server. RLS tidak diubah.
+
+**Tidak ada migration.** Semua tabel, constraint, enum, dan job pg_cron sudah ada sejak Next.js.
+
 ## Pengujian
 
 | Lapis | Perintah | Isi |
@@ -109,9 +121,28 @@ Fixture memakai prefix `test-<runId>-` dan email `sudaya-test-<runId>-`, sama de
 
 ## Kecepatan
 
-M1 selesai dalam satu sesi kerja (2–3 November), termasuk test dan dokumen. Bagian terlama adalah test live, karena latensi laptop ke database eu-west-1 tinggi: 2,6 detik untuk koneksi dan 0,6 detik per query. M2 dan M3 masing-masing selesai dalam satu sesi kerja (3 November). Belum ada perkiraan tanggal untuk M4–M9.
+M1 selesai dalam satu sesi kerja (2–3 November), termasuk test dan dokumen. Bagian terlama adalah test live, karena latensi laptop ke database eu-west-1 tinggi: 2,6 detik untuk koneksi dan 0,6 detik per query. M2 dan M3 masing-masing selesai dalam satu sesi kerja (3 November). M4 dibangun 3 November dan diuji 4 November. Soft launch menunggu hosting, database production, dan UAT; lihat `GO_LIVE_READINESS.md`.
 
 Pengukuran M3 dari laptop: checkout 12 query, tetap sama berapa pun jumlah item, sekitar 7 detik karena tiap query ±0,59 detik ke eu-west-1. Ini bukan angka production. Ukur ulang dari hosting yang satu region dengan database sebelum go-live.
+
+### Kecepatan pengujian (dianalisis 4 November)
+
+Waktu per file test (Supabase dev eu-west-1, dari laptop):
+
+| Suite | File terlama | Total suite |
+|---|---|---|
+| Live | `PaymentFlowTest` 1.161 s (18 test), `CatalogTest` 852 s (21), `OrderEngineTest` 423 s (19) | ±48 menit |
+| E2E | `PaymentFlowTest` 977 s (5), `OrdersTest` 444 s (6), `RoutesTest` 385 s (18), `CatalogTest` 328 s (4) | ±36 menit |
+
+Penyebab utama adalah jaringan, bukan logika: round-trip ±0,58 detik per query dan ±2,5 detik setiap membuka koneksi. Laravel membuat app (dan koneksi) baru tiap test, dan server QA `php -S` membuka koneksi baru tiap request. Request staf di server QA ±7,4 detik (diukur langsung); di Windows `php -S` hanya satu proses, sehingga beberapa layar yang aktif bersamaan saling mengantre.
+
+Urutan optimasi yang disarankan, dari dampak terbesar dan risiko terkecil:
+
+1. **Supabase staging di region yang sama dengan production yang direncanakan (Singapura).** Dibutuhkan juga untuk staging dan UAT. Round-trip dari laptop di Indonesia akan jauh lebih pendek. Angka pastinya harus diukur, tidak diasumsikan. Tanpa perubahan kode.
+2. **Aturan uji berbasis risiko** (keputusan owner 4 November): perubahan UI → typecheck, build, browser terarah; logika bisnis → unit + integration terkait; pembayaran/kas/refund → tes konkurensi live terarah; database → validasi migration + integration terkait; tanpa perubahan kode → tidak mengulang suite yang lolos. Regresi penuh hanya untuk kandidat final atau perubahan berdampak luas.
+3. **Barrier konkurensi adaptif** di `tests/Live/RunsConcurrently.php`: ganti jeda tetap 12 detik dengan sinyal "siap" dari tiap proses. Hemat beberapa detik per tes konkurensi; kode test saja.
+4. **PostgreSQL lokal** (PostgreSQL 18 sudah terpasang di laptop) untuk logika murni database, misalnya `CashSessions` dan `OrderWorkflow`. Butuh port schema Next.js beserta stub `auth.users`/`auth.sessions`, `realtime.send`, dan `cron.job`. Hasilnya tidak membuktikan integrasi Supabase, jadi tes kritis tetap di Supabase. SQLite tidak dipakai untuk konkurensi. Ditunda sampai setelah M4.
+5. **Server QA multi-proses** (PHP-FPM atau `php -S` di WSL/Linux dengan `PHP_CLI_SERVER_WORKERS`) agar QA browser multi-layar tidak berantre. Sebaiknya langsung di staging.
 
 ## Risiko
 
