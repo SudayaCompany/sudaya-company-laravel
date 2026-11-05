@@ -1,8 +1,9 @@
 *.log
 .DS_Store
 .env
-.env.backup
-.env.production
+# Semua varian environment (.env.local, .env.staging, .env.production, dst.) berisi kredensial.
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.codex
