@@ -15,7 +15,7 @@ export function Brand({
   return (
     <span
       className={cn(
-        "inline-flex items-baseline gap-1.5 font-semibold tracking-tight",
+        "inline-flex items-baseline gap-1.5 font-display font-semibold tracking-tight",
         tone === "light" ? "text-white" : "text-foreground",
         className,
       )}

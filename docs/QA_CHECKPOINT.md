@@ -1,71 +1,68 @@
-# Checkpoint QA — 4 November 2026, 18.25
+# Checkpoint QA — 5 November 2026, 10.45
 
-Dibuat saat safe shutdown. Pekerjaan berjalan adalah **Tahap 2 setelah persetujuan M4**: pengaturan outlet dan daftar meja resmi. Fitur sudah dibangun dan sebagian besar teruji, tetapi **QA belum selesai dan belum direview owner**. Semua perubahan diamankan di commit WIP lokal (lihat §Git), tidak di-push, dan tidak ada deploy.
+Pekerjaan berjalan adalah **Tahap 2 setelah persetujuan M4**: pengaturan outlet, daftar meja resmi, dan redesign tampilan customer (permintaan owner 5 November). Semua test dan QA browser **lolos**. Perubahan 5 November **belum di-commit** dan **belum direview owner**. Tidak di-push, tidak ada deploy.
 
-## Status M4
+## Status
 
-M4 **DONE — Development Verified** (disetujui owner 4 November 2026), commit final `370aafc`. Residual QA M4 (R1–R4) tercatat di `GO_LIVE_READINESS.md` dan masih terbuka, lihat di bawah.
+| Bagian | Status |
+|---|---|
+| M4 | **DONE — Development Verified** (disetujui owner 4 November, `370aafc`). Residual R1–R4 **ditutup** 5 November, lihat `GO_LIVE_READINESS.md` |
+| Pengaturan outlet + daftar meja | Development Verified. Commit WIP `eff056c`, menunggu review owner |
+| Redesign customer | Development Verified. Belum di-commit, menunggu review owner |
 
-## Yang dibangun sejak `370aafc`
+## Yang dibangun
+
+Sejak `370aafc` (commit WIP `eff056c`): migration aditif `2026_11_04_000001` (RLS tabel `migrations`, tabel `outlet_tables`), `/admin/outlets`, daftar meja, dan validasi QR meja di checkout. Rinci di `LARAVEL_FEATURE_PARITY.md` §Tahap 2.
+
+Perubahan 5 November (belum di-commit):
 
 | Bagian | File |
 |---|---|
-| Migration Laravel pertama (aditif): RLS di tabel `migrations`, tabel `outlet_tables` (RLS aktif, unik `(outlet_id, number)`, check format nomor, FK cascade ke outlet) | `database/migrations/2026_11_04_000001_create_outlet_tables.php` |
-| Pengaturan outlet: nama, alamat, prefix antrean, batas waktu bayar, status. Butuh `settings.manage` di outlet. Audit `outlet.updated`, cache menu customer dibuang | `app/Services/Outlets/{OutletInput,OutletSettings}.php`, `Admin/OutletController.php`, `pages/admin/outlets/{index,edit}.tsx`, `Storefront::forgetOutlet` |
-| Daftar meja: tambah banyak sekaligus (tanpa duplikat), aktif/nonaktif, audit `outlet_table.created` / `outlet_table.status_changed` | sama |
-| Checkout QR meja dine in hanya untuk meja terdaftar dan aktif (dicek setelah insert agar retry order lama tetap dikembalikan). POS, kiosk, web, dan takeaway dari QR tidak berubah | `OrderEngine::create`, `OrderController::show` (pesan "QR meja tidak dikenali"), nomor meja read-only di checkout QR |
-| Navigasi admin "Outlet & Meja", RouteAccess `/admin/outlets`, `/admin/outlet-tables` → `settings.manage` | `HandleInertiaRequests`, `RouteAccess`, `admin-layout.tsx` |
+| Halaman depan kafe: hero, cara pesan 4 langkah, menu pilihan dan kategori dari data asli, lokasi outlet, tautan staf. Data deferred (`/` tetap tampil tanpa database); `/?outlet=<kode>` untuk outlet tertentu | `app/Http/Controllers/HomeController.php`, `routes/web.php`, `resources/js/pages/home.tsx` |
+| Menu customer: judul Fraunces, pencarian menu, chip kategori mengikuti scroll, kartu produk baru. Kiosk tanpa pencarian dan tanpa tautan ke `/` atau `/login` | `resources/js/components/storefront/storefront.tsx` |
+| Poles halaman status pesanan | `resources/js/pages/order/status.tsx` |
+| Font judul Fraunces (self-hosted, `@fontsource-variable/fraunces` 5.3.0), token `--cream`, smooth scroll + reduced motion | `package.json`, `resources/css/app.css`, `components/brand.tsx` |
+| Fixture E2E `CatalogTest` mendaftarkan meja T03 (penyebab D1). Assertion tidak diubah | `tests/E2E/CatalogTest.php` |
+| Dokumen | `GO_LIVE_READINESS.md`, `LARAVEL_FEATURE_PARITY.md`, `LARAVEL_MIGRATION_PLAN.md`, dokumen ini |
 
-**Schema:** migration di atas **sudah diterapkan di database development** (batch 1). Setelah diterapkan, 0 tabel `public` tanpa RLS dan 0 policy publik. Catatan: `migrate --pretend` membuat tabel `migrations` tanpa RLS, sehingga di dev tabel itu sempat tanpa RLS sekitar 1 menit (tanpa baris data) sebelum migration dijalankan. Jebakan ini sudah dicatat di `SUPABASE_STAGING_PLAN.md` dan `LARAVEL_STAGING_RUNBOOK.md`.
+Token warna PRD tidak diganti (hitam, putih, oranye, hijau). Tidak ada data, testimoni, harga, atau foto karangan.
 
-## Hasil test yang selesai (4 November, sesudah fitur outlet/meja)
+## Hasil test (5 November, setelah semua perubahan)
 
 | Suite | Hasil | Exit code |
 |---|---|---|
 | Pint, TypeScript, build Vite | lolos | 0 |
-| Unit/feature | 142/142 (512 assertion; 13 baru di `OutletInputTest`) | 0 |
-| Live `OutletSettingsTest` (baru) | 6/6 (54 assertion) | 0 |
-| Live `OrderEngineTest` | 19/19 | 0 |
-| Live `PaymentFlowTest --filter status_pelanggan` (memakai QR meja) | 1/1 | 0 |
+| Unit/feature | 142/142 (512 assertion) | 0 |
+| E2E `CatalogTest` | 4/4 | 0 |
+| **E2E penuh** (R1) | **35/35** (366 assertion), 09.58–10.38 | 0 |
+| Browser redesign (HP, tablet, desktop, kiosk) | 59/59, diulang setelah poles akhir 59/59 | 0 |
+| Browser M4 multi-layar (R2, R3, R4) | 73/73 | 0 |
+| Browser outlet & meja | 22/22 | 0 |
+| Browser M3 regresi | 137/137 | 0 |
 
-Live suite penuh terakhir 107/107 (exit 0, 15.55–16.45) dijalankan **sebelum** fitur outlet/meja.
+Live suite penuh terakhir 107/107 (4 November) dijalankan sebelum fitur outlet/meja. Sesudahnya yang dijalankan adalah Live `OutletSettingsTest` 6/6, `OrderEngineTest` 19/19, dan `PaymentFlowTest --filter status_pelanggan` 1/1. Live penuh perlu diulang sekali sebagai kandidat final bila owner meminta.
 
-## Test yang terputus (INCOMPLETE)
+Server QA browser: `m1/qa-cluster.mjs` (proxy + 6 proses `php -S`, laptop development). Angka waktu tidak mewakili production.
 
-E2E penuh (residual R1), dimulai 18.00, dihentikan 18.21 saat shutdown. Log: scratchpad `m1/qa-m4/r1-e2e-full.INCOMPLETE.log`.
-
-| File E2E | Hasil sampai dihentikan |
-|---|---|
-| `CatalogTest` | 3/4. **1 FAIL**: "alur katalog dari admin sampai menu customer". Dugaan kuat: fixture membuka `/order?outlet=…&table=T03` tanpa mendaftarkan meja T03, sehingga halaman kini menampilkan "QR meja tidak dikenali" sesuai aturan baru. Pesan kegagalan belum tercetak (dicetak di akhir run), jadi **wajib diverifikasi** |
-| `OrdersTest` | 6/6 |
-| `OutletsTest` (baru) | 2/2 |
-| `PaymentFlowTest` | **INCOMPLETE** (sedang berjalan saat dihentikan) |
-| `RoutesTest` | **INCOMPLETE** (belum mulai) |
-
-Exit code E2E penuh: tidak ada (dihentikan).
-
-## Belum dijalankan
-
-- QA browser di server multi-worker (residual R2, R3, R4): `m1/probe-m4.mjs` (cek keranjang HP sudah diperbaiki), `m1/probe-outlet.mjs` (baru), `m1/probe-m3.mjs` (regresi setelah validasi meja). Server QA: `node m1/qa-cluster.mjs 8124 6` (proxy + 6 proses `php -S`).
-- Pembaruan `LARAVEL_FEATURE_PARITY.md`, `LARAVEL_MIGRATION_PLAN.md`, dan `GO_LIVE_READINESS.md` untuk fitur outlet/meja.
-
-## Defect dan catatan terbuka
+## Defect dan catatan
 
 | No | Butir | Status |
 |---|---|---|
-| D1 | E2E `CatalogTest` gagal setelah validasi meja (dugaan: fixture belum mendaftarkan T03) | Terbuka, verifikasi besok |
+| D1 | E2E `CatalogTest` gagal setelah validasi meja: fixture membuka QR meja T03 yang belum terdaftar | Ditutup (fixture mendaftarkan T03; 4/4 dan E2E penuh 35/35) |
 | D2 | `migrate --pretend` membuat tabel `migrations` tanpa RLS | Ditangani di dev; prosedur staging diperbarui |
-| R1–R4 | Residual QA M4 | Terbuka |
+| D3 | Alat QA: `qa-cluster.mjs` menjalankan `php -S` dari root proyek, padahal router Laravel memakai folder kerja sebagai `public` (semua request 500); worker juga tertinggal bila proxy gagal start | Ditutup (alat QA saja, bukan kode aplikasi) |
+| D4 | Alat QA: probe outlet memakai selector `button` untuk Switch yang dirender `role=switch` | Ditutup (selector diperbaiki, assertion sama) |
+| R1–R4 | Residual QA M4 | **Ditutup** |
+| N1 | Telepon outlet belum ada di form pengaturan outlet | Terbuka, bukan penghalang soft launch |
+| N2 | `npx eslint` tidak bisa jalan: proyek belum punya `eslint.config.*` | Terbuka |
 
 ## Data dan proses
 
-- Database dev bersih per 18.23: 0 company `test-*`, 0 user `sudaya-test-*`, 0 order/kas/refund/approval/counter/meja/item stok/produk, 0 objek Storage. Company tersisa hanya seed `sudaya`. Fixture E2E yang terputus (runId `afb93ba7`) sudah dibersihkan dengan `fixture.php cleanup`. 4 counter rate limit ter-hash (tidak bisa dipastikan pemiliknya) kedaluwarsa sendiri sebelum 18.28 dan dibersihkan pg_cron.
-- Tidak ada proses php, node, atau Chrome headless QA yang berjalan, dan port 8123, 8124, 8140–8145 kosong.
+- Database dev bersih per 10.40: 0 company `test-*`, 0 user `sudaya-test-*`, 0 order/kas/refund/approval/counter/meja/produk/item stok, 0 objek Storage menu. Company tersisa hanya seed `sudaya`. Fixture browser (runId `c43d79c6`) sudah dibersihkan dengan `fixture.php cleanup`, file fixture berisi password test sudah dihapus.
+- Tidak ada proses php, proxy QA, atau Chrome headless QA yang berjalan.
 
-## Langkah pertama besok
+## Langkah berikutnya
 
-1. Baca dokumen ini, `git log --oneline -3`, dan `git status` (harus bersih).
-2. Buka `tests/E2E/CatalogTest.php` baris ±102. Bila benar penyebabnya meja T03 tidak terdaftar, daftarkan T03 di fixture (seperti `tests/E2E/PaymentFlowTest.php`). Assertion tidak diubah.
-3. Jalankan `php artisan test -c phpunit.live.xml tests/E2E/CatalogTest.php`, lalu **E2E penuh** (`--testsuite E2E`, ±40 menit) untuk menutup R1.
-4. QA browser: `node m1/qa-cluster.mjs 8124 6`, lalu `fixture.php create` + `m1/seed-m3.php`, kemudian `probe-m4.mjs` (R2–R4), `probe-outlet.mjs`, dan `probe-m3.mjs`.
-5. Perbarui dokumen paritas, rencana migrasi, dan go-live untuk fitur outlet/meja, lalu laporkan ke owner. Commit final fitur baru menunggu persetujuan.
+1. Owner meninjau tampilan baru dan fitur outlet/meja (screenshot di scratchpad QA: `shots-rd2`, `shots-outlet`).
+2. Setelah disetujui: commit final Tahap 2 (WIP `eff056c` + perubahan 5 November).
+3. Lanjut pekerjaan menuju UAT di `GO_LIVE_READINESS.md` §Pekerjaan minimum (hosting + Supabase staging Singapura, deploy staging, data master asli, UAT outlet). Semua butuh persetujuan owner.

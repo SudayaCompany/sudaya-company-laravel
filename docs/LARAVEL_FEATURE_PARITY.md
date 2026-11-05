@@ -10,6 +10,7 @@ Diperbarui 4 November 2026. Status yang dipakai: NOT STARTED, IN PROGRESS, PARTI
 | M2 Katalog dan menu | **DONE — Development Verified** (disetujui owner 3 November 2026). Keranjang kini lengkap dengan checkout M3 | Unit katalog 30, live katalog 21, E2E katalog 4, browser 57/57. Regresi penuh: unit 102/102, live+E2E 92/92 |
 | M3 Order engine, POS, QR, kiosk | **DONE — Development Verified** (disetujui owner 3 November 2026, `32ab6d2`) | Unit order 27, live order 19, E2E order 6, browser 137/137. Regresi penuh 3 November: unit/feature 129/129, live 89/89 (exit 0), E2E 28/28 (exit 0), database dev bersih |
 | M4 Pembayaran tunai, kas, antrean, KDS, pembatalan, refund | **DONE — Development Verified** (disetujui owner 4 November 2026; residual QA wajib ditutup sebelum staging/UAT dinyatakan lulus, lihat `GO_LIVE_READINESS.md`) | Live `PaymentFlowTest` 18, E2E `PaymentFlowTest` 5, browser M4. Regresi penuh 4 November: unit 129/129, live 107/107, E2E 33/33 (setelah 1 test M3 diperbarui). QRIS BLOCKED (EXT-001) |
+| Tahap 2 soft launch: pengaturan outlet, daftar meja, halaman depan kafe | **Development Verified, menunggu review owner** (commit WIP `eff056c` + perubahan 5 November) | Unit 142/142, Live `OutletSettingsTest` 6, E2E penuh 35/35, browser redesign 59/59, outlet 22/22, M3 137/137, M4 73/73. Rinci di §Tahap 2 |
 | M5 Inventory | NOT STARTED | |
 | M6 Finance | NOT STARTED | |
 | M7 Karyawan dan absensi | NOT STARTED | Biometrik BLOCKED (EXT-003) |
@@ -92,6 +93,18 @@ Lingkup M3: pembuatan order semua channel, validasi harga di server, idempotensi
 | Isolasi company dan izin outlet untuk detail/daftar/struk (404 tanpa bocor info) | `getOrderDetail` | `OrderEngine::detail` | Live, E2E | PARITY VERIFIED |
 
 Pengukuran (laptop development ke Supabase dev eu-west-1, bukan angka production): checkout membutuhkan 12 query, tetap sama untuk 1, 5, maupun 20 baris item (tidak ada N+1). Retry 9 query, status guest 4, detail staf 6, daftar 2, menu POS 5. Satu round-trip query dari laptop ±0,59 detik, jadi checkout ±7 detik di laptop hampir seluruhnya waktu jaringan. Angka production harus diukur ulang dari server yang satu region dengan database.
+
+## Tahap 2 rinci (setelah M4)
+
+Bukan port dari Next.js: Next.js tidak punya halaman pengaturan outlet, master meja, atau halaman depan publik. Ditambahkan untuk soft launch sesuai keputusan sementara EXT-026 di `MASTER_DATA_PREPARATION.md`.
+
+| Perilaku | Laravel | Test Laravel | Status |
+|---|---|---|---|
+| Ubah nama, alamat, prefix antrean (`A-Z0-9`, 1–6), batas bayar 5–180 menit, status aktif. Butuh `settings.manage` di outlet itu; audit `outlet.updated` hanya field yang berubah; cache menu customer dibuang | `OutletInput`, `OutletSettings`, `Admin/OutletController` | Unit, Live, E2E | VERIFIED (dev) |
+| Daftar meja per outlet: tambah banyak sekaligus tanpa duplikat (maks 50), aktif/nonaktif, audit `outlet_table.created` / `outlet_table.status_changed`, isolasi company | sama, tabel `outlet_tables` (RLS aktif) | Live, E2E | VERIFIED (dev) |
+| Checkout QR meja dine in hanya untuk meja terdaftar dan aktif; dicek di transaksi setelah insert agar retry order lama tetap dikembalikan. POS, kiosk, web, takeaway dari QR tidak berubah | `OrderEngine::create`, `OrderController::show` ("QR meja tidak dikenali") | Live `OrderEngineTest`, E2E `CatalogTest`, `PaymentFlowTest` | VERIFIED (dev) |
+| Halaman depan `/` (atau `/?outlet=<kode>`): cara pesan, menu pilihan dan kategori dari menu outlet itu atau outlet aktif tunggal (data asli, tanpa testimoni atau angka karangan), alamat outlet, tautan staf. Data dimuat sebagai deferred prop sehingga `/` tetap tampil bila database tidak terjangkau | `HomeController`, `pages/home.tsx` | Unit `HealthTest`, browser 59/59 | VERIFIED (dev) |
+| Menu customer: pencarian menu, chip kategori menandai seksi yang terlihat, kartu produk dengan deskripsi. Teks dan alur checkout tidak berubah. Kiosk tanpa pencarian dan tanpa tautan ke halaman depan/staf | `storefront.tsx` | Browser redesign 59/59, regresi M3 137/137 | VERIFIED (dev) |
 
 ## M4 rinci
 

@@ -1,4 +1,4 @@
-import { Head, router } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
@@ -7,9 +7,11 @@ import {
   MapPinIcon,
   MinusIcon,
   PlusIcon,
+  SearchIcon,
   ShoppingBagIcon,
   Trash2Icon,
   UtensilsIcon,
+  XIcon,
 } from "lucide-react";
 import { createContext, use, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -142,27 +144,41 @@ export function StorefrontView({
 }) {
   const kiosk = mode === "kiosk";
   const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
+  const [search, setSearch] = useState("");
   const sections = storefront.categories
     .map((category) => ({ category, products: storefront.products.filter((p) => p.categoryId === category.id) }))
     .filter((s) => s.products.length > 0);
+  const query = search.trim().toLowerCase();
+  const results = query
+    ? storefront.products.filter((p) => p.name.toLowerCase().includes(query) || (p.description ?? "").toLowerCase().includes(query))
+    : null;
+  const active = useActiveSection(sections.map((s) => `kategori-${s.category.slug}`), results === null);
+  const gridClass = cn("grid", kiosk ? "grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4" : "grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4");
 
   return (
     <CartProvider outlet={storefront.outlet.code} channel={channel} mode={mode} table={table}>
       <Head title={kiosk ? "Kiosk" : "Menu"} />
       <div className="flex min-h-svh flex-col bg-background">
-        <header className="relative overflow-hidden bg-neutral-950 text-white">
-          <div className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-brand/20 blur-3xl" aria-hidden />
-          <div className="relative mx-auto w-full max-w-5xl px-4 pt-6 pb-8">
-            <Brand tone="light" className="text-lg" />
-            <h1 className={cn("mt-6 font-semibold tracking-tight text-balance", kiosk ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl")}>
+        <header className="relative isolate overflow-hidden bg-neutral-950 text-white">
+          <div className="pointer-events-none absolute -top-24 -right-16 -z-10 size-72 rounded-full bg-brand/25 blur-3xl" aria-hidden />
+          <div className="pointer-events-none absolute -bottom-32 -left-20 -z-10 size-64 rounded-full bg-success/15 blur-3xl" aria-hidden />
+          <div className={cn("mx-auto w-full max-w-5xl px-4", kiosk ? "pt-8 pb-10" : "pt-5 pb-8")}>
+            {kiosk ? (
+              <Brand tone="light" className="text-2xl" />
+            ) : (
+              <Link href="/" className="rounded-md text-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+                <Brand tone="light" />
+              </Link>
+            )}
+            <h1 className={cn("mt-6 font-display font-semibold tracking-tight text-balance", kiosk ? "text-5xl sm:text-6xl" : "text-4xl sm:text-5xl")}>
               {kiosk ? "Pesan di sini, bayar di kasir" : "Mau ngopi apa hari ini?"}
             </h1>
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-400">
-              <span className="inline-flex items-center gap-1">
-                <MapPinIcon className="size-3.5" aria-hidden /> {storefront.outlet.name}
+            <p className={cn("mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-neutral-300", kiosk ? "text-base" : "text-sm")}>
+              <span className="inline-flex items-center gap-1.5">
+                <MapPinIcon className="size-4 text-brand" aria-hidden /> {storefront.outlet.name}
               </span>
               {table ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-white">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1 font-semibold text-brand-foreground">
                   <UtensilsIcon className="size-3.5" aria-hidden /> Meja {table}
                 </span>
               ) : null}
@@ -176,31 +192,62 @@ export function StorefrontView({
           </main>
         ) : (
           <>
-            <nav aria-label="Kategori menu" className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-              <div className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none]">
-                {sections.map(({ category }) => (
-                  <a
-                    key={category.id}
-                    href={`#kategori-${category.slug}`}
-                    className={cn("shrink-0 rounded-full border font-medium transition-colors hover:border-foreground", kiosk ? "px-6 py-3 text-lg" : "px-4 py-1.5 text-sm")}
-                  >
-                    {category.name}
-                  </a>
-                ))}
+            <nav aria-label="Kategori menu" className="sticky top-0 z-30 border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-3">
+                {kiosk ? null : (
+                  <div className="relative">
+                    <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                    <Input
+                      type="search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Cari kopi, teh, camilan…"
+                      aria-label="Cari menu"
+                      enterKeyHint="search"
+                      className="h-11 rounded-full bg-muted/60 pr-10 pl-10 text-base [&::-webkit-search-cancel-button]:hidden"
+                    />
+                    {search ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearch("")}
+                        aria-label="Hapus pencarian"
+                        className="absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <XIcon className="size-4" aria-hidden />
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+                {results === null ? (
+                  <CategoryChips sections={sections.map((s) => s.category)} active={active} large={kiosk} />
+                ) : null}
               </div>
             </nav>
 
-            <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 pt-6 pb-32">
-              {sections.map(({ category, products }) => (
-                <section key={category.id} id={`kategori-${category.slug}`} className="scroll-mt-20">
-                  <h2 className={cn("mb-3 font-semibold tracking-tight", kiosk ? "text-2xl" : "text-lg")}>{category.name}</h2>
-                  <div className={cn("grid gap-3", kiosk ? "grid-cols-2 gap-4 md:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4")}>
-                    {products.map((product) => (
+            <main className={cn("mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pt-6 pb-32", kiosk ? "gap-10" : "gap-8")}>
+              {results !== null ? (
+                <section aria-live="polite">
+                  <h2 className="mb-3 text-sm text-muted-foreground">
+                    {results.length ? `${results.length} hasil untuk “${search.trim()}”` : `Tidak ada menu yang cocok dengan “${search.trim()}”.`}
+                  </h2>
+                  <div className={gridClass}>
+                    {results.map((product) => (
                       <ProductCard key={product.id} product={product} large={kiosk} onOpen={() => setOpenProduct(product)} />
                     ))}
                   </div>
                 </section>
-              ))}
+              ) : (
+                sections.map(({ category, products }) => (
+                  <section key={category.id} id={`kategori-${category.slug}`} className={kiosk ? "scroll-mt-24" : "scroll-mt-32"}>
+                    <h2 className={cn("mb-4 font-display font-semibold tracking-tight", kiosk ? "text-3xl" : "text-2xl")}>{category.name}</h2>
+                    <div className={gridClass}>
+                      {products.map((product) => (
+                        <ProductCard key={product.id} product={product} large={kiosk} onOpen={() => setOpenProduct(product)} />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
             </main>
           </>
         )}
@@ -212,18 +259,85 @@ export function StorefrontView({
   );
 }
 
+/** Kategori yang sedang terlihat di layar, untuk menandai chip navigasi. */
+function useActiveSection(ids: string[], enabled: boolean) {
+  const [active, setActive] = useState<string | null>(ids[0] ?? null);
+  const key = ids.join("|");
+  useEffect(() => {
+    if (!enabled || ids.length === 0) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      // Di dasar halaman seksi terakhir aktif, walau judulnya tidak sampai ke bawah nav.
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      // Seksi terakhir yang judulnya sudah melewati garis di bawah nav sticky.
+      const passed = ids.filter((id) => (document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= 160);
+      setActive(atBottom && window.scrollY > 0 ? ids[ids.length - 1] : (passed.at(-1) ?? ids[0]));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+    // key mewakili isi `ids`.
+  }, [key, enabled]);
+  return active;
+}
+
+function CategoryChips({ sections, active, large }: { sections: Storefront["categories"]; active: string | null; large: boolean }) {
+  const rail = useRef<HTMLDivElement>(null);
+  // Chip aktif digeser ke area terlihat tanpa menggulir halaman.
+  useEffect(() => {
+    const chip = rail.current?.querySelector<HTMLElement>(`[data-section="${active}"]`);
+    if (!chip || !rail.current) return;
+    const { offsetLeft, offsetWidth } = chip;
+    const target = offsetLeft - (rail.current.clientWidth - offsetWidth) / 2;
+    rail.current.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [active]);
+
+  return (
+    <div ref={rail} className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
+      {sections.map((category) => {
+        const id = `kategori-${category.slug}`;
+        const current = active === id;
+        return (
+          <a
+            key={category.id}
+            href={`#${id}`}
+            data-section={id}
+            aria-current={current ? "true" : undefined}
+            className={cn(
+              "shrink-0 rounded-full border font-medium transition-colors duration-200",
+              large ? "px-6 py-3 text-lg" : "px-4 py-2 text-sm",
+              current ? "border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950" : "hover:border-foreground",
+            )}
+          >
+            {category.name}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; large: boolean; onOpen: () => void }) {
   const soldOut = !product.isAvailable;
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="group flex flex-col overflow-hidden rounded-2xl border bg-card text-left transition-shadow hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-3xl border bg-card text-left transition-[box-shadow,transform] duration-200 hover:shadow-lg active:scale-[0.98] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       aria-label={`${product.name}, ${formatRupiah(product.price)}${soldOut ? ", sold out" : ""}`}
     >
-      <div className="relative aspect-square bg-muted">
+      <div className="relative aspect-square overflow-hidden bg-cream">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt="" loading="lazy" className={cn("size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]", soldOut && "grayscale")} />
+          <img src={product.imageUrl} alt="" loading="lazy" className={cn("size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]", soldOut && "grayscale")} />
         ) : (
           <CoffeeIcon className="absolute inset-0 m-auto size-10 text-muted-foreground/40" aria-hidden />
         )}
@@ -233,13 +347,19 @@ function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; l
           </span>
         ) : null}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
-        <p className={cn("line-clamp-2 font-medium", large ? "text-lg" : "text-sm")}>{product.name}</p>
-        <div className="mt-auto flex min-h-8 items-center justify-between pt-1">
-          <span className={cn("font-semibold tabular-nums", large ? "text-lg" : "text-sm")}>{formatRupiah(product.price)}</span>
+      <div className={cn("flex flex-1 flex-col gap-1", large ? "p-4" : "p-3")}>
+        <p className={cn("line-clamp-2 leading-snug font-semibold", large ? "text-xl" : "text-[0.95rem]")}>{product.name}</p>
+        {product.description ? <p className={cn("line-clamp-2 text-muted-foreground", large ? "text-sm" : "text-xs")}>{product.description}</p> : null}
+        <div className="mt-auto flex min-h-9 items-center justify-between gap-2 pt-2">
+          <span className={cn("font-semibold tabular-nums", large ? "text-xl" : "text-sm")}>{formatRupiah(product.price)}</span>
           {soldOut ? null : (
-            <span className="flex size-7 items-center justify-center rounded-full bg-neutral-950 text-white transition-colors group-hover:bg-brand group-hover:text-brand-foreground">
-              <PlusIcon className="size-4" aria-hidden />
+            <span
+              className={cn(
+                "flex shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground transition-transform duration-200 group-hover:scale-110",
+                large ? "size-11" : "size-8",
+              )}
+            >
+              <PlusIcon className={large ? "size-5" : "size-4"} aria-hidden />
             </span>
           )}
         </div>
@@ -252,7 +372,7 @@ function ProductSheet({ product, onOpenChange }: { product: StorefrontProduct | 
   const { mode } = useCart();
   return (
     <Sheet open={product !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 overflow-hidden rounded-t-2xl p-0", mode === "kiosk" ? "max-w-2xl" : "max-w-lg")}>
+      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 overflow-hidden rounded-t-3xl p-0", mode === "kiosk" ? "max-w-2xl" : "max-w-lg")}>
         {product ? <ProductDetail key={product.id} product={product} onDone={() => onOpenChange(false)} /> : null}
       </SheetContent>
     </Sheet>
@@ -387,7 +507,7 @@ function CartSheet({
         if (!next) setStep("cart");
       }}
     >
-      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 rounded-t-2xl p-0", kiosk ? "max-w-2xl" : "max-w-lg")}>
+      <SheetContent side="bottom" className={cn("mx-auto max-h-[92svh] w-full gap-0 rounded-t-3xl p-0", kiosk ? "max-w-2xl" : "max-w-lg")}>
         {step === "cart" ? (
           <>
             <SheetHeader className="border-b p-4">

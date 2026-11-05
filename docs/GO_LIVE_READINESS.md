@@ -1,6 +1,6 @@
 # Kesiapan go-live Sudaya Coffee (Laravel)
 
-Diperbarui 4 November 2026. Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
+Diperbarui 5 November 2026. Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
 
 **Kesimpulan:** belum siap production. Fitur transaksi tunai inti terbukti di lingkungan development (database dan Supabase dev). Hosting, database production, HTTPS, backup/restore, monitoring, data menu asli, perangkat outlet, dan UAT belum ada. Seluruh PASS di bawah adalah *Development Verified*, bukan bukti production.
 
@@ -9,7 +9,9 @@ Diperbarui 4 November 2026. Status per butir: **PASS** (terbukti dengan test ata
 | Butir | Status | Bukti |
 |---|---|---|
 | POS: buat pesanan, modifier, catatan, tipe pesanan | PASS | Live `OrderEngineTest`, E2E `OrdersTest`, browser M3 + M4 (HP, tablet, desktop) |
-| QR order meja/kasir tanpa login | PASS | E2E `OrdersTest`, `PaymentFlowTest`, browser. Kode outlet divalidasi; nomor meja hanya divalidasi formatnya (master meja belum ada) |
+| QR order meja/kasir tanpa login | PASS | E2E `OrdersTest`, `PaymentFlowTest`, browser. Kode outlet divalidasi. Sejak 4 November QR meja dine in hanya untuk meja terdaftar dan aktif (Live `OrderEngineTest`, `OutletSettingsTest`) |
+| Pengaturan outlet dan daftar meja (`/admin/outlets`, butuh `settings.manage`) | PASS | Unit `OutletInputTest`, Live `OutletSettingsTest` 6/6, E2E `OutletsTest` 2/2, browser 22/22. Telepon outlet belum ada di form |
+| Halaman depan kafe dan menu customer (redesign 5 November): cara pesan, menu pilihan dari data asli, pencarian menu, kategori aktif | PASS | Unit `HealthTest` (`/` tetap tampil tanpa database), browser redesign 59/59, regresi browser M3 137/137, E2E penuh 35/35 |
 | Kiosk: hanya dine in/takeaway, tanpa token di perangkat bersama, kode referensi | PASS | E2E kiosk → kasir bayar → KDS, browser kiosk landscape. Nomor antrean diberikan lewat struk kasir (keputusan sementara EXT-012); tampilan nomor di kiosk belum ada |
 | Pembayaran tunai: uang diterima, kembalian, idempotent, hanya kasir/manager | PASS | Live `PaymentFlowTest` (termasuk 3 proses bayar order yang sama), E2E, browser |
 | Sesi kas: buka, kas masuk/keluar, tutup dengan uang fisik, selisih beralasan | PASS | Live (rekonsiliasi angka per komponen), E2E tutup kas cocok, browser |
@@ -66,7 +68,7 @@ Diperbarui 4 November 2026. Status per butir: **PASS** (terbukti dengan test ata
 | Perangkat kasir (POS) | NOT TESTED | UI teruji di HP, tablet, desktop (Chrome) |
 | Perangkat KDS | NOT TESTED | UI teruji di tablet landscape dan desktop |
 | Printer struk thermal 80 mm | NOT TESTED | Ukuran halaman 80 mm terbukti lewat PDF; printer fisik belum dicoba |
-| QR meja dicetak | NOT TESTED | Format URL `/order?outlet=<kode>&table=<meja>` |
+| QR meja dicetak | NOT TESTED | Format URL `/order?outlet=<kode>&table=<meja>`. Meja wajib didaftarkan dulu di `/admin/outlets/<outlet>`; QR meja yang belum terdaftar menampilkan "QR meja tidak dikenali" |
 | Internet / Wi-Fi outlet | NOT TESTED | Realtime butuh WebSocket ke Supabase; tanpa itu jatuh ke polling |
 | Uji transaksi langsung di outlet | NOT TESTED | |
 | UAT Manager (checklist di bawah) | NOT TESTED | |
@@ -94,10 +96,25 @@ M4 disetujui owner sebagai *DONE — Development Verified* pada 4 November 2026 
 
 | No | Residual | Catatan hasil awal | Penutupan |
 |---|---|---|---|
-| R1 | E2E regresi penuh setelah assertion test M3 diperbarui | Regresi penuh 4 November: **32/33** (exit 1). Penyebab: test M3 `OrdersTest > respons error checkout` berpremis "belum ada endpoint bayar". Sejak M4 endpoint itu ada untuk staf, dan guest mendapat 401. Setelah diperbarui, hanya `OrdersTest` yang dijalankan ulang (6/6) | Jalankan ulang suite E2E penuh |
-| R2 | Browser M4 pada server yang mampu melayani beberapa layar bersamaan | Run utama **56/58**. Login manager gagal karena server QA `php -S` satu proses mengantre reload realtime dari 4 layar (±7,4 detik per request), dan probe berhenti. Bagian refund dan tutup kas diuji terpisah (23/24 + 2/2) | Ulangi di server multi-worker (PHP-FPM, staging) |
-| R3 | Cek keranjang mobile sesuai kondisi responsif | Bagian 2 **23/24**: cek "POS meminta buka kas" dijalankan di layar HP, padahal keranjang di HP ada di sheet yang tertutup. Di desktop lolos 2/2 | Probe membuka sheet keranjang di HP sebelum memeriksa |
-| R4 | POS → bayar → KDS → Completed dalam satu run tanpa putus | Setiap tahap lolos di run terpisah (E2E dan browser), tetapi belum dalam satu run browser utuh | Satu run browser utuh di server multi-worker |
+| R1 | E2E regresi penuh setelah assertion test M3 diperbarui | Regresi penuh 4 November: **32/33** (exit 1). Penyebab: test M3 `OrdersTest > respons error checkout` berpremis "belum ada endpoint bayar". Sejak M4 endpoint itu ada untuk staf, dan guest mendapat 401. Setelah diperbarui, hanya `OrdersTest` yang dijalankan ulang (6/6) | **DITUTUP 5 November**: E2E penuh **35/35** (366 assertion, exit 0, 40 menit) termasuk fitur outlet/meja dan redesign. Database dev bersih sesudahnya |
+| R2 | Browser M4 pada server yang mampu melayani beberapa layar bersamaan | Run utama **56/58**. Login manager gagal karena server QA `php -S` satu proses mengantre reload realtime dari 4 layar (±7,4 detik per request), dan probe berhenti. Bagian refund dan tutup kas diuji terpisah (23/24 + 2/2) | **DITUTUP 5 November**: server QA lokal 6 worker (proxy + 6 proses `php -S`), probe M4 **73/73** (exit 0) dengan kasir, KDS, pelanggan, dan manager bersamaan. Staging tetap wajib diuji ulang dengan PHP-FPM |
+| R3 | Cek keranjang mobile sesuai kondisi responsif | Bagian 2 **23/24**: cek "POS meminta buka kas" dijalankan di layar HP, padahal keranjang di HP ada di sheet yang tertutup. Di desktop lolos 2/2 | **DITUTUP 5 November**: probe membuka sheet keranjang di HP; "setelah tutup kas, POS kembali meminta buka kas" PASS di run 73/73 |
+| R4 | POS → bayar → KDS → Completed dalam satu run tanpa putus | Setiap tahap lolos di run terpisah (E2E dan browser), tetapi belum dalam satu run browser utuh | **DITUTUP 5 November**: satu run 73/73: buka kas → bayar tunai di desktop/tablet/HP (SDY-001..003 berurutan) → KDS realtime (mode `live`) → Preparing → Ready → Completed → status pelanggan "Selesai" → batal + approval manager lain → refund → tutup kas |
+
+## Hasil QA tahap 2 (Supabase dev, 5 November 2026)
+
+Lingkup: pengaturan outlet, daftar meja, halaman depan kafe, dan poles menu customer. Server QA lokal 6 worker; angka waktu dari laptop development, bukan ukuran production.
+
+| Lapis | Hasil | Exit code |
+|---|---|---|
+| Pint, TypeScript, build Vite | lolos | 0 |
+| Unit/feature | 142/142 (512 assertion) | 0 |
+| E2E `CatalogTest` (fixture kini mendaftarkan meja T03; assertion tidak diubah) | 4/4 | 0 |
+| Browser redesign (halaman depan, pencarian, chip kategori, kiosk; HP, tablet, desktop) | 59/59 | 0 |
+| Browser M4 multi-layar (R2–R4) | 73/73 | 0 |
+| Browser outlet & meja | 22/22 (run pertama berhenti karena selector probe `button` untuk Switch yang dirender sebagai `role=switch`; selector diperbaiki, outlet fixture dikembalikan, lalu diulang) | 0 |
+| Browser M3 regresi (menu, checkout, kiosk, POS) | 137/137 | 0 |
+| E2E penuh (R1): `CatalogTest`, `OrdersTest`, `OutletsTest`, `PaymentFlowTest`, `RoutesTest` | 35/35 (366 assertion) | 0 |
 
 ## Pekerjaan minimum menuju UAT outlet
 
@@ -105,8 +122,8 @@ Urut prioritas. Pekerjaan kode (1–3) baru dimulai setelah M4 disetujui.
 
 | No | Pekerjaan | Jenis | Alasan |
 |---|---|---|---|
-| 1 | **Halaman pengaturan outlet sederhana**: nama, alamat, telepon, prefix nomor antrean, batas waktu bayar, status aktif | Kode (kecil) | Tanpa ini data outlet hasil seed hanya bisa diubah lewat SQL |
-| 2 | **Master meja per outlet** + checkout menolak nomor meja di luar daftar | Kode (kecil–sedang) | Keputusan sementara EXT-026: QR membawa identitas meja yang divalidasi |
+| 1 | **Halaman pengaturan outlet sederhana**: nama, alamat, prefix nomor antrean, batas waktu bayar, status aktif | Kode (kecil) | **Dibangun** (commit WIP, menunggu review owner). Telepon belum |
+| 2 | **Master meja per outlet** + checkout menolak nomor meja di luar daftar | Kode (kecil–sedang) | **Dibangun** (commit WIP, menunggu review owner). Migration aditif `2026_11_04_000001` sudah diterapkan di dev |
 | 3 | Commit final M4 (setelah persetujuan) dan remote Git untuk deploy | Git | Staging butuh sumber kode yang disetujui |
 | 4 | Pilih hosting Singapura dan buat Supabase staging Singapura | Owner | [STAGING_HOSTING_PLAN.md](STAGING_HOSTING_PLAN.md), [SUPABASE_STAGING_PLAN.md](SUPABASE_STAGING_PLAN.md) |
 | 5 | Deploy staging + smoke test | Pengelola deploy | [LARAVEL_STAGING_RUNBOOK.md](LARAVEL_STAGING_RUNBOOK.md) |

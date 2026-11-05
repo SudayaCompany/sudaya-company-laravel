@@ -43,7 +43,9 @@ export default function OrderStatusPage({ order }: { order: GuestOrder | null })
       <Head title="Status pesanan">
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      <Brand className="text-lg" />
+      <Link href="/" className="w-fit rounded-md text-lg focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none">
+        <Brand />
+      </Link>
       {order ? (
         <OrderStatusView order={order} />
       ) : (
@@ -73,13 +75,13 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
     <>
       <section
         data-realtime={finished ? "idle" : connection}
-        className={cn("flex flex-col gap-4 rounded-2xl p-5", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-neutral-950 text-white")}
+        className={cn("flex flex-col gap-5 rounded-3xl p-6", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-neutral-950 text-white")}
       >
         {/* flex-wrap: di HP sempit badge turun ke baris berikutnya, nomor antrean tidak terpotong. */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className={cn("text-sm", unpaid || cancelled ? "text-muted-foreground" : "text-neutral-400")}>{order.orderNumber ? "Nomor antrean" : "Kode pesanan"}</p>
-            <p className="font-mono text-4xl font-bold tracking-wider whitespace-nowrap">{order.orderNumber ?? order.reference}</p>
+            <p className="font-mono text-5xl font-bold tracking-wider whitespace-nowrap">{order.orderNumber ?? order.reference}</p>
           </div>
           <span
             className={cn(
@@ -122,10 +124,10 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
             })}
           </ol>
         )}
-        {order.status === "ready" ? <p className="rounded-lg bg-brand px-3 py-2 text-center font-semibold text-brand-foreground">Pesanan siap — silakan ambil di counter.</p> : null}
+        {order.status === "ready" ? <p className="rounded-2xl bg-brand px-4 py-3 text-center text-base font-semibold text-brand-foreground">Pesanan siap — silakan ambil di counter.</p> : null}
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border p-4 text-sm">
+      <section className="flex flex-col gap-3 rounded-3xl border p-5 text-sm">
         <dl className="grid grid-cols-[8rem_1fr] gap-y-1.5">
           <dt className="text-muted-foreground">Kode pesanan</dt>
           <dd className="font-mono">{order.reference}</dd>
@@ -167,7 +169,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
         </div>
       </section>
 
-      <Link href={`/order?outlet=${order.outletCode}`} className={buttonVariants({ variant: "outline", size: "lg" })}>
+      <Link href={`/order?outlet=${order.outletCode}`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 rounded-full")}>
         Pesan lagi
       </Link>
     </>

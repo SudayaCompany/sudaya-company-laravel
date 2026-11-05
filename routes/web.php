@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\SetPasswordController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\KdsController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderStatusController;
@@ -25,7 +26,7 @@ use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'home');
+Route::get('/', HomeController::class);
 
 // Menu customer, checkout guest, status pesanan, dan kiosk.
 Route::get('/order', [OrderController::class, 'show']);

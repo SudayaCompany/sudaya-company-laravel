@@ -35,6 +35,7 @@ Owner menetapkan urutan M1–M9 di bawah. Roadmap lama (2 November) membagi modu
 | M2 | Kategori, produk, harga, modifier, foto, sold out, menu customer `/order` dengan keranjang (checkout di M3) | `lib/catalog`, `admin/products`, `admin/categories`, `admin/modifiers`, `order` | M2 | **DONE — Development Verified** (3 November) |
 | M3 | POS, QR self-order, kiosk, checkout, status order, idempotency | `lib/orders`, `pos`, `order`, `kiosk`, `api/orders` | sebagian M3 | **DONE — Development Verified** (disetujui 3 November, `32ab6d2`) |
 | M4 | Pembayaran cash, antrean terpadu, nomor antrean, KDS, realtime atau polling; ditambah sesi kas minimum, pembatalan + approval, refund tunai penuh, inventory guard (keputusan owner 3 November) | `lib/orders` (pembayaran, KDS), `kds`, sebagian `lib/cash` | sebagian M3 | **DONE — Development Verified** (disetujui 4 November; commit WIP `9bc5bbd` + commit final M4) |
+| Tahap 2 | Pengaturan outlet, daftar meja resmi (EXT-026), halaman depan kafe dan poles menu customer (permintaan owner 5 November) | - (baru) | - | **Development Verified, menunggu review owner** (5 November; commit WIP `eff056c` + perubahan 5 November) |
 | M5 | Stok masuk/keluar, opname, waste, ledger, ketersediaan, pemotongan stok saat bayar (menggantikan inventory guard M4) | `lib/inventory` | M5 | Ditunda sampai setelah soft launch |
 | M6 | Laporan, dashboard, ekspor (sesi kas, refund, dan rekonsiliasi dasar sudah masuk M4) | `lib/cash`, `lib/reports` | M4 | Ditunda sampai setelah soft launch |
 | M7 | Karyawan, GPS, check-in/out, tugas luar, laporan absensi, abstraksi provider biometrik | `lib/attendance`, `staff` | M6 | Ditunda sampai setelah soft launch |
@@ -107,6 +108,14 @@ Bila Supabase tidak terjangkau dan token sudah kedaluwarsa, server menjawab 503 
 **Realtime.** Browser berlangganan Supabase Realtime (`@supabase/realtime-js`, kunci publishable) untuk sinyal tanpa data. Data selalu dimuat ulang lewat Inertia partial reload yang diperiksa izin server. RLS tidak diubah.
 
 **Tidak ada migration.** Semua tabel, constraint, enum, dan job pg_cron sudah ada sejak Next.js.
+
+## Tahap 2: yang dibangun
+
+**Migration Laravel pertama** `2026_11_04_000001_create_outlet_tables` (aditif): mengaktifkan RLS di tabel `migrations` dan membuat `outlet_tables` (RLS aktif, unik per outlet, check format nomor, FK cascade ke outlet). Sudah diterapkan di dev. Jangan memakai `migrate --pretend` sebagai langkah tinjau: perintah itu sudah membuat tabel `migrations` tanpa RLS.
+
+**Outlet dan meja.** `/admin/outlets` (butuh `settings.manage`): nama, alamat, prefix antrean, batas bayar, status, dan daftar meja. QR meja dine in hanya menerima meja terdaftar dan aktif.
+
+**Tampilan customer.** Halaman depan `/` kini halaman kafe (cara pesan, menu pilihan dari data asli, lokasi), dengan data deferred agar tetap tampil tanpa database. Menu `/order` mendapat pencarian, chip kategori aktif, dan kartu produk baru; kiosk ikut gaya baru tanpa pencarian. Token warna PRD tetap (hitam, putih, oranye, hijau); ditambah font judul Fraunces (self-hosted, sesuai CSP `font-src 'self'`) dan nada krem untuk seksi.
 
 ## Pengujian
 

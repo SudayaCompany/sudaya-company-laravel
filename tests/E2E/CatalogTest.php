@@ -13,6 +13,8 @@ class CatalogTest extends ServerTestCase
     protected function fixtures(LiveContext $ctx): array
     {
         $company = $ctx->createCompany('e2ecat');
+        // Meja resmi untuk QR meja (sejak daftar meja, EXT-026).
+        DB::table('outlet_tables')->insert(['company_id' => $company['id'], 'outlet_id' => $company['outletId'], 'number' => 'T03']);
 
         return [
             'company' => $company,
