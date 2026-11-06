@@ -50,46 +50,46 @@ const EMPTY: GroupDraft = {
  */
 const PRESETS: Record<string, GroupDraft> = {
   size: {
-    name: "Size", sortOrder: 0, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
+    name: "Ukuran", sortOrder: 0, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
     options: [
       { name: "Regular", priceDelta: 0, isDefault: true, isActive: true },
       { name: "Large", priceDelta: 0, isDefault: false, isActive: true },
     ],
   },
   temperature: {
-    name: "Hot/Ice", sortOrder: 1, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
+    name: "Panas/Dingin", sortOrder: 1, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
     options: [
-      { name: "Ice", priceDelta: 0, isDefault: true, isActive: true },
-      { name: "Hot", priceDelta: 0, isDefault: false, isActive: true },
+      { name: "Dingin", priceDelta: 0, isDefault: true, isActive: true },
+      { name: "Panas", priceDelta: 0, isDefault: false, isActive: true },
     ],
   },
   sugar: {
-    name: "Sugar Level", sortOrder: 2, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
+    name: "Tingkat gula", sortOrder: 2, selection: "single", isRequired: true, minSelect: 1, maxSelect: 1,
     options: [
       { name: "Normal", priceDelta: 0, isDefault: true, isActive: true },
-      { name: "Less Sugar", priceDelta: 0, isDefault: false, isActive: true },
-      { name: "No Sugar", priceDelta: 0, isDefault: false, isActive: true },
+      { name: "Kurang manis", priceDelta: 0, isDefault: false, isActive: true },
+      { name: "Tanpa gula", priceDelta: 0, isDefault: false, isActive: true },
     ],
   },
   shot: {
-    name: "Extra Shot", sortOrder: 3, selection: "multiple", isRequired: false, minSelect: 0, maxSelect: 2,
+    name: "Tambahan shot", sortOrder: 3, selection: "multiple", isRequired: false, minSelect: 0, maxSelect: 2,
     options: [
       { name: "Extra Shot", priceDelta: 5000, isDefault: false, isActive: true },
       { name: "Decaf", priceDelta: 0, isDefault: false, isActive: true },
     ],
   },
   milk: {
-    name: "Milk Options", sortOrder: 4, selection: "single", isRequired: false, minSelect: 0, maxSelect: 1,
+    name: "Pilihan susu", sortOrder: 4, selection: "single", isRequired: false, minSelect: 0, maxSelect: 1,
     options: [
-      { name: "Fresh Milk", priceDelta: 0, isDefault: true, isActive: true },
-      { name: "Oat Milk", priceDelta: 0, isDefault: false, isActive: true },
+      { name: "Susu segar", priceDelta: 0, isDefault: true, isActive: true },
+      { name: "Susu oat", priceDelta: 0, isDefault: false, isActive: true },
     ],
   },
   topping: {
     name: "Topping", sortOrder: 5, selection: "multiple", isRequired: false, minSelect: 0, maxSelect: 3,
     options: [
       { name: "Cream", priceDelta: 0, isDefault: false, isActive: true },
-      { name: "Hazelnut Syrup", priceDelta: 3000, isDefault: false, isActive: true },
+      { name: "Sirup hazelnut", priceDelta: 3000, isDefault: false, isActive: true },
     ],
   },
 };
@@ -107,17 +107,20 @@ export default function Modifiers({ brand, groups, can }: Props) {
 
   return (
     <AdminLayout>
-      <Head title="Modifier" />
-      <PageHeader title="Modifier" description={`${brand.name} · Variant & add-on: size, suhu, gula, extra shot, susu, topping.`} />
+      <Head title="Varian & tambahan" />
+      <PageHeader
+        title="Varian & tambahan"
+        description={`${brand.name} · Grup pilihan untuk menu: ukuran, suhu, tingkat gula, shot, susu, topping.`}
+      />
       {groups.length === 0 && !can.create ? (
-        <EmptyState icon={SlidersHorizontalIcon} title="Belum ada grup modifier" description="Grup modifier dibuat oleh admin menu." />
+        <EmptyState icon={SlidersHorizontalIcon} title="Belum ada grup pilihan" description="Grup pilihan dibuat oleh admin menu." />
       ) : (
         <div className="flex flex-col gap-4">
           {can.create ? (
             creating ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>Grup modifier baru</CardTitle>
+                  <CardTitle>Grup pilihan baru</CardTitle>
                   <CardDescription>Selisih harga ditambahkan ke harga produk saat dipilih.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -138,11 +141,11 @@ export default function Modifiers({ brand, groups, can }: Props) {
                   }}
                 >
                   <NativeSelectOption value="">Mulai dari template…</NativeSelectOption>
-                  <NativeSelectOption value="size">Size</NativeSelectOption>
-                  <NativeSelectOption value="temperature">Hot/Ice</NativeSelectOption>
-                  <NativeSelectOption value="sugar">Sugar Level</NativeSelectOption>
-                  <NativeSelectOption value="shot">Extra Shot</NativeSelectOption>
-                  <NativeSelectOption value="milk">Milk Options</NativeSelectOption>
+                  <NativeSelectOption value="size">Ukuran</NativeSelectOption>
+                  <NativeSelectOption value="temperature">Panas/Dingin</NativeSelectOption>
+                  <NativeSelectOption value="sugar">Tingkat gula</NativeSelectOption>
+                  <NativeSelectOption value="shot">Tambahan shot</NativeSelectOption>
+                  <NativeSelectOption value="milk">Pilihan susu</NativeSelectOption>
                   <NativeSelectOption value="topping">Topping</NativeSelectOption>
                 </NativeSelect>
               </div>
@@ -361,7 +364,7 @@ function GroupEditor({
                 <Trash2Icon className="text-destructive" /> Hapus grup
               </Button>
             }
-            title="Hapus grup modifier?"
+            title="Hapus grup pilihan?"
             description={`${draft.name} akan dilepas dari ${productCount} produk. Histori order tetap menyimpan pilihan lama.`}
             confirmLabel="Hapus grup"
             onConfirm={() => router.delete(`/admin/modifiers/${groupId}`, { preserveScroll: true })}

@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminLayout } from "@/layouts/admin-layout";
 import { slugify } from "@/lib/catalog/slug";
+import { useInlineFlashError } from "@/lib/feedback";
 import { formatRupiah } from "@/lib/format";
 
 // Sama dengan server (MenuImages); di sini hanya untuk umpan balik cepat.
@@ -42,9 +43,9 @@ type Props = {
 export default function ProductFormPage({ brand, product, categories, modifierGroups }: Props) {
   const title = product ? `Edit ${product.name}` : "Produk baru";
   return (
-    <AdminLayout>
+    <AdminLayout breadcrumbs={[{ label: "Menu", href: "/admin/products" }, { label: product ? "Edit produk" : "Produk baru" }]}>
       <Head title={product ? "Edit produk" : "Produk baru"} />
-      <PageHeader title={title} description={product ? "Perubahan harga tercatat di audit log." : brand.name} />
+      <PageHeader title={title} description={product ? "Perubahan harga tercatat di log aktivitas." : brand.name} />
       {categories.length === 0 ? (
         <div className="flex flex-col items-center gap-4">
           <EmptyState icon={TagsIcon} title="Belum ada kategori" description="Setiap produk wajib masuk satu kategori." className="w-full" />
@@ -68,8 +69,11 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
   const [preview, setPreview] = useState<string | null>(product?.imageUrl ?? null);
   const [removeImage, setRemoveImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Error server tampil di atas form ini, jadi tidak perlu toast kedua.
+  useInlineFlashError();
 
   // Lepas object URL preview lama agar tidak bocor memori.
   useEffect(() => {
@@ -82,15 +86,16 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
     const file = event.target.files?.[0];
     if (!file) return;
     if (!IMAGE_TYPES.includes(file.type)) {
-      toast.error("Format foto harus JPG, PNG, atau WebP.");
+      setImageError("Format foto harus JPG, PNG, atau WebP.");
       event.target.value = "";
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      toast.error("Ukuran foto maksimal 2 MB.");
+      setImageError("Ukuran foto maksimal 2 MB.");
       event.target.value = "";
       return;
     }
+    setImageError(null);
     setPreview(URL.createObjectURL(file));
     setRemoveImage(false);
   }
@@ -127,7 +132,7 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
 
       <div className="flex flex-col gap-5">
         {error ? (
-          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             {error}
           </p>
         ) : null}
@@ -213,12 +218,12 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
         </div>
 
         <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">Grup modifier</legend>
+          <legend className="mb-1 text-sm font-medium">Varian & tambahan</legend>
           {modifierGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Belum ada grup modifier.{" "}
+              Belum ada grup pilihan.{" "}
               <Link href="/admin/modifiers" className="underline">
-                Buat di menu Modifier
+                Buat di menu Varian & tambahan
               </Link>
               .
             </p>
@@ -246,7 +251,7 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
 
       <aside className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <Label>Foto menu</Label>
+          <Label htmlFor="image">Foto menu</Label>
           <div className="relative aspect-square overflow-hidden rounded-xl border bg-muted">
             {preview ? (
               <img src={preview} alt="Preview foto menu" className="size-full object-cover" />
@@ -257,7 +262,22 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
               </div>
             )}
           </div>
-          <input ref={fileInput} id="image" name="image" type="file" accept={IMAGE_TYPES.join(",")} className="sr-only" onChange={onPickImage} />
+          <input
+            ref={fileInput}
+            id="image"
+            name="image"
+            type="file"
+            accept={IMAGE_TYPES.join(",")}
+            className="sr-only"
+            onChange={onPickImage}
+            aria-invalid={imageError ? true : undefined}
+            aria-describedby={imageError ? "image-error" : undefined}
+          />
+          {imageError ? (
+            <p id="image-error" role="alert" className="text-sm text-destructive-strong">
+              {imageError}
+            </p>
+          ) : null}
           <div className="flex gap-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => fileInput.current?.click()}>
               <ImagePlusIcon /> {preview ? "Ganti foto" : "Unggah foto"}

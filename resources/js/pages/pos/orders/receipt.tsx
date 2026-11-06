@@ -43,7 +43,7 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
           {ORDER_TYPE_LABELS[order.type]}
           {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
         </p>
-        {order.customerName ? <p>Customer: {order.customerName}</p> : null}
+        {order.customerName ? <p>Pelanggan: {order.customerName}</p> : null}
         {payment?.paidAt ? <p>Dibayar: {time.format(new Date(payment.paidAt))}</p> : null}
         {payment?.confirmedByName ? <p>Kasir: {payment.confirmedByName}</p> : null}
         <hr className="my-2 border-dashed border-black" />

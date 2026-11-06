@@ -34,7 +34,7 @@ export default function SetPassword({ fullName }: { fullName: string }) {
         {error ? (
           <p
             role="alert"
-            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong"
           >
             {error}
           </p>

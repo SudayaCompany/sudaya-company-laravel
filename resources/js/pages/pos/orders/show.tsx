@@ -3,7 +3,7 @@ import { ArrowLeftIcon } from "lucide-react";
 
 import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderActions, type OrderActionFlags } from "@/components/orders/order-actions";
-import { OrderLines, OrderStatusBadge, PaymentStatusBadge } from "@/components/orders/order-parts";
+import { OrderLines, OrderStatusBadges, PaymentStatusBadge } from "@/components/orders/order-parts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PosLayout } from "@/layouts/pos-layout";
 import { formatRupiah } from "@/lib/format";
@@ -16,11 +16,12 @@ const HISTORY_LABELS: Record<string, string> = {
   "order.preparing": "Mulai dibuat",
   "order.ready": "Siap diambil",
   "order.completed": "Selesai",
-  "order.status_override": "Koreksi status (override)",
+  "order.status_override": "Koreksi status oleh Manager",
   "order.cancel_requested": "Pembatalan diajukan",
   "approval.approved": "Pembatalan disetujui",
   "approval.rejected": "Pembatalan ditolak",
   "order.cancelled": "Dibatalkan",
+  "payment.refunded": "Uang dikembalikan (refund tunai)",
   "order.expired": "Kedaluwarsa (tidak dibayar tepat waktu)",
   "inventory.sale_posted": "Stok produk jadi dipotong",
 };
@@ -49,15 +50,14 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-2xl">{order.orderNumber ?? order.reference}</span>
-                  <OrderStatusBadge status={order.status} />
-                  <PaymentStatusBadge status={order.paymentStatus} />
+                  <OrderStatusBadges status={order.status} paymentStatus={order.paymentStatus} />
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <dl className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[8rem_1fr]">
                   <dt className="text-muted-foreground">Kode</dt>
                   <dd className="font-mono">{order.reference}</dd>
-                  <dt className="text-muted-foreground">Channel</dt>
+                  <dt className="text-muted-foreground">Sumber</dt>
                   <dd>{CHANNEL_LABELS[order.channel]}</dd>
                   <dt className="text-muted-foreground">Tipe</dt>
                   <dd>
@@ -70,7 +70,7 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
                       <dd>{order.locationNote}</dd>
                     </>
                   ) : null}
-                  <dt className="text-muted-foreground">Customer</dt>
+                  <dt className="text-muted-foreground">Pelanggan</dt>
                   <dd className="break-words">
                     {order.customerName ?? "—"}
                     {order.customerPhone ? ` · ${order.customerPhone}` : ""}
@@ -147,7 +147,7 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
                   </div>
                 ))}
                 {order.status === "cancelled" && order.paymentStatus === "paid" ? (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive-strong">
                     Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
                   </p>
                 ) : null}

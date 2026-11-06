@@ -33,9 +33,9 @@ function summarize(value: unknown) {
 export default function Audit({ logs }: { logs: Log[] }) {
   return (
     <AdminLayout>
-      <Head title="Audit Log" />
+      <Head title="Log aktivitas" />
       <PageHeader
-        title="Audit Log"
+        title="Log aktivitas"
         description="100 aktivitas terakhir. Log bersifat append-only dan tidak menyimpan password atau token."
       />
       {logs.length === 0 ? (

@@ -3,6 +3,7 @@ import { CopyIcon, KeyRoundIcon, Loader2Icon, PlusIcon, UserPlusIcon, XIcon } fr
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ConfirmAction } from "@/components/confirm-action";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,18 +37,18 @@ export default function Users({ users, roles, outlets }: Props) {
 
   return (
     <AdminLayout>
-      <Head title="Pengguna" />
+      <Head title="Staf" />
       <PageHeader
-        title="Pengguna"
-        description={`Akun staf ${auth!.user.company}. Setiap perubahan akses tercatat di audit log.`}
+        title="Staf"
+        description={`Akun staf ${auth!.user.company}. Setiap perubahan akses tercatat di log aktivitas.`}
       />
 
       <Card>
         <CardHeader>
           <CardTitle>Undang staf</CardTitle>
           <CardDescription>
-            Staf membuat password sendiri lewat link undangan. Anda hanya bisa memberi role yang
-            permission-nya juga Anda miliki.
+            Staf membuat password sendiri lewat link undangan. Anda hanya bisa memberi peran yang
+            izinnya juga Anda miliki.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -71,7 +72,7 @@ export default function Users({ users, roles, outlets }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead>Nama</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Peran</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -95,7 +96,7 @@ export default function Users({ users, roles, outlets }: Props) {
                               <Badge key={grant.userRoleId} variant="secondary" className="gap-1">
                                 {grant.roleName} · {scopeLabel(grant.outletId, outletNames)}
                                 {isSelf ? null : (
-                                  <RevokeRoleButton userRoleId={grant.userRoleId} label={grant.roleName} />
+                                  <RevokeRoleButton userRoleId={grant.userRoleId} label={grant.roleName} userName={user.fullName} />
                                 )}
                               </Badge>
                             ))
@@ -119,10 +120,11 @@ export default function Users({ users, roles, outlets }: Props) {
                           {user.isActive ? (
                             <RecoveryButton
                               userId={user.id}
+                              userName={user.fullName}
                               onLink={(url) => setLink({ title: `Link reset password ${user.fullName}`, url })}
                             />
                           ) : null}
-                          <StatusToggle userId={user.id} isActive={user.isActive} />
+                          <StatusToggle userId={user.id} userName={user.fullName} isActive={user.isActive} />
                         </div>
                       )}
                     </TableCell>
@@ -183,7 +185,7 @@ function InviteStaffForm({
         <Input id="invite-email" name="email" type="email" required />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="invite-role">Role</Label>
+        <Label htmlFor="invite-role">Peran</Label>
         <NativeSelect id="invite-role" name="roleId" required className="w-full">
           {roles.map((role) => (
             <NativeSelectOption key={role.id} value={role.id}>
@@ -225,8 +227,8 @@ function OneTimeLink({ title, url }: { title: string; url: string }) {
     <div className="flex flex-col gap-2 rounded-lg border border-brand/40 bg-brand/5 p-3 text-sm">
       <p className="font-medium">{title} (hanya ditampilkan sekali)</p>
       <p className="text-xs text-muted-foreground">
-        Kirim langsung ke staf lewat kanal pribadi. Link berlaku sesuai pengaturan masa berlaku email
-        OTP di Supabase dan hanya bisa dipakai sekali.
+        Kirim langsung ke staf lewat kanal pribadi. Link hanya bisa dipakai sekali dan kedaluwarsa
+        sesuai pengaturan sistem login.
       </p>
       <div className="flex gap-2">
         <Input readOnly value={url} aria-label={title} className="font-mono text-xs" />
@@ -273,53 +275,74 @@ function RoleAssigner({ userId, roles, outlets }: { userId: string; roles: Optio
         }
       >
         {pending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-        Tambah role
+        Tambah peran
       </Button>
     </div>
   );
 }
 
-function RevokeRoleButton({ userRoleId, label }: { userRoleId: string; label: string }) {
+function RevokeRoleButton({ userRoleId, label, userName }: { userRoleId: string; label: string; userName: string }) {
   const { pending, post } = usePost();
   return (
-    <button
-      type="button"
-      disabled={pending}
-      onClick={() => post("/admin/users/revoke-role", { userRoleId })}
-      className="rounded-full p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-      aria-label={`Cabut role ${label}`}
-    >
-      {pending ? <Loader2Icon className="size-3 animate-spin" /> : <XIcon className="size-3" />}
-    </button>
+    <ConfirmAction
+      trigger={
+        <button
+          type="button"
+          disabled={pending}
+          className="relative -my-1 -mr-1 rounded-full p-1 text-muted-foreground after:absolute after:-inset-2 hover:bg-destructive/10 hover:text-destructive-strong disabled:opacity-50"
+          aria-label={`Cabut peran ${label}`}
+        >
+          {pending ? <Loader2Icon className="size-3.5 animate-spin" /> : <XIcon className="size-3.5" />}
+        </button>
+      }
+      title="Cabut peran?"
+      description={`${userName} tidak lagi memiliki akses ${label}. Perubahan tercatat di log aktivitas.`}
+      confirmLabel="Cabut peran"
+      onConfirm={() => post("/admin/users/revoke-role", { userRoleId })}
+    />
   );
 }
 
-function StatusToggle({ userId, isActive }: { userId: string; isActive: boolean }) {
+function StatusToggle({ userId, userName, isActive }: { userId: string; userName: string; isActive: boolean }) {
   const { pending, post } = usePost();
-  return (
-    <Button
-      size="sm"
-      variant={isActive ? "destructive" : "outline"}
-      disabled={pending}
-      onClick={() => post("/admin/users/set-active", { userId, isActive: !isActive })}
-    >
+  const toggle = () => post("/admin/users/set-active", { userId, isActive: !isActive });
+  // Menonaktifkan langsung memutus akses staf (bisa terjadi saat jam buka), jadi wajib dikonfirmasi.
+  return isActive ? (
+    <ConfirmAction
+      trigger={
+        <Button size="sm" variant="destructive" disabled={pending}>
+          {pending ? <Loader2Icon className="animate-spin" /> : null}
+          Nonaktifkan
+        </Button>
+      }
+      title="Nonaktifkan akun?"
+      description={`${userName} langsung keluar dari semua perangkat dan tidak bisa masuk sampai diaktifkan lagi.`}
+      confirmLabel="Nonaktifkan akun"
+      onConfirm={toggle}
+    />
+  ) : (
+    <Button size="sm" variant="outline" disabled={pending} onClick={toggle}>
       {pending ? <Loader2Icon className="animate-spin" /> : null}
-      {isActive ? "Nonaktifkan" : "Aktifkan"}
+      Aktifkan
     </Button>
   );
 }
 
-function RecoveryButton({ userId, onLink }: { userId: string; onLink: (url: string) => void }) {
+function RecoveryButton({ userId, userName, onLink }: { userId: string; userName: string; onLink: (url: string) => void }) {
   const { pending, post } = usePost();
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={pending}
-      onClick={() => post("/admin/users/recovery", { userId }, (flash) => flash.link && onLink(flash.link))}
-    >
-      {pending ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
-      Reset password
-    </Button>
+    <ConfirmAction
+      trigger={
+        <Button size="sm" variant="outline" disabled={pending}>
+          {pending ? <Loader2Icon className="animate-spin" /> : <KeyRoundIcon />}
+          Reset password
+        </Button>
+      }
+      title="Buat link reset password?"
+      description={`Link sekali pakai untuk ${userName} akan ditampilkan satu kali. Kirimkan hanya kepada yang bersangkutan.`}
+      confirmLabel="Buat link reset"
+      destructive={false}
+      onConfirm={() => post("/admin/users/recovery", { userId }, (flash) => flash.link && onLink(flash.link))}
+    />
   );
 }

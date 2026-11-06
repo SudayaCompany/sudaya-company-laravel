@@ -159,7 +159,7 @@ export function StorefrontView({
     <CartProvider outlet={storefront.outlet.code} channel={channel} mode={mode} table={table}>
       <Head title={kiosk ? "Kiosk" : "Menu"} />
       <div className="flex min-h-svh flex-col bg-background">
-        <header className="relative isolate overflow-hidden bg-neutral-950 text-white">
+        <header className="relative isolate overflow-hidden bg-espresso text-white">
           <div className="pointer-events-none absolute -top-24 -right-16 -z-10 size-72 rounded-full bg-brand/25 blur-3xl" aria-hidden />
           <div className="pointer-events-none absolute -bottom-32 -left-20 -z-10 size-64 rounded-full bg-success/15 blur-3xl" aria-hidden />
           <div className={cn("mx-auto w-full max-w-5xl px-4", kiosk ? "pt-8 pb-10" : "pt-5 pb-8")}>
@@ -315,7 +315,7 @@ function CategoryChips({ sections, active, large }: { sections: Storefront["cate
             className={cn(
               "shrink-0 rounded-full border font-medium transition-colors duration-200",
               large ? "px-6 py-3 text-lg" : "px-4 py-2 text-sm",
-              current ? "border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950" : "hover:border-foreground",
+              current ? "border-espresso bg-espresso text-white dark:border-white dark:bg-white dark:text-espresso" : "hover:border-foreground",
             )}
           >
             {category.name}
@@ -333,7 +333,7 @@ function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; l
       type="button"
       onClick={onOpen}
       className="group flex cursor-pointer flex-col overflow-hidden rounded-3xl border bg-card text-left transition-[box-shadow,transform] duration-200 hover:shadow-lg active:scale-[0.98] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-      aria-label={`${product.name}, ${formatRupiah(product.price)}${soldOut ? ", sold out" : ""}`}
+      aria-label={`${product.name}, ${formatRupiah(product.price)}${soldOut ? ", habis" : ""}`}
     >
       <div className="relative aspect-square overflow-hidden bg-cream">
         {product.imageUrl ? (
@@ -343,7 +343,7 @@ function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; l
         )}
         {soldOut ? (
           <span className="absolute inset-0 flex items-center justify-center bg-black/45">
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-neutral-950">Sold out</span>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-espresso">Habis</span>
           </span>
         ) : null}
       </div>
@@ -418,7 +418,7 @@ function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone
           <p className={cn("mt-1 font-semibold tabular-nums", large && "text-lg")}>{formatRupiah(product.price)}</p>
           {!product.isAvailable ? (
             <Badge variant="destructive" className="mt-1 w-fit">
-              Sold out
+              Habis
             </Badge>
           ) : null}
         </div>
@@ -440,7 +440,7 @@ function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone
         <QuantityStepper value={quantity} onChange={selection.setQuantity} disabled={!product.isAvailable} large={large} />
         <Button size="lg" className={cn("flex-1", large ? "h-14 text-lg" : "h-11")} disabled={!priced.ok || adding} onClick={add}>
           {adding ? <Loader2Icon className="animate-spin" /> : null}
-          {!product.isAvailable ? "Sold out" : priced.ok ? `Tambah · ${formatRupiah(priced.unitPrice * quantity)}` : priced.error}
+          {!product.isAvailable ? "Habis" : priced.ok ? `Tambah · ${formatRupiah(priced.unitPrice * quantity)}` : priced.error}
         </Button>
       </SheetFooter>
     </div>
@@ -461,7 +461,7 @@ function CartBar() {
             type="button"
             onClick={() => setOpen(true)}
             className={cn(
-              "mx-auto flex w-full max-w-lg items-center gap-3 rounded-2xl bg-neutral-950 px-4 text-left text-white shadow-xl transition-transform active:scale-[0.99]",
+              "mx-auto flex w-full max-w-lg items-center gap-3 rounded-2xl bg-espresso px-4 text-left text-white shadow-xl transition-transform active:scale-[0.99]",
               kiosk ? "max-w-2xl py-5" : "py-3",
             )}
           >
@@ -661,7 +661,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 className={cn(
                   "rounded-xl border px-3 text-sm font-medium transition-colors",
                   kiosk ? "py-4 text-lg" : "py-2.5",
-                  type === t ? "border-neutral-950 bg-neutral-950 text-white" : "hover:border-foreground",
+                  type === t ? "border-espresso bg-espresso text-white" : "hover:border-foreground",
                 )}
               >
                 {ORDER_TYPE_LABELS[t]}
@@ -729,9 +729,9 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           {PAYMENT_OPTIONS.map((option) => (
             <label
               key={option.method}
-              className={cn("flex items-center gap-3 rounded-xl border p-3 text-sm", option.available ? "cursor-pointer has-checked:border-neutral-950" : "cursor-not-allowed opacity-50")}
+              className={cn("flex items-center gap-3 rounded-xl border p-3 text-sm", option.available ? "cursor-pointer has-checked:border-espresso" : "cursor-not-allowed opacity-50")}
             >
-              <input type="radio" name="paymentMethod" value={option.method} defaultChecked={option.method === "cash"} disabled={!option.available} className="accent-neutral-950" />
+              <input type="radio" name="paymentMethod" value={option.method} defaultChecked={option.method === "cash"} disabled={!option.available} className="accent-espresso" />
               <span className="flex-1 font-medium">{option.label}</span>
               <span className="text-xs text-muted-foreground">{option.note}</span>
             </label>
@@ -739,7 +739,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
         </fieldset>
 
         {error ? (
-          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             {error}
           </p>
         ) : null}
@@ -764,7 +764,7 @@ function KioskConfirmation({ reference, total, onDone }: { reference: string; to
 
   return (
     // z-[60]: di atas sheet keranjang (z-50) yang masih beranimasi menutup.
-    <div role="dialog" aria-modal="true" aria-labelledby="kiosk-done" className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-950/95 p-6 text-white">
+    <div role="dialog" aria-modal="true" aria-labelledby="kiosk-done" className="fixed inset-0 z-[60] flex items-center justify-center bg-espresso/95 p-6 text-white">
       <div className="flex w-full max-w-xl flex-col items-center gap-6 text-center">
         <CheckCircle2Icon className="size-16 text-success" aria-hidden />
         <h2 id="kiosk-done" className="text-3xl font-semibold">

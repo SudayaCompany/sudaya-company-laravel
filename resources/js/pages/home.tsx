@@ -33,7 +33,7 @@ export default function Home({ cafe }: { cafe?: Cafe }) {
     <div className="flex min-h-svh flex-1 flex-col bg-background">
       <Head title="Kopi enak, pesan tanpa antre" />
 
-      <header className="relative isolate overflow-hidden bg-neutral-950 text-white">
+      <header className="relative isolate overflow-hidden bg-espresso text-white">
         <div className="pointer-events-none absolute -top-32 -right-24 -z-10 size-[28rem] rounded-full bg-brand/25 blur-3xl" aria-hidden />
         <div className="pointer-events-none absolute -bottom-40 -left-24 -z-10 size-[22rem] rounded-full bg-success/20 blur-3xl" aria-hidden />
         <nav aria-label="Utama" className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6">
@@ -95,7 +95,7 @@ export default function Home({ cafe }: { cafe?: Cafe }) {
             {STEPS.map((step, index) => (
               <li key={step.title} className="flex flex-col gap-3 rounded-3xl border bg-background p-6">
                 <div className="flex items-center justify-between">
-                  <span className="flex size-12 items-center justify-center rounded-2xl bg-neutral-950 text-white dark:bg-white dark:text-neutral-950">
+                  <span className="flex size-12 items-center justify-center rounded-2xl bg-espresso text-white dark:bg-white dark:text-espresso">
                     <step.icon className="size-5" aria-hidden />
                   </span>
                   <span className="font-display text-3xl font-semibold text-muted-foreground/40">{index + 1}</span>
@@ -118,7 +118,7 @@ export default function Home({ cafe }: { cafe?: Cafe }) {
 
       <section id="lokasi" className="scroll-mt-4 bg-cream">
         <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
-          <div className="grid items-center gap-8 rounded-[2rem] bg-neutral-950 p-8 text-white sm:p-12 lg:grid-cols-[1fr_auto]">
+          <div className="grid items-center gap-8 rounded-[2rem] bg-espresso p-8 text-white sm:p-12 lg:grid-cols-[1fr_auto]">
             <div className="flex flex-col gap-3">
               <p className="text-sm font-medium text-brand">Kunjungi kami</p>
               <Deferred data="cafe" fallback={<Skeleton className="h-10 w-64 bg-white/10" />}>
@@ -174,7 +174,7 @@ function HeroGallery({ items }: { items: Featured[] | null }) {
         <div className="absolute inset-16 rounded-full border border-white/10" />
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="flex size-40 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand/60 shadow-2xl shadow-brand/30">
-            <CoffeeIcon className="size-20 text-neutral-950" strokeWidth={1.5} />
+            <CoffeeIcon className="size-20 text-espresso" strokeWidth={1.5} />
           </span>
         </div>
       </div>

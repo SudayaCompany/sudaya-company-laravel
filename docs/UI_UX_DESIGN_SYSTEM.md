@@ -1,6 +1,6 @@
 # Sudaya Design System (usulan UX-0)
 
-Status: **usulan, belum diimplementasikan.** Disusun 6 November 2026 dari kode aktual (`resources/css/app.css`, `resources/js/components/ui/*`) dan audit UX ([UI_UX_AUDIT.md](UI_UX_AUDIT.md)). Implementasi dilakukan di milestone UX-1 setelah disetujui owner.
+Status: **disetujui owner 6 November 2026; dasar token, ukuran kontrol, label, navigasi, dan pola konfirmasi/umpan balik sudah diimplementasikan di UX-1** (lihat §7). Komponen yang ditandai "Baru" di §3 dibangun di milestone yang memakainya.
 
 Arah visual: **Sudaya Coffee — Modern Specialty Coffee & Lifestyle Brand.** Hangat, premium, minimal, mudah dibaca. Identitas PRD §86 dipertahankan: hitam (espresso), putih, aksen oranye, pendukung hijau, ditambah krem sebagai permukaan.
 
@@ -36,6 +36,8 @@ Semua token di `resources/css/app.css` (`:root` dan `.dark`), dipakai lewat kela
 | `--info` | — | `oklch(0.55 0.12 240)` | Sedang dibuat (KDS), informasi netral |
 | Netral (`--muted`, `--border`, `--input`, `--secondary`) | chroma 0 (abu dingin) | chroma 0,005–0,01, hue 60–75 (abu hangat) | Konsisten dengan nuansa kopi |
 | `--chart-1..5` | abu | turunan brand/success/info | Hanya bila grafik memakai data asli |
+| `--success-strong`, `--destructive-strong` | — | `oklch(0.45 0.12 155)`, `oklch(0.5 0.2 27)` | Teks status di atas tint 10–15% (badge, alert) |
+| `--warning-strong` | — | `oklch(0.5 0.11 70)` | Teks peringatan |
 
 Aturan kontras (diuji saat UX-1, angka di atas adalah titik awal):
 - Teks normal ≥ 4,5:1; teks besar (≥ 24 px, atau ≥ 19 px tebal) ≥ 3:1.
@@ -82,16 +84,19 @@ Fraunces hanya untuk wordmark dan judul customer-facing; admin, POS, dan KDS mem
 
 Ukuran tombol bawaan sekarang di bawah standar sentuh: `default` `h-8` (32 px), `sm` `h-7`, `lg` `h-9`, `icon` `size-8`. Halaman menimpanya satu per satu (`h-11`, `h-12`, `h-14`), sehingga tinggi tombol tidak konsisten.
 
-| Ukuran usulan | Tinggi | Dipakai |
+| Ukuran (terimplementasi UX-1) | Tinggi | Dipakai |
 |---|---|---|
+| `xs` | 32 px | Aksi sangat padat di tabel admin (desktop) |
 | `sm` | 36 px | Aksi sekunder di tabel admin (desktop) |
 | `default` | 40 px | Admin |
-| `lg` | 44 px | Customer, form staf, dialog |
+| `lg` | 44 px | Customer, form staf, dialog, login |
 | `xl` | 52 px | POS (bayar, tambah), KDS (aksi status) |
 | `kiosk` | 64 px | Kiosk |
-| `icon` / `icon-lg` | 40 / 44 px | Tombol ikon; ikon tanpa teks wajib `aria-label` |
+| `icon-xs` / `icon-sm` / `icon` / `icon-lg` | 32 / 36 / 40 / 44 px | Tombol ikon; ikon tanpa teks wajib `aria-label` |
 
-Input dan select mengikuti tinggi yang sama (`default` 40, `lg` 44, `kiosk` 56–64).
+**Perangkat sentuh:** semua ukuran di bawah 44 px mendapat `pointer-coarse:min-h-11` (dan `min-w-11` untuk tombol ikon). Di perangkat dengan layar sentuh (`@media (pointer: coarse)`: HP, tablet, kiosk) setiap tombol, input, select, dan item navigasi otomatis minimal 44 × 44 px; admin di laptop dengan mouse tetap padat.
+
+Input dan select: `default` 40 px (+ 44 px di perangkat sentuh), `sm` 36 px.
 
 ### 2.6 Gerak
 
@@ -186,3 +191,21 @@ Perubahan label yang dipakai test E2E dan probe browser dilakukan bersama pembar
 - [ ] State: default, hover, fokus, tekan, disabled, loading, error, kosong.
 - [ ] Diuji di 360 px, 768 px, 1024 px, 1280 px.
 - [ ] Reduced motion tidak memutus fungsi.
+
+## 7. Status implementasi UX-1 (6 November 2026)
+
+| Bagian | Yang dikerjakan | File |
+|---|---|---|
+| Token warna | Netral hangat; token baru `espresso`, `brand-strong`, `brand-soft`, `cream-strong`, `info`, `success-strong`, `warning-strong`, `destructive-strong`; chart dari warna brand. Semua `neutral-950` mentah diganti `espresso` | `resources/css/app.css` |
+| Kontras (diukur dengan rumus WCAG 2 dari nilai OKLCH) | foreground/putih 19,1:1 · muted-foreground/putih 6,0:1 · muted-foreground/muted 5,4:1 · muted-foreground/cream 5,6:1 · espresso-foreground/espresso 17,3:1 · teks gelap di tombol oranye 6,7:1 · brand-strong/putih 5,6:1 · brand-strong/brand-soft 4,8:1 · teks putih di hijau 5,0:1 · success-strong di tint hijau 5,7:1 · info di tint biru 4,7:1 · destructive-strong di tint merah 5,8:1 · destructive/putih 4,8:1. Oranye `brand` di putih 2,8:1, karena itu hanya dipakai sebagai isi tombol bertulisan gelap, bukan teks | `app.css`, semua alert/badge status |
+| Ukuran kontrol | Skala §2.5 + aturan perangkat sentuh; varian tombol `brand`, `espresso`, `success` | `components/ui/button.tsx`, `input.tsx`, `native-select.tsx` |
+| Navigasi admin | Sidebar bergrup (Ringkasan, Operasional, Produk, Organisasi, Administrasi) di ≥ 1024 px, drawer di layar lebih kecil, profil + Keluar selalu ada, tautan ke Kasir/Pesanan/Kas/Barista sesuai izin, tautan "Langsung ke konten", breadcrumb | `layouts/admin-layout.tsx`, `components/breadcrumb.tsx` |
+| Navigasi operasional | Tautan "Admin" bagi yang berhak; label Kasir, Pesanan, Kas, Barista, Beranda; target sentuh | `layouts/pos-layout.tsx` |
+| Beranda staf | Hanya fitur yang ada (Kasir, Pesanan hari ini, Kas, Barista display, Admin); tile "Segera hadir" dihapus | `pages/staff/home.tsx` |
+| Bahasa | Tipe pesanan (Makan di sini, Bawa pulang, Antar), sumber (Kasir, QR Meja, QR Kasir, Website, Kiosk), "Habis" (bukan Sold out), "Tanpa nama" (bukan Walk-in), KDS (Antre/Dibuat/Siap/Selesai; Mulai buat/Tandai siap/Sudah diambil), indikator koneksi (Langsung/Cek berkala/Menyambung…), "Akses ditolak", "Varian & tambahan" + "grup pilihan", judul admin (Dasbor, Menu, Staf, Peran & izin, Log aktivitas), label riwayat pesanan lengkap (termasuk refund) | `lib/orders.ts`, halaman terkait, pesan flash `ModifierController`, `CatalogAdmin`, `CatalogInput`, `UserController` |
+| Status | Satu peta warna status order/pembayaran; badge pembayaran tidak diulang untuk order menunggu bayar | `components/orders/order-parts.tsx` |
+| Konfirmasi | `ConfirmAction` mendukung mode terkontrol; konfirmasi baru untuk nonaktifkan akun, cabut peran, buat link reset password, nonaktifkan meja; hapus kategori berisi produk dinonaktifkan dengan alasan | `components/confirm-action.tsx`, `pages/admin/users.tsx`, `outlets/edit.tsx`, `categories.tsx` |
+| Umpan balik | Error form tampil sekali (inline), toast hanya untuk flash umum; error unggah foto tampil di bawah field | `lib/feedback.ts`, `app.tsx`, `pages/auth/login.tsx`, `pages/admin/products/form.tsx` |
+| Perbaikan bug | Switch aktif kategori tidak lagi ikut menyimpan perubahan nama/slug/urutan yang belum disimpan | `pages/admin/categories.tsx` |
+
+Belum dikerjakan di UX-1 (sesuai rencana): `DataTable`, `Pagination`, `Toolbar`, `StatCard`, `Money`, `SearchInput`, `Tabs`, `SegmentedControl`, `DropdownMenu`, `ImageUpload` bersama, dan perombakan tata letak POS/KDS (UX-4), dashboard dan daftar admin (UX-5), CMS (UX-2).

@@ -75,7 +75,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
     <>
       <section
         data-realtime={finished ? "idle" : connection}
-        className={cn("flex flex-col gap-5 rounded-3xl p-6", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-neutral-950 text-white")}
+        className={cn("flex flex-col gap-5 rounded-3xl p-6", cancelled ? "bg-destructive/10" : unpaid ? "bg-brand/10" : "bg-espresso text-white")}
       >
         {/* flex-wrap: di HP sempit badge turun ke baris berikutnya, nomor antrean tidak terpotong. */}
         <div className="flex flex-wrap items-start justify-between gap-3">

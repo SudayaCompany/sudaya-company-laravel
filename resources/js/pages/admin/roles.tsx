@@ -30,17 +30,17 @@ export default function Roles({ roles, permissions, superAdminRole, actorPermiss
 
   return (
     <AdminLayout>
-      <Head title="Role & Permission" />
+      <Head title="Peran & izin" />
       <PageHeader
-        title="Role & Permission"
-        description="Super Admin selalu memiliki semua permission. Role yang Anda pegang sendiri tidak bisa diubah dari akun Anda."
+        title="Peran & izin"
+        description="Super Admin selalu memiliki semua izin. Peran yang Anda pegang sendiri tidak bisa diubah dari akun Anda."
       />
       <Card>
         <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-56">Permission</TableHead>
+                <TableHead className="min-w-56">Izin</TableHead>
                 {roles.map((role) => (
                   <TableHead key={role.id} className="text-center">
                     {role.name}

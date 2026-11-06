@@ -117,8 +117,14 @@ function CategoryRow({ category, canEdit, canDelete }: { category: Category; can
   const { pending, options } = useMutation();
 
   const dirty = name !== category.name || slug !== category.slug || sortOrder !== String(category.sortOrder);
-  const save = (isActive = category.isActive) =>
-    router.put(`/admin/categories/${category.id}`, { values: { name, slug, sortOrder, isActive } }, options);
+  const save = () => router.put(`/admin/categories/${category.id}`, { values: { name, slug, sortOrder, isActive: category.isActive } }, options);
+  // Switch aktif hanya mengubah status; nama/slug/urutan yang belum disimpan tidak ikut terkirim.
+  const setActive = (isActive: boolean) =>
+    router.put(
+      `/admin/categories/${category.id}`,
+      { values: { name: category.name, slug: category.slug, sortOrder: String(category.sortOrder), isActive } },
+      options,
+    );
 
   return (
     <div className="grid items-center gap-2 border-b py-3 last:border-b-0 sm:grid-cols-[1fr_1fr_5rem_8rem_4.5rem]">
@@ -142,8 +148,8 @@ function CategoryRow({ category, canEdit, canDelete }: { category: Category; can
         <Switch
           checked={category.isActive}
           disabled={!canEdit || pending}
-          onCheckedChange={(next) => save(next)}
-          aria-label={`Aktifkan ${category.name}`}
+          onCheckedChange={setActive}
+          aria-label={`${category.name} tampil di menu`}
         />
         {category.productCount} produk
       </label>
@@ -153,7 +159,18 @@ function CategoryRow({ category, canEdit, canDelete }: { category: Category; can
             {pending ? <Loader2Icon className="animate-spin" /> : <SaveIcon />}
           </Button>
         ) : null}
-        {canDelete ? (
+        {canDelete && category.productCount > 0 ? (
+          // Server juga menolak; tombol nonaktif menjelaskan alasannya sebelum diklik.
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            disabled
+            aria-label={`${category.name} tidak bisa dihapus: masih berisi ${category.productCount} produk`}
+            title="Pindahkan produknya dulu sebelum menghapus kategori"
+          >
+            <Trash2Icon />
+          </Button>
+        ) : canDelete ? (
           <ConfirmAction
             trigger={
               <Button size="icon-sm" variant="ghost" disabled={pending} aria-label={`Hapus ${category.name}`}>
@@ -161,12 +178,8 @@ function CategoryRow({ category, canEdit, canDelete }: { category: Category; can
               </Button>
             }
             title="Hapus kategori?"
-            description={
-              category.productCount > 0
-                ? `${category.name} masih berisi ${category.productCount} produk dan tidak bisa dihapus. Pindahkan produknya dulu.`
-                : `${category.name} dihapus dari menu.`
-            }
-            confirmLabel="Hapus"
+            description={`${category.name} dihapus dari menu.`}
+            confirmLabel="Hapus kategori"
             onConfirm={() => router.delete(`/admin/categories/${category.id}`, options)}
           />
         ) : null}

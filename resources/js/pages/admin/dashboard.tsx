@@ -1,7 +1,6 @@
 import { Head, usePage } from "@inertiajs/react";
 import { StoreIcon } from "lucide-react";
 
-import { LogoutButton } from "@/components/logout-button";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,12 +21,8 @@ export default function Dashboard({ outlets, grants }: Props) {
 
   return (
     <AdminLayout>
-      <Head title="Dashboard" />
-      <PageHeader title={`Halo, ${user.fullName}`} description={`${user.company} · Dashboard operasional`}>
-        <div className="md:hidden">
-          <LogoutButton />
-        </div>
-      </PageHeader>
+      <Head title="Dasbor" />
+      <PageHeader title={`Halo, ${user.fullName}`} description={`${user.company} · Dasbor`} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -37,9 +32,9 @@ export default function Dashboard({ outlets, grants }: Props) {
           </CardHeader>
           <CardContent className="flex flex-col gap-3 text-sm">
             <dl className="grid grid-cols-[7rem_1fr] gap-y-2">
-              <dt className="text-muted-foreground">Company</dt>
+              <dt className="text-muted-foreground">Perusahaan</dt>
               <dd>{user.company}</dd>
-              <dt className="text-muted-foreground">Role</dt>
+              <dt className="text-muted-foreground">Peran</dt>
               <dd className="flex flex-wrap gap-1.5">
                 {grants.map((grant) => (
                   <Badge key={grant.userRoleId} variant="secondary">

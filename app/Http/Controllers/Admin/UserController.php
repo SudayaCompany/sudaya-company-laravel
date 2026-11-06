@@ -31,7 +31,7 @@ class UserController
         $result = $this->admin->inviteStaff($request->user(), $request->all(), AuditContext::fromRequest($request), $authAdmin);
 
         if ($result['status'] === 'linked') {
-            return $this->done('Akun sudah ada di Supabase Auth dan langsung dihubungkan. Staf bisa login dengan password akunnya.');
+            return $this->done('Akun sudah terdaftar di sistem login dan langsung dihubungkan. Staf bisa login dengan password akunnya.');
         }
         Inertia::flash('link', $this->confirmUrl($result['hashedToken'], 'invite'));
 
@@ -42,14 +42,14 @@ class UserController
     {
         $this->admin->assignRole($request->user(), $request->all(), AuditContext::fromRequest($request));
 
-        return $this->done('Role ditambahkan.');
+        return $this->done('Peran ditambahkan.');
     }
 
     public function revokeRole(Request $request): RedirectResponse
     {
         $this->admin->revokeRole($request->user(), $request->all(), AuditContext::fromRequest($request));
 
-        return $this->done('Role dicabut.');
+        return $this->done('Peran dicabut.');
     }
 
     public function setActive(Request $request, AuthAdmin $authAdmin): RedirectResponse

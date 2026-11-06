@@ -39,7 +39,7 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
         cashSessionOpen ? (
           <ConfirmCash orderId={order.id} total={order.total} />
         ) : (
-          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             Sesi kas belum dibuka.{" "}
             <Link href={`/pos/cash?outlet=${order.outletId}`} className="font-medium underline">
               Buka sesi kas

@@ -1,4 +1,5 @@
 import { Link, usePage } from "@inertiajs/react";
+import { LayoutDashboardIcon } from "lucide-react";
 
 import { Brand } from "@/components/brand";
 import { LogoutButton } from "@/components/logout-button";
@@ -10,8 +11,8 @@ const NAV: { href: string; label: string; visible: (auth: NonNullable<SharedProp
   { href: "/pos", label: "Kasir", visible: () => true },
   { href: "/pos/orders", label: "Pesanan", visible: () => true },
   { href: "/pos/cash", label: "Kas", visible: (auth) => auth.permissions.includes("cash.view") },
-  { href: "/kds", label: "KDS", visible: (auth) => auth.navigation.includes("/kds") },
-  { href: "/staff", label: "Staff", visible: (auth) => auth.navigation.includes("/staff") },
+  { href: "/kds", label: "Barista", visible: (auth) => auth.navigation.includes("/kds") },
+  { href: "/staff", label: "Beranda", visible: (auth) => auth.navigation.includes("/staff") },
 ];
 
 /** Layout POS; navigasi mempertahankan ?outlet= saat berpindah halaman. */
@@ -23,7 +24,7 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
 
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-muted/30">
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-4 bg-neutral-950 px-4 text-white print:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-espresso px-3 text-espresso-foreground sm:gap-4 sm:px-4 print:hidden">
         <Link href="/pos" className="flex shrink-0 items-baseline gap-2">
           <Brand tone="light" className="text-base" />
           <span className="hidden text-xs text-neutral-400 sm:inline">POS</span>
@@ -37,8 +38,8 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
                 href={outletId && item.href !== "/staff" ? `${item.href}?outlet=${outletId}` : item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                  active ? "bg-white text-neutral-950" : "text-neutral-300 hover:bg-white/10 hover:text-white",
+                  "flex min-h-9 shrink-0 items-center rounded-lg px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11",
+                  active ? "bg-white text-espresso" : "text-neutral-300 hover:bg-white/10 hover:text-white",
                 )}
               >
                 {item.label}
@@ -46,7 +47,15 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
             );
           })}
         </nav>
-        <span className="hidden text-sm text-neutral-300 md:inline">{props.auth?.user.fullName}</span>
+        {props.auth?.navigation.includes("/admin") ? (
+          <Link
+            href="/admin"
+            className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-neutral-300 transition-colors pointer-coarse:min-h-11 hover:bg-white/10 hover:text-white [&_svg]:size-4"
+          >
+            <LayoutDashboardIcon aria-hidden /> Admin
+          </Link>
+        ) : null}
+        <span className="hidden text-sm text-neutral-300 lg:inline">{props.auth?.user.fullName}</span>
         <LogoutButton variant="ghost" />
       </header>
       <div className="flex flex-1 flex-col">{children}</div>

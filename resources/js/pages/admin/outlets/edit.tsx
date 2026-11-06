@@ -1,5 +1,5 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon, TableIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, SaveIcon, TableIcon } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmAction } from "@/components/confirm-action";
@@ -33,11 +33,8 @@ function useMutation() {
 
 export default function OutletEdit({ outlet, tables }: { outlet: Outlet; tables: Table[] }) {
   return (
-    <AdminLayout>
+    <AdminLayout breadcrumbs={[{ label: "Outlet & meja", href: "/admin/outlets" }, { label: outlet.name }]}>
       <Head title={`Outlet ${outlet.name}`} />
-      <Link href="/admin/outlets" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeftIcon className="size-4" /> Semua outlet
-      </Link>
       <PageHeader title={outlet.name} description={`Kode ${outlet.code} (tercetak di QR, tidak bisa diubah).`} />
       <SettingsForm key={JSON.stringify(outlet)} outlet={outlet} />
       <Tables outlet={outlet} tables={tables} />
@@ -181,16 +178,27 @@ function Tables({ outlet, tables }: { outlet: Outlet; tables: Table[] }) {
 
 function TableRow({ table, outletCode }: { table: Table; outletCode: string }) {
   const { pending, options } = useMutation();
+  const [confirming, setConfirming] = useState(false);
+  const setActive = (isActive: boolean) => router.patch(`/admin/outlet-tables/${table.id}`, { isActive }, options);
   return (
     <li className={cn("flex items-center justify-between gap-2 rounded-lg border p-2", !table.isActive && "bg-muted/50 text-muted-foreground")}>
       <a href={`/order?outlet=${outletCode}&table=${table.number}`} target="_blank" rel="noopener" className="font-mono font-medium hover:underline">
         {table.number}
       </a>
+      {/* Menonaktifkan meja langsung menolak pesanan dari QR meja itu, jadi dikonfirmasi; mengaktifkan tidak. */}
       <Switch
         checked={table.isActive}
         disabled={pending}
-        onCheckedChange={(isActive) => router.patch(`/admin/outlet-tables/${table.id}`, { isActive }, options)}
+        onCheckedChange={(isActive) => (isActive ? setActive(true) : setConfirming(true))}
         aria-label={`${table.isActive ? "Nonaktifkan" : "Aktifkan"} meja ${table.number}`}
+      />
+      <ConfirmAction
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Nonaktifkan meja ${table.number}?`}
+        description="Pesanan dari QR meja ini akan ditolak sampai meja diaktifkan lagi. Pesanan yang sudah masuk tidak berubah."
+        confirmLabel="Nonaktifkan meja"
+        onConfirm={() => setActive(false)}
       />
     </li>
   );

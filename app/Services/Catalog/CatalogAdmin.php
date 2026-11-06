@@ -657,7 +657,7 @@ final class CatalogAdmin
         if ($input['modifierGroupIds'] !== []) {
             $found = DB::table('modifier_groups')->whereIn('id', $input['modifierGroupIds'])->where('brand_id', $brandId)->count();
             if ($found !== count($input['modifierGroupIds'])) {
-                throw new AccessException('invalid', 'Grup modifier tidak valid.');
+                throw new AccessException('invalid', 'Grup pilihan tidak valid.');
             }
         }
     }

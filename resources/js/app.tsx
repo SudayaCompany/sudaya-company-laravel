@@ -2,12 +2,13 @@ import { createInertiaApp, router } from "@inertiajs/react";
 import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
+import { shouldToastFlashError } from "@/lib/feedback";
 import type { Flash } from "@/types";
 
 router.on("flash", (event) => {
   const { success, error } = event.detail.flash as Flash;
   if (success) toast.success(success);
-  if (error) toast.error(error);
+  if (error && shouldToastFlashError()) toast.error(error);
 });
 
 createInertiaApp({

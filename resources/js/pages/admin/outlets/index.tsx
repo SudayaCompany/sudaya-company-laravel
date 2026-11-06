@@ -12,8 +12,8 @@ type Outlet = { id: string; code: string; name: string; isActive: boolean; table
 export default function Outlets({ outlets }: { outlets: Outlet[] }) {
   return (
     <AdminLayout>
-      <Head title="Outlet & Meja" />
-      <PageHeader title="Outlet & Meja" description="Nama, alamat, prefix antrean, batas waktu bayar, status outlet, dan daftar meja resmi untuk QR meja." />
+      <Head title="Outlet & meja" />
+      <PageHeader title="Outlet & meja" description="Nama, alamat, prefix antrean, batas waktu bayar, status outlet, dan daftar meja resmi untuk QR meja." />
       {outlets.length === 0 ? (
         <EmptyState icon={StoreIcon} title="Tidak ada outlet yang bisa diatur" description="Butuh izin Mengubah konfigurasi outlet & sistem." />
       ) : (

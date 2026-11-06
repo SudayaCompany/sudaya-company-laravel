@@ -114,7 +114,7 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                 aria-pressed={category === c.id}
                 className={cn(
                   "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-                  category === c.id ? "border-neutral-950 bg-neutral-950 text-white" : "bg-background hover:border-foreground",
+                  category === c.id ? "border-espresso bg-espresso text-white" : "bg-background hover:border-foreground",
                 )}
               >
                 {c.name}
@@ -142,7 +142,7 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                     )}
                     {!product.isAvailable ? (
                       <Badge variant="destructive" className="absolute top-2 left-2">
-                        Sold out
+                        Habis
                       </Badge>
                     ) : null}
                   </div>
@@ -404,7 +404,7 @@ function PosCart({
                   setType(t);
                   setError(null);
                 }}
-                className={cn("rounded-lg border py-2 text-sm font-medium", type === t ? "border-neutral-950 bg-neutral-950 text-white" : "hover:border-foreground")}
+                className={cn("rounded-lg border py-2 text-sm font-medium", type === t ? "border-espresso bg-espresso text-white" : "hover:border-foreground")}
               >
                 {ORDER_TYPE_LABELS[t]}
               </button>
@@ -468,13 +468,13 @@ function PosCart({
           <span className="tabular-nums">{formatRupiah(total)}</span>
         </div>
         {error ? (
-          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             {error}
           </p>
         ) : null}
         {canConfirmCash && !cashSessionOpen ? (
           <>
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
               Sesi kas belum dibuka.{" "}
               <Link href={`/pos/cash?outlet=${outletId}`} className="font-medium underline">
                 Buka sesi kas

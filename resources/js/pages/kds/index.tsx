@@ -6,7 +6,7 @@ import { LiveRefresh } from "@/components/orders/live-refresh";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { PosLayout } from "@/layouts/pos-layout";
-import { ORDER_TYPE_LABELS, type OrderLine, type OrderStatus, type OrderType } from "@/lib/orders";
+import { NO_NAME_LABEL, ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, type OrderLine, type OrderStatus, type OrderType } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 type KdsOrder = {
@@ -33,16 +33,16 @@ type Props = {
 };
 
 const COLUMNS: { status: OrderStatus; title: string; accent: string }[] = [
-  { status: "queued", title: "New", accent: "border-t-sky-500" },
-  { status: "preparing", title: "Preparing", accent: "border-t-amber-500" },
-  { status: "ready", title: "Ready", accent: "border-t-success" },
-  { status: "completed", title: "Completed", accent: "border-t-neutral-400" },
+  { status: "queued", title: ORDER_STATUS_LABELS.queued, accent: "border-t-muted-foreground" },
+  { status: "preparing", title: ORDER_STATUS_LABELS.preparing, accent: "border-t-info" },
+  { status: "ready", title: ORDER_STATUS_LABELS.ready, accent: "border-t-success" },
+  { status: "completed", title: ORDER_STATUS_LABELS.completed, accent: "border-t-border" },
 ];
 
 const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: React.ReactNode }>> = {
-  queued: { to: "preparing", label: "Start Preparing", icon: <PlayIcon /> },
-  preparing: { to: "ready", label: "Mark Ready", icon: <ChefHatIcon /> },
-  ready: { to: "completed", label: "Complete", icon: <CheckCheckIcon /> },
+  queued: { to: "preparing", label: "Mulai buat", icon: <PlayIcon /> },
+  preparing: { to: "ready", label: "Tandai siap", icon: <ChefHatIcon /> },
+  ready: { to: "completed", label: "Sudah diambil", icon: <CheckCheckIcon /> },
 };
 
 const BACK: Partial<Record<OrderStatus, OrderStatus>> = { preparing: "queued", ready: "preparing" };
@@ -138,7 +138,7 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
         <div className="min-w-0">
           <p className="font-mono text-2xl font-black">{order.orderNumber}</p>
           <p className="text-sm font-medium break-words">
-            {order.customerName ?? "Walk-in"} — {ORDER_TYPE_LABELS[order.type]}
+            {order.customerName ?? NO_NAME_LABEL} — {ORDER_TYPE_LABELS[order.type]}
             {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
           </p>
           {order.locationNote ? <p className="text-sm text-muted-foreground">{order.locationNote}</p> : null}
@@ -178,7 +178,7 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
       {canUpdate && next ? (
         <div className="flex gap-2">
           {canOverride && back ? (
-            <Button variant="outline" size="lg" className="h-12" disabled={pending} onClick={() => move(back)} aria-label="Kembalikan status">
+            <Button variant="outline" size="lg" className="h-12" disabled={pending} onClick={() => move(back)} aria-label="Kembalikan ke status sebelumnya">
               <Undo2Icon />
             </Button>
           ) : null}

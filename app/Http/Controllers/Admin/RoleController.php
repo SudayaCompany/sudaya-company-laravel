@@ -35,7 +35,7 @@ class RoleController
     public function setPermission(Request $request): RedirectResponse
     {
         $this->admin->setRolePermission($request->user(), $request->all(), AuditContext::fromRequest($request));
-        Inertia::flash('success', 'Permission diperbarui.');
+        Inertia::flash('success', 'Izin diperbarui.');
 
         return back();
     }

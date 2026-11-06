@@ -3,12 +3,12 @@ import { ChevronLeftIcon, ChevronRightIcon, ReceiptTextIcon } from "lucide-react
 
 import { EmptyState } from "@/components/empty-state";
 import { LiveRefresh } from "@/components/orders/live-refresh";
-import { OrderStatusBadge, PaymentStatusBadge } from "@/components/orders/order-parts";
+import { OrderStatusBadges } from "@/components/orders/order-parts";
 import { buttonVariants } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { PosLayout } from "@/layouts/pos-layout";
 import { formatRupiah } from "@/lib/format";
-import { CHANNEL_LABELS, ORDER_TYPE_LABELS, type OrderChannel, type OrderStatus, type OrderType, type PaymentStatus } from "@/lib/orders";
+import { CHANNEL_LABELS, NO_NAME_LABEL, ORDER_TYPE_LABELS, type OrderChannel, type OrderStatus, type OrderType, type PaymentStatus } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -80,7 +80,7 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
               aria-current={v.id === view ? "page" : undefined}
               className={cn(
                 "rounded-full border px-4 py-1.5 text-sm font-medium",
-                v.id === view ? "border-neutral-950 bg-neutral-950 text-white" : "bg-background hover:border-foreground",
+                v.id === view ? "border-espresso bg-espresso text-white" : "bg-background hover:border-foreground",
               )}
             >
               {v.label}
@@ -121,16 +121,13 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
                 >
                   <span className="w-24 font-mono text-lg font-bold">{order.orderNumber ?? order.reference}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{order.customerName ?? "Walk-in"}</span>
+                    <span className="block truncate font-medium">{order.customerName ?? NO_NAME_LABEL}</span>
                     <span className="block text-xs text-muted-foreground">
                       {CHANNEL_LABELS[order.channel]} · {ORDER_TYPE_LABELS[order.type]}
                       {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""} · {time.format(new Date(order.createdAt))}
                     </span>
                   </span>
-                  <span className="flex items-center gap-1.5">
-                    <PaymentStatusBadge status={order.paymentStatus} />
-                    <OrderStatusBadge status={order.status} />
-                  </span>
+                  <OrderStatusBadges status={order.status} paymentStatus={order.paymentStatus} />
                   <span className="w-24 text-right font-semibold tabular-nums">{formatRupiah(order.total)}</span>
                 </Link>
               </li>

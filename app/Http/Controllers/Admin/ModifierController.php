@@ -36,21 +36,21 @@ class ModifierController
     {
         $this->catalog->createModifierGroup($request->user(), (string) $request->input('brandId'), (array) $request->input('values'), AuditContext::fromRequest($request));
 
-        return $this->done('Grup modifier dibuat.');
+        return $this->done('Grup pilihan dibuat.');
     }
 
     public function update(Request $request, string $group): RedirectResponse
     {
         $this->catalog->updateModifierGroup($request->user(), $group, (array) $request->input('values'), AuditContext::fromRequest($request));
 
-        return $this->done('Grup modifier disimpan.');
+        return $this->done('Grup pilihan disimpan.');
     }
 
     public function destroy(Request $request, string $group): RedirectResponse
     {
         $this->catalog->deleteModifierGroup($request->user(), $group, AuditContext::fromRequest($request));
 
-        return $this->done('Grup modifier dihapus.');
+        return $this->done('Grup pilihan dihapus.');
     }
 
     private function done(string $message): RedirectResponse

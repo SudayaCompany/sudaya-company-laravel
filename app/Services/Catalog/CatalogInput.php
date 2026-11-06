@@ -48,7 +48,7 @@ final class CatalogInput
             self::uuid($id);
         }
         if (count($groupIds) > 20) {
-            self::fail('Maksimal 20 grup modifier.');
+            self::fail('Maksimal 20 grup pilihan.');
         }
 
         return [

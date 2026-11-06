@@ -75,9 +75,9 @@ export default function Products({ brand, outlets, outlet, params, list, categor
 
   return (
     <AdminLayout>
-      <Head title="Produk" />
+      <Head title="Menu" />
       <PageHeader
-        title="Produk"
+        title="Menu"
         description={`${brand.name} · ${list.total} produk${outlet ? ` · Ketersediaan untuk ${outlet.name}` : ""}`}
       >
         {can.create ? (
@@ -117,7 +117,7 @@ export default function Products({ brand, outlets, outlet, params, list, categor
           <NativeSelect name="availability" defaultValue={params.availability} aria-label="Ketersediaan" className="w-full">
             <NativeSelectOption value="all">Semua ketersediaan</NativeSelectOption>
             <NativeSelectOption value="available">Tersedia</NativeSelectOption>
-            <NativeSelectOption value="sold_out">Sold out</NativeSelectOption>
+            <NativeSelectOption value="sold_out">Habis</NativeSelectOption>
           </NativeSelect>
         ) : null}
         <NativeSelect name="sort" defaultValue={params.sort} aria-label="Urutkan" className="w-full">
@@ -216,7 +216,7 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                               }
                             >
                               {product.inventoryUnavailable
-                                ? "Stok habis — sold out otomatis"
+                                ? "Stok habis — otomatis tidak bisa dipesan"
                                 : `${product.lowStock ? "Stok menipis · " : "Stok "}${formatQty(product.stockQty, product.stockUnit)}`}
                             </span>
                           ) : null}
@@ -279,11 +279,11 @@ function AvailabilitySwitch({
   const toggle = (next: boolean) => router.patch(`/admin/products/${productId}/availability`, { outletId, isAvailable: next }, options);
 
   const status = isAvailable ? (
-    <Badge variant="secondary" className="bg-success/15 text-success">
+    <Badge variant="secondary" className="bg-success/15 text-success-strong">
       Tersedia
     </Badge>
   ) : (
-    <Badge variant="destructive">Sold out</Badge>
+    <Badge variant="destructive">Habis</Badge>
   );
   if (disabled) return status;
 
@@ -291,16 +291,16 @@ function AvailabilitySwitch({
     <div className="flex items-center gap-2">
       {status}
       {isAvailable ? (
-        // Menandai sold out butuh konfirmasi; mengembalikan tersedia langsung.
+        // Menandai habis butuh konfirmasi; mengembalikan tersedia langsung.
         <ConfirmAction
           trigger={
-            <Button variant="outline" size="xs" disabled={pending} aria-label={`Tandai ${productName} sold out`}>
-              Sold out
+            <Button variant="outline" size="xs" disabled={pending} aria-label={`Tandai ${productName} habis`}>
+              Tandai habis
             </Button>
           }
-          title="Tandai sold out?"
+          title="Tandai habis?"
           description={`${productName} tidak bisa dipesan customer di outlet ini sampai ditandai tersedia lagi.`}
-          confirmLabel="Tandai sold out"
+          confirmLabel="Tandai habis"
           onConfirm={() => toggle(false)}
         />
       ) : (

@@ -1,7 +1,5 @@
 import { Head, useForm } from "@inertiajs/react";
 import { Loader2Icon, LogInIcon } from "lucide-react";
-import { useEffect } from "react";
-import { toast } from "sonner";
 
 import { AuthLayout } from "@/components/auth-layout";
 import { LogoutButton } from "@/components/logout-button";
@@ -40,10 +38,6 @@ function LoginForm({ next, notice }: { next?: string; notice?: string }) {
   // "form" adalah error umum dari server, di luar field.
   const error = (form.errors as Partial<Record<"form", string>>).form;
 
-  useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
-
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     form.post("/login", { onFinish: () => form.reset("password") });
@@ -60,7 +54,7 @@ function LoginForm({ next, notice }: { next?: string; notice?: string }) {
       {error ? (
         <p
           role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong"
         >
           {error}
         </p>
@@ -110,10 +104,12 @@ function LoginForm({ next, notice }: { next?: string; notice?: string }) {
         ) : null}
       </div>
 
-      <Button type="submit" size="lg" className="h-10" disabled={form.processing}>
+      <Button type="submit" size="lg" disabled={form.processing}>
         {form.processing ? <Loader2Icon className="animate-spin" /> : <LogInIcon />}
         {form.processing ? "Memproses…" : "Masuk"}
       </Button>
+      {/* Reset password mandiri belum ada; admin membuat link reset di menu Staf. */}
+      <p className="text-center text-sm text-muted-foreground">Lupa password? Minta link reset ke admin outlet.</p>
     </form>
   );
 }

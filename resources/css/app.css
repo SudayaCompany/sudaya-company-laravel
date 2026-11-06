@@ -16,6 +16,16 @@
   /* Wordmark dan judul halaman customer: serif hangat khas kafe. */
   --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
   --color-cream: var(--cream);
+  --color-cream-strong: var(--cream-strong);
+  --color-espresso: var(--espresso);
+  --color-espresso-foreground: var(--espresso-foreground);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-success-strong: var(--success-strong);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning-strong: var(--warning-strong);
+  --color-destructive-strong: var(--destructive-strong);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -61,48 +71,62 @@
 }
 
 :root {
+  /* Netral hangat (hue 55–75, chroma kecil) agar senada dengan nuansa kopi; background tetap putih (PRD §86).
+     Kontras diukur di docs/UI_UX_DESIGN_SYSTEM.md §2.1. */
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.17 0.01 55);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.17 0.01 55);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.17 0.01 55);
+  --primary: oklch(0.21 0.012 50);
+  --primary-foreground: oklch(0.985 0.004 75);
+  --secondary: oklch(0.965 0.006 75);
+  --secondary-foreground: oklch(0.21 0.012 50);
+  --muted: oklch(0.965 0.006 75);
+  --muted-foreground: oklch(0.5 0.012 60);
+  --accent: oklch(0.965 0.006 75);
+  --accent-foreground: oklch(0.21 0.012 50);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: oklch(0.915 0.008 75);
+  --input: oklch(0.915 0.008 75);
+  --ring: oklch(0.7 0.01 60);
+  --chart-1: oklch(0.7 0.18 50);
+  --chart-2: oklch(0.52 0.13 155);
+  --chart-3: oklch(0.5 0.13 240);
+  --chart-4: oklch(0.21 0.012 50);
+  --chart-5: oklch(0.8 0.08 75);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  /* PRD §86 — primary hitam, background putih, accent orange, secondary hijau. */
+  --sidebar: oklch(0.985 0.004 75);
+  --sidebar-foreground: oklch(0.17 0.01 55);
+  --sidebar-primary: oklch(0.21 0.012 50);
+  --sidebar-primary-foreground: oklch(0.985 0.004 75);
+  --sidebar-accent: oklch(0.955 0.008 75);
+  --sidebar-accent-foreground: oklch(0.21 0.012 50);
+  --sidebar-border: oklch(0.915 0.008 75);
+  --sidebar-ring: oklch(0.7 0.01 60);
+  /* PRD §86 — primary hitam (espresso), background putih, accent orange, secondary hijau. */
+  --espresso: oklch(0.18 0.015 50);
+  --espresso-foreground: oklch(0.97 0.01 75);
+  /* Oranye hanya sebagai isi/garis; teks oranye di latar terang memakai --brand-strong (≥ 4,5:1). */
   --brand: oklch(0.7 0.18 50);
-  --brand-foreground: oklch(0.145 0 0);
+  --brand-foreground: oklch(0.17 0.01 55);
+  --brand-strong: oklch(0.53 0.155 45);
+  --brand-soft: oklch(0.95 0.04 60);
   --success: oklch(0.52 0.13 155);
   --success-foreground: oklch(0.985 0 0);
+  /* Teks status di atas tint 10–15% (badge). */
+  --success-strong: oklch(0.45 0.12 155);
+  --destructive-strong: oklch(0.5 0.2 27);
+  --info: oklch(0.5 0.13 240);
+  --info-foreground: oklch(0.985 0 0);
   /* PRD §25 — indikator stok menipis (kuning). */
   --warning: oklch(0.6 0.13 75);
-  --warning-foreground: oklch(0.145 0 0);
+  --warning-foreground: oklch(0.17 0.01 55);
+  --warning-strong: oklch(0.5 0.11 70);
   /* Selang-seling seksi halaman customer; background utama tetap putih (PRD §86). */
   --cream: oklch(0.975 0.012 75);
+  --cream-strong: oklch(0.94 0.02 75);
 }
 
 .dark {
@@ -144,6 +168,16 @@
   --warning: oklch(0.78 0.14 80);
   --warning-foreground: oklch(0.145 0 0);
   --cream: oklch(0.22 0.01 60);
+  --cream-strong: oklch(0.27 0.012 60);
+  --espresso: oklch(0.13 0.01 50);
+  --espresso-foreground: oklch(0.97 0.01 75);
+  --brand-strong: oklch(0.78 0.15 55);
+  --brand-soft: oklch(0.3 0.05 55);
+  --success-strong: oklch(0.72 0.14 155);
+  --destructive-strong: oklch(0.75 0.17 25);
+  --info: oklch(0.7 0.12 240);
+  --info-foreground: oklch(0.145 0 0);
+  --warning-strong: oklch(0.82 0.13 80);
 }
 
 @layer base {

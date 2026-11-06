@@ -1,10 +1,10 @@
 import { Brand } from "@/components/brand";
 
-/** Layout halaman auth: panel brand hitam (desktop) + area form putih. */
+/** Layout halaman auth: panel brand espresso (desktop) + area form putih. */
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-svh flex-1 lg:grid-cols-[1.1fr_1fr]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-neutral-950 p-10 text-white lg:flex">
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-espresso p-10 text-espresso-foreground lg:flex">
         <Brand tone="light" className="text-xl" />
         <div className="relative z-10 flex max-w-md flex-col gap-4">
           <span className="h-1 w-12 rounded-full bg-brand" aria-hidden />
@@ -12,10 +12,10 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             Satu sistem untuk seluruh operasional outlet.
           </p>
           <p className="text-sm text-neutral-400">
-            Absensi, POS, antrean barista, stok, dan laporan dalam satu data.
+            Kasir, antrean barista, sesi kas, dan menu dalam satu data.
           </p>
         </div>
-        <p className="text-xs text-neutral-500">Sudaya Company</p>
+        <p className="text-xs text-espresso-foreground/60">Sudaya Company</p>
         <div
           className="pointer-events-none absolute -right-24 -bottom-24 size-96 rounded-full bg-brand/10 blur-3xl"
           aria-hidden

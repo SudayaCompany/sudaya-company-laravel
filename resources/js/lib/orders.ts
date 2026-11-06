@@ -15,7 +15,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   ready: "Siap",
   completed: "Selesai",
   cancelled: "Dibatalkan",
-  refunded: "Refund",
+  refunded: "Direfund",
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -24,22 +24,26 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   failed: "Gagal",
   expired: "Tidak dibayar",
   refunded: "Dikembalikan",
-  partial_refund: "Refund sebagian",
+  partial_refund: "Direfund sebagian",
 };
 
 export const CHANNEL_LABELS: Record<OrderChannel, string> = {
-  pos: "POS",
+  pos: "Kasir",
   qr_table: "QR Meja",
   qr_counter: "QR Kasir",
-  website: "Web",
+  website: "Website",
   kiosk: "Kiosk",
 };
 
+// Nama tampilan saja; kode internal (dine_in/takeaway/delivery) tidak berubah.
 export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
-  dine_in: "Dine In",
-  takeaway: "Takeaway",
-  delivery: "Delivery",
+  dine_in: "Makan di sini",
+  takeaway: "Bawa pulang",
+  delivery: "Antar",
 };
+
+/** Nama pemesan untuk staf bila customer tidak mengisi nama. */
+export const NO_NAME_LABEL = "Tanpa nama";
 
 /** Label untuk customer (halaman status). */
 export function customerStatusLabel(status: OrderStatus) {
