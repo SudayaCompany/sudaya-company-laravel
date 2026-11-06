@@ -38,20 +38,57 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
       <Head title={`Pesanan ${order.orderNumber ?? order.reference}`} />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href={`/pos/orders?outlet=${order.outletId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <Link href={`/pos/orders?outlet=${order.outletId}`} className="inline-flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground pointer-coarse:min-h-11">
             <ArrowLeftIcon className="size-4" /> Daftar pesanan
           </Link>
           <LiveRefresh topic={topic} only={["order", "flags", "cashSessionOpen"]} />
         </div>
+        <header className="flex flex-wrap items-center gap-3">
+          <h1 className="font-mono text-3xl font-black">{order.orderNumber ?? order.reference}</h1>
+          <OrderStatusBadges status={order.status} paymentStatus={order.paymentStatus} />
+        </header>
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-          <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid gap-4 lg:grid-cols-[1fr_22rem] lg:items-start">
+          {/* < 1024 px: Pembayaran (aksi kasir) di atas; ≥ 1024 px: kolom kanan. */}
+          <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
             <Card>
               <CardHeader>
-                <CardTitle className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-2xl">{order.orderNumber ?? order.reference}</span>
-                  <OrderStatusBadges status={order.status} paymentStatus={order.paymentStatus} />
-                </CardTitle>
+                <CardTitle>Pembayaran</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 text-sm">
+                {order.payments.map((p) => (
+                  <div key={p.id} className="flex flex-col gap-0.5 rounded-lg border p-3">
+                    <div className="flex justify-between font-medium">
+                      <span>{METHOD_LABELS[p.method] ?? p.method}</span>
+                      <PaymentStatusBadge status={p.status} />
+                    </div>
+                    <p className="tabular-nums">{formatRupiah(p.amount)}</p>
+                    {p.tenderedAmount !== null ? (
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        Diterima {formatRupiah(p.tenderedAmount)} · Kembali {formatRupiah(p.changeAmount ?? 0)}
+                      </p>
+                    ) : null}
+                    {p.paidAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        {time.format(new Date(p.paidAt))}
+                        {p.confirmedByName ? ` · ${p.confirmedByName}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+                {order.status === "cancelled" && order.paymentStatus === "paid" ? (
+                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive-strong">
+                    Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
+                  </p>
+                ) : null}
+                <OrderActions order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
+              </CardContent>
+            </Card>
+          </div>
+          <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Detail pesanan</CardTitle>
               </CardHeader>
               <CardContent>
                 <dl className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[8rem_1fr]">
@@ -119,42 +156,7 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
               </CardContent>
             </Card>
           </div>
-
-          <div className="flex flex-col gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Pembayaran</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 text-sm">
-                {order.payments.map((p) => (
-                  <div key={p.id} className="flex flex-col gap-0.5 rounded-lg border p-3">
-                    <div className="flex justify-between font-medium">
-                      <span>{METHOD_LABELS[p.method] ?? p.method}</span>
-                      <PaymentStatusBadge status={p.status} />
-                    </div>
-                    <p className="tabular-nums">{formatRupiah(p.amount)}</p>
-                    {p.tenderedAmount !== null ? (
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        Diterima {formatRupiah(p.tenderedAmount)} · Kembali {formatRupiah(p.changeAmount ?? 0)}
-                      </p>
-                    ) : null}
-                    {p.paidAt ? (
-                      <p className="text-xs text-muted-foreground">
-                        {time.format(new Date(p.paidAt))}
-                        {p.confirmedByName ? ` · ${p.confirmedByName}` : ""}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-                {order.status === "cancelled" && order.paymentStatus === "paid" ? (
-                  <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive-strong">
-                    Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
-                  </p>
-                ) : null}
-                <OrderActions order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
-              </CardContent>
-            </Card>
-
+          <div className="flex flex-col gap-4 lg:col-start-2 lg:row-start-2">
             <Card>
               <CardHeader>
                 <CardTitle>Riwayat</CardTitle>

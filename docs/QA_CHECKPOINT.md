@@ -68,3 +68,52 @@ Semua butuh persetujuan owner. Urutan dan cara verifikasi ada di `STAGING_PREFLI
 2. Uji kelayakan server, lalu tentukan apakah perlu `trustProxies`.
 3. Migration terkontrol, deploy staging, smoke test.
 4. Data master asli dan UAT outlet.
+
+## UX-4 — POS, sesi kas, KDS (6 November 2026, selesai 18.10)
+
+**Status: Development Verified, menunggu review owner.** Commit lokal UX-4 dibuat setelah QA lulus; **tidak di-push**. Tidak ada perubahan PHP, migration, aturan bisnis, harga, idempotensi, ledger kas, refund, inventory guard, RBAC, CSP, atau CSRF.
+
+| Bagian | Sebelum | Sesudah | File |
+|---|---|---|---|
+| POS | Produk tanpa varian tetap membuka dialog; tombol jumlah 28 px; kembalian `text-sm`; uang cepat hanya Pas/50rb/100rb; input tanpa pemisah ribuan; "Simpan, bayar nanti" menempel tombol bayar; error tampil dua kali | Tambah langsung (1 ketukan) + catatan per baris dari keranjang; tipe pesanan selalu terlihat; tombol jumlah 40/44 px; total 24 px; uang diterima berformat ribuan + saran nominal (pembulatan 5rb/10rb/20rb/50rb/100rb); "Kembalian"/"Uang kurang" 24–30 px; tombol bayar 52 px; status kas di bar alat; dialog hasil (nomor 60 px, kembalian 36 px, cetak struk langsung `?print=1`); error tampil sekali | `pages/pos/index.tsx`, `lib/money.ts`, `components/money-input.tsx`, `components/catalog/product-options.tsx`, `pages/pos/orders/receipt.tsx` |
+| Sesi kas | "Saldo seharusnya" `text-base`; selisih bertanda minus tanpa label; minimal alasan tidak diberitahukan; tombol 32 px berdempetan | Saldo sistem 30 px di panel espresso; dialog tutup: Saldo sistem / Uang fisik / Selisih ("Cocok", "Uang lebih Rp …", "Uang kurang Rp …"); petunjuk minimal 3 karakter; batas kas keluar = saldo sistem; masuk/keluar berwarna dan berikon; "Tutup sesi" dipisah | `pages/pos/cash.tsx` |
+| KDS | 2 kolom di 1024 px (Siap/Selesai di bawah lipatan); nomor 24 px; modifier 14 px abu; label Inggris; indikator koneksi kecil | 3 kolom kerja di ≥ 1024 px + strip Selesai; tab per status di layar kecil; nomor 36 px; "2×" tebal di depan menu; varian 16 px; catatan disorot; sumber pesanan; "Terlambat"/"Perhatikan"; timer tahap; status koneksi + waktu pembaruan + banner terputus/offline; layar penuh. Realtime, polling cadangan 5 detik, dan penyambungan ulang tetap | `pages/kds/index.tsx`, `components/orders/live-refresh.tsx` |
+| Detail pesanan | Aksi turun ke bawah di HP; kembalian hanya di toast; Setujui/Tolak 28 px tanpa konfirmasi; refund tanpa peringatan kas | Nomor + status di judul; kartu Pembayaran paling atas di HP; konfirmasi bayar berformat + dialog hasil besar; konfirmasi "Setujui pembatalan" (Tolak tanpa konfirmasi); peringatan refund bila kas belum dibuka; waktu pengajuan tampil | `pages/pos/orders/show.tsx`, `components/orders/order-actions.tsx` |
+| Daftar pesanan | Filter 32 px, cari h-9 Enter saja | Filter dan cari 40/44 px, tombol Cari | `pages/pos/orders/index.tsx` |
+| Umum | Label pembaca layar "Close" | "Tutup"; tautan brand POS ≥ 36/44 px | `components/ui/sheet.tsx`, `dialog.tsx`, `layouts/pos-layout.tsx` |
+
+### Hasil QA akhir (Supabase dev eu-west-1, `APP_ENV=local`, server QA lokal 6 worker)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | build final 17.48 |
+| Unit/feature | 142/142 (512 assertion) | 0 | tidak ada perubahan PHP |
+| E2E `PaymentFlowTest` | 5/5 (103 assertion) | 0 | 17.33–17.48 |
+| Browser `probe-ux4` (baru) | **56/56** | 0 | POS desktop/tablet/HP (sentuh ≥ 44 px), KDS 1024 px + HP (tab), tutup kas (kurang/lebih/cocok), detail HP, dialog hasil |
+| Browser `probe-m4` multi-layar | **74/74** | 0 | kasir, KDS, pelanggan, manager; batal → approval (konfirmasi baru) → refund → tutup kas; realtime `live` |
+| Browser `probe-m3` | **140/140** | 0 | menu, checkout, kiosk, POS (cek baru tambah langsung) |
+| Browser `probe-redesign` | 59/59 | 0 | dijalankan sebelum perbaikan tata letak keranjang terakhir; halaman customer tidak berubah sesudahnya |
+
+Probe UX-4, M4, dan M3 di atas dijalankan ulang pada build final, setelah perbaikan D6.
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D5 | `probe-ux4` gagal: `maxTouchPoints: 0` ditolak Chrome | Bug probe | `{ enabled: false }` |
+| D6 | POS laptop 800 px dan HP: area bayar terlalu tinggi, pilihan tipe pesanan terdesak ke area gulir (terlihat di screenshot) | **Bug aplikasi (UX)** | Tipe pesanan dipindah ke area tetap di bawah judul keranjang; input uang + nominal cepat satu baris; kotak kembalian ringkas; pemisah "atau" dihapus. Diuji ulang UX-4/M4/M3 |
+| D7 | `probe-ux4` gagal mencari produk di POS tablet: `page.go()` kembali sebelum halaman baru menggantikan halaman lama (race) | Bug probe | Tunggu tombol produk ada sebelum klik |
+| D8 | Push gagal sore hari (`github.com:443` tidak terjangkau) | Jaringan | Push UX-0/UX-1 berhasil malam ini (`107ddb6` di GitHub) |
+
+### Data, proses, Git
+
+- Database dev bersih (18.10): 0 company `test-*`, 0 user `sudaya-test-*`, 0 order/pembayaran/kas/refund/approval/counter/meja/produk/kategori, 0 objek Storage menu; tersisa company seed `sudaya`. Fixture `24a741be`, `40fbd1d4`, `3673e526`, `774bba4c`, `803875e3`, `28d74c11` dibersihkan; file fixture dihapus.
+- Tidak ada proses QA yang berjalan.
+- GitHub `main` = `107ddb6` (UX-0 + UX-1). Commit UX-4 hanya lokal.
+
+### Risiko tersisa
+
+- POS di HP tetap padat (keranjang di sheet); perangkat utama kasir sebaiknya tablet atau laptop.
+- Bunyi notifikasi pesanan baru di KDS belum ada (keputusan D6 rencana UX-0 belum diambil).
+- Probe berjalan di server QA `php -S` dari laptop; latensi dan perilaku PHP-FPM tetap harus diuji di staging.
+- Printer thermal fisik belum diuji; `?print=1` hanya membuka dialog cetak browser.

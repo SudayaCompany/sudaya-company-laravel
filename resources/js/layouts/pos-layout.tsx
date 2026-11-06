@@ -25,7 +25,7 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-muted/30">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-espresso px-3 text-espresso-foreground sm:gap-4 sm:px-4 print:hidden">
-        <Link href="/pos" className="flex shrink-0 items-baseline gap-2">
+        <Link href="/pos" className="flex min-h-9 shrink-0 items-center gap-2 pointer-coarse:min-h-11">
           <Brand tone="light" className="text-base" />
           <span className="hidden text-xs text-neutral-400 sm:inline">POS</span>
         </Link>

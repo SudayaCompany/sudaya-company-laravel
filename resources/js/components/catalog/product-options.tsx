@@ -142,7 +142,7 @@ function OptionRow({
   large?: boolean;
 }) {
   return (
-    <label className={cn("flex cursor-pointer items-center gap-3 text-sm", large ? "py-3 text-base" : "py-2")}>
+    <label className={cn("flex min-h-10 cursor-pointer items-center gap-3 text-sm pointer-coarse:min-h-11", large ? "py-3 text-base" : "py-2")}>
       {control}
       <span className="flex-1">{label}</span>
       {delta ? <span className="text-muted-foreground tabular-nums">{formatPriceDelta(delta)}</span> : null}

@@ -1,6 +1,6 @@
 import { Head } from "@inertiajs/react";
 import { PrinterIcon } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/lib/format";
@@ -19,6 +19,12 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
   useLayoutEffect(() => {
     if (article.current) setPageHeight(Math.ceil((article.current.getBoundingClientRect().height * 25.4) / 96) + 4);
   }, [order]);
+  // Dibuka dari tombol "Cetak struk" kasir (?print=1): langsung buka dialog cetak, hemat satu klik.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("print") !== "1") return;
+    const timer = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex flex-col items-center gap-4 p-4 print:p-0">
@@ -27,7 +33,7 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
       </Head>
       {/* Kertas thermal 80 mm; area cetak 76 mm dengan margin 2 mm. */}
       <style>{`@page { size: 80mm ${pageHeight}mm; margin: 2mm; } @media print { html, body { background: #fff; } }`}</style>
-      <Button onClick={() => window.print()} className="print:hidden">
+      <Button size="lg" onClick={() => window.print()} className="print:hidden">
         <PrinterIcon /> Cetak
       </Button>
       <article ref={article} className="w-[76mm] bg-white p-3 font-mono text-[12px] leading-snug break-words text-black shadow print:shadow-none">

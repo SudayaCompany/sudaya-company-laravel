@@ -4,7 +4,8 @@ import { ChevronLeftIcon, ChevronRightIcon, ReceiptTextIcon } from "lucide-react
 import { EmptyState } from "@/components/empty-state";
 import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderStatusBadges } from "@/components/orders/order-parts";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { PosLayout } from "@/layouts/pos-layout";
 import { formatRupiah } from "@/lib/format";
@@ -79,8 +80,8 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
               href={`/pos/orders${query({ outlet: outlet.id, view: v.id })}`}
               aria-current={v.id === view ? "page" : undefined}
               className={cn(
-                "rounded-full border px-4 py-1.5 text-sm font-medium",
-                v.id === view ? "border-espresso bg-espresso text-white" : "bg-background hover:border-foreground",
+                "flex min-h-10 items-center rounded-full border px-4 text-sm font-medium pointer-coarse:min-h-11",
+                v.id === view ? "border-espresso bg-espresso text-espresso-foreground" : "bg-background hover:border-foreground",
               )}
             >
               {v.label}
@@ -94,14 +95,18 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
               router.visit(`/pos/orders${query({ outlet: outlet.id, view, q: value })}`);
             }}
           >
-            <input
+            <Input
+              type="search"
               name="q"
               defaultValue={q ?? ""}
               maxLength={60}
               placeholder="Kode / nomor / nama"
               aria-label="Cari pesanan"
-              className="h-9 w-full rounded-lg border bg-background px-3 text-sm sm:w-56"
+              className="w-full bg-background sm:w-56"
             />
+            <Button type="submit" variant="outline">
+              Cari
+            </Button>
           </form>
         </div>
 

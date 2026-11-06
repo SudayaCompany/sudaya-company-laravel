@@ -1,10 +1,26 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { BanknoteIcon, CoffeeIcon, Loader2Icon, MinusIcon, PlusIcon, PrinterIcon, SearchIcon, ShoppingCartIcon, Trash2Icon } from "lucide-react";
+import {
+  BanknoteIcon,
+  CheckCircle2Icon,
+  CoffeeIcon,
+  Loader2Icon,
+  MinusIcon,
+  NotebookPenIcon,
+  PlusIcon,
+  PrinterIcon,
+  SearchIcon,
+  ShoppingCartIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+  WalletIcon,
+  XIcon,
+} from "lucide-react";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { ItemNotesField, ModifierGroupField, QuantityStepper, useProductSelection } from "@/components/catalog/product-options";
 import { ConfirmAction } from "@/components/confirm-action";
+import { MoneyInput } from "@/components/money-input";
 import type { StorefrontProduct } from "@/components/storefront/storefront";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -17,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PosLayout } from "@/layouts/pos-layout";
 import { MAX_LINE_QUANTITY, priceSelection } from "@/lib/catalog/pricing";
 import { formatPriceDelta, formatRupiah } from "@/lib/format";
+import { amountFromDigits, shortRupiah, tenderSuggestions } from "@/lib/money";
 import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, postJson, type OrderType } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +60,16 @@ type Props = {
   cashSessionOpen: boolean;
 };
 
+const lineKey = (productId: string, modifierIds: string[], notes: string | null) => `${productId}|${[...modifierIds].sort().join(",")}|${notes ?? ""}`;
+
+/** Gabungkan baris dengan isi sama (produk, pilihan, catatan) agar keranjang tetap ringkas. */
+function mergeLine(current: PosLine[], line: Omit<PosLine, "key">) {
+  const key = lineKey(line.product.id, line.modifierIds, line.notes);
+  const existing = current.find((l) => l.key === key);
+  if (existing) return current.map((l) => (l.key === key ? { ...l, quantity: Math.min(l.quantity + line.quantity, MAX_LINE_QUANTITY) } : l));
+  return [...current, { ...line, key }];
+}
+
 /** Terminal kasir. Harga di layar perkiraan; harga sah dihitung order engine di server. */
 export default function PosPage({ outlet, outlets, categories, products, canConfirmCash, cashSessionOpen }: Props) {
   const [query, setQuery] = useState("");
@@ -51,6 +78,7 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
   const [lines, setLines] = useState<PosLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [result, setResult] = useState<Placed | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const desktop = useIsDesktop();
 
   const visible = useMemo(() => {
@@ -60,18 +88,21 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
   const itemCount = lines.reduce((sum, l) => sum + l.quantity, 0);
 
   function addLine(line: Omit<PosLine, "key">) {
-    setLines((current) => {
-      const key = `${line.product.id}|${[...line.modifierIds].sort().join(",")}|${line.notes ?? ""}`;
-      const existing = current.find((l) => l.key === key);
-      if (existing) return current.map((l) => (l.key === key ? { ...l, quantity: Math.min(l.quantity + line.quantity, MAX_LINE_QUANTITY) } : l));
-      return [...current, { ...line, key }];
-    });
+    setLines((current) => mergeLine(current, line));
+    setAnnouncement(`${line.quantity} ${line.product.name} ditambahkan`);
+  }
+
+  // Produk tanpa pilihan langsung masuk keranjang (1 ketukan); catatan bisa ditambah dari keranjang.
+  function onProduct(product: StorefrontProduct) {
+    if (product.groups.length === 0) addLine({ product, modifierIds: [], quantity: 1, notes: null });
+    else setPicking(product);
   }
 
   const cart = (
     <PosCart
       outletId={outlet.id}
       lines={lines}
+      itemCount={itemCount}
       setLines={setLines}
       canConfirmCash={canConfirmCash}
       cashSessionOpen={cashSessionOpen}
@@ -85,12 +116,32 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
   return (
     <PosLayout outletId={outlet.id}>
       <Head title="Kasir" />
-      <div className="grid flex-1 lg:grid-cols-[1fr_26rem]">
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
+      <div className="grid flex-1 lg:grid-cols-[1fr_26rem] xl:grid-cols-[1fr_28rem]">
         <section className="flex min-w-0 flex-col gap-3 p-4 pb-28 lg:pb-4">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-48 flex-1">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari produk" aria-label="Cari produk" className="h-11 bg-background pl-9 text-base" />
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari produk"
+                aria-label="Cari produk"
+                className="h-11 bg-background pl-9 text-base [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Hapus pencarian"
+                  className="absolute top-1/2 right-1 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                >
+                  <XIcon className="size-4" aria-hidden />
+                </button>
+              ) : null}
             </div>
             {outlets.length > 1 ? (
               <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/pos?outlet=${e.target.value}`)} className="h-11">
@@ -103,9 +154,10 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
             ) : (
               <span className="text-sm text-muted-foreground">{outlet.name}</span>
             )}
+            {canConfirmCash ? <CashStatus outletId={outlet.id} open={cashSessionOpen} /> : null}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="Kategori">
             {[{ id: null, name: "Semua" }, ...categories].map((c) => (
               <button
                 key={c.id ?? "all"}
@@ -113,8 +165,8 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                 onClick={() => setCategory(c.id)}
                 aria-pressed={category === c.id}
                 className={cn(
-                  "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-                  category === c.id ? "border-espresso bg-espresso text-white" : "bg-background hover:border-foreground",
+                  "flex min-h-10 shrink-0 items-center rounded-full border px-4 text-sm font-medium transition-colors pointer-coarse:min-h-11",
+                  category === c.id ? "border-espresso bg-espresso text-espresso-foreground" : "bg-background hover:border-foreground",
                 )}
               >
                 {c.name}
@@ -131,10 +183,10 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                   key={product.id}
                   type="button"
                   disabled={!product.isAvailable}
-                  onClick={() => setPicking(product)}
-                  className="flex flex-col overflow-hidden rounded-xl border bg-background text-left transition-shadow hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => onProduct(product)}
+                  className="group flex flex-col overflow-hidden rounded-xl border bg-background text-left transition-[box-shadow,transform] duration-150 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <div className="relative aspect-[5/3] bg-muted">
+                  <div className="relative aspect-[5/3] bg-cream">
                     {product.imageUrl ? (
                       <img src={product.imageUrl} alt="" loading="lazy" className="size-full object-cover" />
                     ) : (
@@ -146,9 +198,14 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                       </Badge>
                     ) : null}
                   </div>
-                  <div className="flex flex-1 flex-col gap-0.5 p-3">
-                    <span className="line-clamp-2 text-sm font-medium">{product.name}</span>
-                    <span className="mt-auto text-sm font-semibold tabular-nums">{formatRupiah(product.price)}</span>
+                  <div className="flex flex-1 flex-col gap-1 p-3">
+                    <span className="line-clamp-2 leading-snug font-medium">{product.name}</span>
+                    <span className="mt-auto flex items-center justify-between gap-2">
+                      <span className="font-semibold tabular-nums">{formatRupiah(product.price)}</span>
+                      {product.isAvailable ? (
+                        <span className="text-xs text-muted-foreground">{product.groups.length ? "Pilih varian" : "Tambah"}</span>
+                      ) : null}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -159,7 +216,7 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
         {desktop ? <aside className="flex flex-col border-l bg-background">{cart}</aside> : null}
 
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background p-3 lg:hidden">
-          <Button size="lg" className="h-12 w-full justify-between" onClick={() => setCartOpen(true)}>
+          <Button size="xl" className="w-full justify-between" onClick={() => setCartOpen(true)}>
             <span className="flex items-center gap-2">
               <ShoppingCartIcon /> {itemCount} item
             </span>
@@ -177,7 +234,8 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
         <ResultDialog result={result} onClose={() => setResult(null)} />
 
         <Dialog open={picking !== null} onOpenChange={(open) => !open && setPicking(null)}>
-          <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-lg">
+          {/* Isi bergulir, tombol Tambah tetap terlihat di bawah walau pilihan banyak. */}
+          <DialogContent className="flex max-h-[90svh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
             {picking ? (
               <ProductPicker
                 key={picking.id}
@@ -195,6 +253,22 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
   );
 }
 
+/** Status sesi kas di bar alat kasir: terlihat sebelum kasir menerima uang. */
+function CashStatus({ outletId, open }: { outletId: string; open: boolean }) {
+  return (
+    <Link
+      href={`/pos/cash?outlet=${outletId}`}
+      className={cn(
+        "flex min-h-11 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors",
+        open ? "border-success/40 bg-success/10 text-success-strong hover:bg-success/15" : "border-destructive/40 bg-destructive/10 text-destructive-strong hover:bg-destructive/15",
+      )}
+    >
+      <WalletIcon className="size-4" aria-hidden />
+      {open ? "Kas terbuka" : "Kas belum dibuka"}
+    </Link>
+  );
+}
+
 function estimateTotal(lines: PosLine[]) {
   return lines.reduce((sum, l) => {
     const priced = priceSelection(l.product, l.modifierIds);
@@ -208,19 +282,21 @@ function ProductPicker({ product, onAdd }: { product: StorefrontProduct; onAdd: 
 
   return (
     <>
-      <DialogHeader className="p-4">
-        <DialogTitle>{product.name}</DialogTitle>
-        <DialogDescription>{formatRupiah(product.price)}</DialogDescription>
+      <DialogHeader className="shrink-0 border-b p-4 pr-12">
+        <DialogTitle className="text-lg">{product.name}</DialogTitle>
+        <DialogDescription className="tabular-nums">{formatRupiah(product.price)}</DialogDescription>
       </DialogHeader>
-      {product.groups.map((group) => (
-        <ModifierGroupField key={group.id} group={group} selected={selection.selected} onChange={(ids) => selection.setGroupSelection(group, ids)} />
-      ))}
-      <ItemNotesField value={selection.notes} onChange={selection.setNotes} />
-      <DialogFooter className="m-0 flex-row items-center gap-3 border-t p-4">
-        <QuantityStepper value={selection.quantity} onChange={selection.setQuantity} />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {product.groups.map((group) => (
+          <ModifierGroupField key={group.id} group={group} selected={selection.selected} onChange={(ids) => selection.setGroupSelection(group, ids)} />
+        ))}
+        <ItemNotesField value={selection.notes} onChange={selection.setNotes} />
+      </div>
+      <DialogFooter className="m-0 shrink-0 flex-row items-center gap-3 border-t bg-background p-4">
+        <QuantityStepper value={selection.quantity} onChange={selection.setQuantity} large />
         <Button
-          size="lg"
-          className="h-11 flex-1"
+          size="xl"
+          className="flex-1"
           disabled={!priced.ok}
           onClick={() => onAdd({ product, modifierIds: selection.selected, quantity: selection.quantity, notes: selection.notes.trim() || null })}
         >
@@ -234,6 +310,7 @@ function ProductPicker({ product, onAdd }: { product: StorefrontProduct; onAdd: 
 function PosCart({
   outletId,
   lines,
+  itemCount,
   setLines,
   canConfirmCash,
   cashSessionOpen,
@@ -241,6 +318,7 @@ function PosCart({
 }: {
   outletId: string;
   lines: PosLine[];
+  itemCount: number;
   setLines: React.Dispatch<React.SetStateAction<PosLine[]>>;
   canConfirmCash: boolean;
   cashSessionOpen: boolean;
@@ -256,15 +334,24 @@ function PosCart({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [tendered, setTendered] = useState("");
+  const [editingNote, setEditingNote] = useState<string | null>(null);
   // Satu key per isi keranjang: klik ganda atau retry tidak membuat order ganda.
   const idempotencyKey = useRef<string | null>(null);
   const total = estimateTotal(lines);
-  const tenderedAmount = tendered.trim() === "" ? null : Number(tendered);
+  const tenderedAmount = amountFromDigits(tendered);
   const cashValid = tenderedAmount !== null && Number.isInteger(tenderedAmount) && tenderedAmount >= total;
+  const shortBy = tenderedAmount !== null && tenderedAmount < total ? total - tenderedAmount : null;
 
   function changeLines(update: (current: PosLine[]) => PosLine[]) {
     idempotencyKey.current = null;
     setLines(update);
+  }
+
+  function setLineNotes(line: PosLine, value: string) {
+    const next = value.trim() || null;
+    setEditingNote(null);
+    if (next === line.notes) return;
+    changeLines((current) => mergeLine(current.filter((l) => l.key !== line.key), { ...line, notes: next }));
   }
 
   function reset() {
@@ -304,8 +391,8 @@ function PosCart({
       .then((result) => {
         if (!result.ok) {
           if (result.error === ORDER_CONFLICT_MESSAGE) idempotencyKey.current = null;
+          // Error tampil sekali, di dekat tombol bayar (pola umpan balik UX-1).
           setError(result.error);
-          toast.error(result.error);
           return;
         }
         reset();
@@ -318,8 +405,10 @@ function PosCart({
   return (
     <div className="flex h-full max-h-[calc(100svh-3.5rem)] flex-col lg:sticky lg:top-14 [@media(max-height:560px)]:overflow-y-auto">
       {/* pr-12: ruang untuk tombol tutup sheet di bawah lg. */}
-      <div className="flex shrink-0 items-center justify-between border-b py-3 pr-12 pl-4 lg:pr-4">
-        <h2 className="font-semibold">Pesanan baru</h2>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b py-2 pr-12 pl-4 lg:pr-3">
+        <h2 className="font-semibold">
+          Pesanan baru {itemCount ? <span className="font-normal text-muted-foreground">· {itemCount} item</span> : null}
+        </h2>
         {lines.length ? (
           <ConfirmAction
             trigger={
@@ -335,11 +424,34 @@ function PosCart({
         ) : null}
       </div>
 
-      {/* Item dan form satu area scroll; area simpan di bawah selalu terlihat. */}
+      {/* Tipe pesanan selalu terlihat: menentukan isian yang muncul dan sering diganti. */}
+      <div className="shrink-0 border-b px-4 py-2">
+        <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Tipe pesanan">
+          {(["takeaway", "dine_in", "delivery"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={type === t}
+              onClick={() => {
+                setType(t);
+                setError(null);
+              }}
+              className={cn(
+                "min-h-10 rounded-lg border px-1 text-sm font-medium pointer-coarse:min-h-11",
+                type === t ? "border-espresso bg-espresso text-espresso-foreground" : "hover:border-foreground",
+              )}
+            >
+              {ORDER_TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Item dan form satu area scroll; area bayar di bawah selalu terlihat. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [@media(max-height:560px)]:flex-none [@media(max-height:560px)]:overflow-visible">
         <div className="grow px-4">
           {lines.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Pilih produk untuk memulai.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Ketuk produk untuk menambahkan ke pesanan.</p>
           ) : (
             <ul className="flex flex-col divide-y">
               {lines.map((line) => {
@@ -348,26 +460,43 @@ function PosCart({
                   <li key={line.key} className="flex flex-col gap-1.5 py-3">
                     <div className="flex justify-between gap-2">
                       <span className="font-medium">{line.product.name}</span>
-                      <span className="text-sm tabular-nums">{priced.ok ? formatRupiah(priced.unitPrice * line.quantity) : "—"}</span>
+                      <span className="font-medium tabular-nums">{priced.ok ? formatRupiah(priced.unitPrice * line.quantity) : "—"}</span>
                     </div>
                     {priced.ok && priced.modifiers.length ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         {priced.modifiers.map((m) => `${m.name}${m.priceDelta ? ` (${formatPriceDelta(m.priceDelta)})` : ""}`).join(", ")}
                       </p>
                     ) : null}
-                    {line.notes ? <p className="text-xs text-muted-foreground italic">“{line.notes}”</p> : null}
+                    {editingNote === line.key ? (
+                      <form
+                        className="flex gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          setLineNotes(line, String(new FormData(e.currentTarget).get("note") ?? ""));
+                        }}
+                      >
+                        <Input name="note" defaultValue={line.notes ?? ""} maxLength={200} autoFocus placeholder="mis. less ice" aria-label={`Catatan ${line.product.name}`} />
+                        <Button type="submit" variant="outline">
+                          Simpan
+                        </Button>
+                      </form>
+                    ) : line.notes ? (
+                      <p className="text-sm text-brand-strong italic">“{line.notes}”</p>
+                    ) : null}
                     <div className="flex items-center gap-2">
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="outline"
                         aria-label={`Kurangi ${line.product.name}`}
                         onClick={() => changeLines((c) => c.flatMap((l) => (l.key !== line.key ? [l] : l.quantity > 1 ? [{ ...l, quantity: l.quantity - 1 }] : [])))}
                       >
                         <MinusIcon />
                       </Button>
-                      <span className="w-6 text-center text-sm tabular-nums">{line.quantity}</span>
+                      <span className="w-8 text-center text-base font-semibold tabular-nums" aria-label={`Jumlah ${line.quantity}`}>
+                        {line.quantity}
+                      </span>
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="outline"
                         aria-label={`Tambah ${line.product.name}`}
                         disabled={line.quantity >= MAX_LINE_QUANTITY}
@@ -375,9 +504,14 @@ function PosCart({
                       >
                         <PlusIcon />
                       </Button>
+                      {editingNote === line.key ? null : (
+                        <Button variant="ghost" size="sm" onClick={() => setEditingNote(line.key)} aria-label={`Catatan untuk ${line.product.name}`}>
+                          <NotebookPenIcon /> Catatan
+                        </Button>
+                      )}
                       {/* ml-auto: tombol hapus dijauhkan dari tombol jumlah agar tidak salah tekan. */}
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="ghost"
                         className="ml-auto"
                         aria-label={`Hapus ${line.product.name}`}
@@ -394,22 +528,6 @@ function PosCart({
         </div>
 
         <div className="flex shrink-0 flex-col gap-3 border-t p-4">
-          <div className="grid grid-cols-3 gap-1.5">
-            {(["takeaway", "dine_in", "delivery"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                aria-pressed={type === t}
-                onClick={() => {
-                  setType(t);
-                  setError(null);
-                }}
-                className={cn("rounded-lg border py-2 text-sm font-medium", type === t ? "border-espresso bg-espresso text-white" : "hover:border-foreground")}
-              >
-                {ORDER_TYPE_LABELS[t]}
-              </button>
-            ))}
-          </div>
           {type === "delivery" ? (
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1">
@@ -449,26 +567,29 @@ function PosCart({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nama customer" aria-label="Nama customer" maxLength={60} />
+              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nama pelanggan" aria-label="Nama pelanggan" maxLength={60} />
               {type === "dine_in" ? (
                 <>
                   <Input value={tableNumber} onChange={(e) => setTableNumber(e.target.value)} placeholder="No. meja" aria-label="Nomor meja" maxLength={10} />
                   <Input value={locationNote} onChange={(e) => setLocationNote(e.target.value)} placeholder="Lokasi/keterangan" aria-label="Lokasi atau keterangan" maxLength={100} />
                 </>
               ) : null}
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Catatan order" aria-label="Catatan order" maxLength={300} />
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Catatan pesanan" aria-label="Catatan pesanan" maxLength={300} />
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2 border-t bg-background p-4">
-        <div className="flex items-center justify-between text-lg font-semibold">
-          <span>Total</span>
-          <span className="tabular-nums">{formatRupiah(total)}</span>
+      <div className="flex shrink-0 flex-col gap-2.5 border-t bg-background px-4 py-3">
+        <div className="flex items-baseline justify-between">
+          <span className="text-base font-semibold">Total</span>
+          <span className="text-2xl font-bold tabular-nums" data-testid="cart-total">
+            {formatRupiah(total)}
+          </span>
         </div>
         {error ? (
-          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
+          <p role="alert" className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
             {error}
           </p>
         ) : null}
@@ -481,7 +602,8 @@ function PosCart({
               </Link>{" "}
               untuk menerima uang tunai.
             </p>
-            <Button variant="outline" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+            <Button variant="outline" size="lg" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+              {submitting ? <Loader2Icon className="animate-spin" /> : null}
               Simpan, bayar nanti
             </Button>
           </>
@@ -489,44 +611,43 @@ function PosCart({
           <>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="pos-tendered">Uang tunai diterima</Label>
-              <div className="flex gap-1.5">
-                <Input
-                  id="pos-tendered"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={tendered}
-                  onChange={(e) => setTendered(e.target.value)}
-                  className="h-10 min-w-0 tabular-nums"
-                />
-                <Button type="button" variant="outline" className="h-10" disabled={total === 0} onClick={() => setTendered(String(total))}>
+              <div className="flex flex-wrap gap-1.5">
+                <div className="min-w-36 flex-1">
+                  <MoneyInput id="pos-tendered" value={tendered} onValueChange={setTendered} className="h-11 text-lg font-semibold" placeholder="0" />
+                </div>
+                <Button type="button" variant="outline" className="h-11" disabled={total === 0} onClick={() => setTendered(String(total))}>
                   Pas
                 </Button>
-                {[50_000, 100_000].map((v) => (
-                  <Button key={v} type="button" variant="outline" className="h-10" disabled={v < total} onClick={() => setTendered(String(v))}>
-                    {v / 1000}rb
+                {tenderSuggestions(total).map((v) => (
+                  <Button key={v} type="button" variant="outline" className="h-11 tabular-nums" onClick={() => setTendered(String(v))}>
+                    {shortRupiah(v)}
                   </Button>
                 ))}
               </div>
-              <p className="text-sm text-muted-foreground">
-                Kembalian: <span className="font-medium text-foreground tabular-nums">{cashValid ? formatRupiah(tenderedAmount! - total) : "—"}</span>
-              </p>
             </div>
-            <Button
-              size="lg"
-              className="h-12 bg-success text-base text-success-foreground hover:bg-success/90"
-              disabled={lines.length === 0 || !cashValid || submitting}
-              onClick={() => submit(true)}
+            <div
+              className={cn(
+                "flex items-baseline justify-between rounded-xl px-4 py-2",
+                cashValid ? "bg-success/10 text-success-strong" : shortBy !== null ? "bg-destructive/10 text-destructive-strong" : "bg-muted text-muted-foreground",
+              )}
+              aria-live="polite"
             >
+              <span className="text-sm font-semibold">{shortBy !== null ? "Uang kurang" : "Kembalian"}</span>
+              <span className="text-2xl font-bold tabular-nums sm:text-3xl" data-testid="change">
+                {cashValid ? formatRupiah(tenderedAmount! - total) : shortBy !== null ? formatRupiah(shortBy) : "—"}
+              </span>
+            </div>
+            <Button variant="success" size="xl" disabled={lines.length === 0 || !cashValid || submitting} onClick={() => submit(true)}>
               {submitting ? <Loader2Icon className="animate-spin" /> : <BanknoteIcon />}
-              Bayar tunai & proses
+              {submitting ? "Memproses…" : "Bayar tunai & proses"}
             </Button>
-            <Button variant="outline" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+            {/* Aksi sekunder diberi jarak agar tidak tertekan saat menekan tombol bayar. */}
+            <Button variant="outline" className="mt-1" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
               Simpan, bayar nanti
             </Button>
           </>
         ) : (
-          <Button size="lg" className="h-12" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
+          <Button size="xl" disabled={lines.length === 0 || submitting} onClick={() => submit(false)}>
             {submitting ? <Loader2Icon className="animate-spin" /> : null}
             Simpan pesanan (bayar di kasir)
           </Button>
@@ -539,34 +660,49 @@ function PosCart({
 function ResultDialog({ result, onClose }: { result: Placed | null; onClose: () => void }) {
   return (
     <Dialog open={result !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         {result ? (
           <>
-            <DialogHeader>
-              <DialogTitle>{result.orderNumber ? "Pembayaran berhasil" : result.replayed ? "Pesanan sudah tersimpan" : "Pesanan disimpan"}</DialogTitle>
+            <DialogHeader className="items-center text-center">
+              {result.orderNumber ? <CheckCircle2Icon className="size-10 text-success" aria-hidden /> : null}
+              <DialogTitle className="text-xl">{result.orderNumber ? "Pembayaran berhasil" : result.replayed ? "Pesanan sudah tersimpan" : "Pesanan disimpan"}</DialogTitle>
               <DialogDescription>
                 {result.orderNumber ? "Pesanan masuk antrean barista." : "Menunggu pembayaran di kasir. Nomor antrean diberikan setelah pembayaran dikonfirmasi."}
               </DialogDescription>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-1 py-2 text-center">
-              <span className="text-sm text-muted-foreground">{result.orderNumber ? "Nomor antrean" : "Kode pesanan"}</span>
-              <span className="font-mono text-4xl font-bold" data-testid="result-number">
-                {result.orderNumber ?? result.reference}
-              </span>
-              <span className="tabular-nums">Total {formatRupiah(result.total)}</span>
-              {result.change !== null ? <span className="text-lg font-semibold tabular-nums">Kembalian {formatRupiah(result.change)}</span> : null}
-              {result.warning ? <span className="text-sm text-destructive">{result.warning}</span> : null}
+            <div className="flex flex-col items-center gap-3 py-2 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground">{result.orderNumber ? "Nomor antrean" : "Kode pesanan"}</p>
+                <p className="font-mono text-6xl font-black tracking-wider" data-testid="result-number">
+                  {result.orderNumber ?? result.reference}
+                </p>
+              </div>
+              <p className="tabular-nums">Total {formatRupiah(result.total)}</p>
+              {result.change !== null ? (
+                <div className="w-full rounded-xl bg-success/10 px-4 py-3 text-success-strong">
+                  <p className="text-sm font-semibold">Kembalian</p>
+                  <p className="text-4xl font-bold tabular-nums" data-testid="result-change">
+                    {formatRupiah(result.change)}
+                  </p>
+                </div>
+              ) : null}
+              {result.warning ? <p className="text-sm text-destructive-strong">{result.warning}</p> : null}
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col">
-              <a href={`/pos/orders/${result.orderId}/receipt`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline", className: "w-full" })}>
+              <a
+                href={`/pos/orders/${result.orderId}/receipt?print=1`}
+                target="_blank"
+                rel="noopener"
+                className={buttonVariants({ variant: "outline", size: "lg", className: "w-full" })}
+              >
                 <PrinterIcon /> Cetak struk
               </a>
-              <Link href={`/pos/orders/${result.orderId}`} className={buttonVariants({ variant: "outline", className: "w-full" })}>
-                Lihat detail
-              </Link>
-              <Button className="w-full" onClick={onClose}>
+              <Button size="xl" className="w-full" onClick={onClose}>
                 Pesanan baru
               </Button>
+              <Link href={`/pos/orders/${result.orderId}`} className={buttonVariants({ variant: "ghost", className: "w-full" })}>
+                Lihat detail
+              </Link>
             </DialogFooter>
           </>
         ) : null}

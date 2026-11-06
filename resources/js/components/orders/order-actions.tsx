@@ -1,14 +1,17 @@
 import { Link, router } from "@inertiajs/react";
-import { BanknoteIcon, CheckIcon, Loader2Icon, PrinterIcon, XIcon } from "lucide-react";
+import { BanknoteIcon, CheckCircle2Icon, CheckIcon, Loader2Icon, PrinterIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
+import { ConfirmAction } from "@/components/confirm-action";
+import { MoneyInput } from "@/components/money-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRupiah } from "@/lib/format";
+import { amountFromDigits, shortRupiah, tenderSuggestions } from "@/lib/money";
 import type { StaffOrder } from "@/lib/orders";
+import { cn } from "@/lib/utils";
 
 export type OrderActionFlags = { canConfirmCash: boolean; canCancel: boolean; canDecide: boolean; canRefund: boolean };
 
@@ -32,12 +35,15 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
   const unpaid = order.status === "pending_payment";
   const terminal = ["completed", "cancelled", "refunded"].includes(order.status);
   const approval = order.pendingApproval;
+  // Kembalian dihitung dari uang yang diketik kasir (tampilan saja; nilai sah dicatat server).
+  const [paidChange, setPaidChange] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-3">
+      <PaidDialog order={order} change={paidChange} onClose={() => setPaidChange(null)} />
       {unpaid && flags.canConfirmCash ? (
         cashSessionOpen ? (
-          <ConfirmCash orderId={order.id} total={order.total} />
+          <ConfirmCash orderId={order.id} total={order.total} onPaid={setPaidChange} />
         ) : (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             Sesi kas belum dibuka.{" "}
@@ -48,7 +54,20 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
           </p>
         )
       ) : null}
-      {order.status === "cancelled" && order.paymentStatus === "paid" && flags.canRefund ? <RecordRefund orderId={order.id} total={order.total} /> : null}
+      {order.status === "cancelled" && order.paymentStatus === "paid" && flags.canRefund ? (
+        cashSessionOpen ? (
+          <RecordRefund orderId={order.id} total={order.total} />
+        ) : (
+          // Refund keluar dari sesi kas terbuka; server juga menolak bila belum ada sesi.
+          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
+            Refund butuh sesi kas terbuka.{" "}
+            <Link href={`/pos/cash?outlet=${order.outletId}`} className="font-medium underline">
+              Buka sesi kas
+            </Link>{" "}
+            lalu catat refund saat uang diserahkan.
+          </p>
+        )
+      ) : null}
 
       {approval ? (
         <div className="flex flex-col gap-2 rounded-lg border border-brand/40 bg-brand/5 p-3 text-sm">
@@ -56,12 +75,19 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
           <p className="text-muted-foreground">
             “{approval.reason}” — {approval.requestedByName}
           </p>
-          {flags.canDecide ? <DecideApproval approvalId={approval.id} /> : <p className="text-xs text-muted-foreground">Menunggu keputusan Manager lain.</p>}
+          {approval.createdAt ? (
+            <p className="text-xs text-muted-foreground">Diajukan {new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(approval.createdAt))}</p>
+          ) : null}
+          {flags.canDecide ? (
+            <DecideApproval approvalId={approval.id} total={order.total} />
+          ) : (
+            <p className="text-xs text-muted-foreground">Menunggu keputusan Manager lain.</p>
+          )}
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <a href={`/pos/orders/${order.id}/receipt`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline" })}>
+        <a href={`/pos/orders/${order.id}/receipt?print=1`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline" })}>
           <PrinterIcon /> Cetak struk
         </a>
         {!terminal && !approval && flags.canCancel ? <CancelOrder orderId={order.id} paid={order.paymentStatus === "paid"} /> : null}
@@ -70,38 +96,83 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
   );
 }
 
-function ConfirmCash({ orderId, total }: { orderId: string; total: number }) {
+function ConfirmCash({ orderId, total, onPaid }: { orderId: string; total: number; onPaid: (change: number) => void }) {
   const [tendered, setTendered] = useState(String(total));
   const { pending, run } = useAction();
-  const amount = Number(tendered);
-  const valid = tendered.trim() !== "" && Number.isInteger(amount) && amount >= total;
-  const quick = [total, 50_000, 100_000].filter((v, i, arr) => v >= total && arr.indexOf(v) === i);
+  const amount = amountFromDigits(tendered);
+  const valid = amount !== null && amount >= total;
 
   return (
     <form
-      className="flex flex-col gap-2 rounded-lg border p-3"
+      className="flex flex-col gap-3 rounded-lg border p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        run(`/pos/orders/${orderId}/pay`, { tenderedAmount: amount });
+        if (amount !== null) run(`/pos/orders/${orderId}/pay`, { tenderedAmount: amount }, () => onPaid(amount - total));
       }}
     >
-      <Label htmlFor="tendered">Uang tunai diterima</Label>
-      <div className="flex flex-wrap gap-2">
-        <Input id="tendered" type="number" inputMode="numeric" min={total} value={tendered} onChange={(e) => setTendered(e.target.value)} className="h-10 max-w-40 tabular-nums" />
-        {quick.map((v) => (
-          <Button key={v} type="button" variant="outline" className="h-10" onClick={() => setTendered(String(v))}>
-            {v === total ? "Uang pas" : formatRupiah(v)}
-          </Button>
-        ))}
+      <div className="flex items-baseline justify-between">
+        <span className="font-semibold">Total</span>
+        <span className="text-2xl font-bold tabular-nums">{formatRupiah(total)}</span>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Kembalian: <span className="font-medium text-foreground tabular-nums">{valid ? formatRupiah(amount - total) : "—"}</span>
-      </p>
-      <Button type="submit" className="h-11 bg-success text-success-foreground hover:bg-success/90" disabled={!valid || pending}>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="tendered">Uang tunai diterima</Label>
+        <MoneyInput id="tendered" value={tendered} onValueChange={setTendered} className="h-12 text-lg font-semibold" />
+        <div className="flex flex-wrap gap-1.5">
+          <Button type="button" variant="outline" onClick={() => setTendered(String(total))}>
+            Uang pas
+          </Button>
+          {tenderSuggestions(total).map((v) => (
+            <Button key={v} type="button" variant="outline" className="tabular-nums" onClick={() => setTendered(String(v))}>
+              {shortRupiah(v)}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className={cn("flex items-baseline justify-between rounded-xl px-4 py-3", valid ? "bg-success/10 text-success-strong" : "bg-muted text-muted-foreground")} aria-live="polite">
+        <span className="text-sm font-semibold">Kembalian</span>
+        <span className="text-2xl font-bold tabular-nums" data-testid="detail-change">
+          {valid ? formatRupiah(amount - total) : "—"}
+        </span>
+      </div>
+      <Button type="submit" variant="success" size="xl" disabled={!valid || pending}>
         {pending ? <Loader2Icon className="animate-spin" /> : <BanknoteIcon />}
         Konfirmasi pembayaran {formatRupiah(total)}
       </Button>
     </form>
+  );
+}
+
+/** Hasil bayar dari detail pesanan: nomor antrean dan kembalian dibuat besar seperti di kasir. */
+function PaidDialog({ order, change, onClose }: { order: StaffOrder; change: number | null; onClose: () => void }) {
+  const open = change !== null && order.orderNumber !== null;
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="items-center text-center">
+          <CheckCircle2Icon className="size-10 text-success" aria-hidden />
+          <DialogTitle className="text-xl">Pembayaran berhasil</DialogTitle>
+          <DialogDescription>Pesanan masuk antrean barista.</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div>
+            <p className="text-sm text-muted-foreground">Nomor antrean</p>
+            <p className="font-mono text-6xl font-black tracking-wider">{order.orderNumber}</p>
+          </div>
+          <div className="w-full rounded-xl bg-success/10 px-4 py-3 text-success-strong">
+            <p className="text-sm font-semibold">Kembalian</p>
+            <p className="text-4xl font-bold tabular-nums">{formatRupiah(change ?? 0)}</p>
+          </div>
+        </div>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <a href={`/pos/orders/${order.id}/receipt?print=1`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full" })}>
+            <PrinterIcon /> Cetak struk
+          </a>
+          <Button size="xl" className="w-full" onClick={onClose}>
+            Selesai
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -176,14 +247,23 @@ function RecordRefund({ orderId, total }: { orderId: string; total: number }) {
   );
 }
 
-function DecideApproval({ approvalId }: { approvalId: string }) {
+function DecideApproval({ approvalId, total }: { approvalId: string; total: number }) {
   const { pending, run } = useAction();
   return (
-    <div className="flex gap-2">
-      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" disabled={pending} onClick={() => run(`/pos/approvals/${approvalId}/decide`, { approve: true })}>
-        <CheckIcon /> Setujui
-      </Button>
-      <Button size="sm" variant="outline" disabled={pending} onClick={() => run(`/pos/approvals/${approvalId}/decide`, { approve: false })}>
+    <div className="flex flex-wrap gap-2">
+      {/* Menyetujui membatalkan pesanan lunas (tidak bisa diulang), jadi dikonfirmasi; menolak tidak mengubah pesanan. */}
+      <ConfirmAction
+        trigger={
+          <Button variant="success" size="lg" disabled={pending}>
+            {pending ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Setujui
+          </Button>
+        }
+        title="Setujui pembatalan?"
+        description={`Pesanan dibatalkan dan keluar dari antrean. Uang ${formatRupiah(total)} dikembalikan terpisah lewat tombol Catat refund tunai saat diserahkan.`}
+        confirmLabel="Setujui pembatalan"
+        onConfirm={() => run(`/pos/approvals/${approvalId}/decide`, { approve: true })}
+      />
+      <Button size="lg" variant="outline" disabled={pending} onClick={() => run(`/pos/approvals/${approvalId}/decide`, { approve: false })}>
         Tolak
       </Button>
     </div>
