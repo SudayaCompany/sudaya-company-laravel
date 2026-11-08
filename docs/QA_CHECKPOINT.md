@@ -117,3 +117,49 @@ Probe UX-4, M4, dan M3 di atas dijalankan ulang pada build final, setelah perbai
 - Bunyi notifikasi pesanan baru di KDS belum ada (keputusan D6 rencana UX-0 belum diambil).
 - Probe berjalan di server QA `php -S` dari laptop; latensi dan perilaku PHP-FPM tetap harus diuji di staging.
 - Printer thermal fisik belum diuji; `?print=1` hanya membuka dialog cetak browser.
+
+## UX-5 — Dasbor Owner, area pemantauan, ekspor menu (8–9 November 2026)
+
+**Status: Development Verified, menunggu review owner.** Commit lokal dibuat setelah QA lulus; **tidak di-push**. Keputusan owner 8 November: UX-5 dulu lalu absensi (GPS + selfie), data produk diinput dari web + ekspor spreadsheet. Rencana dan status: `UX5_GOLIVE_PLAN.md`.
+
+Tidak ada migration, perubahan RBAC (izin per peran), aturan pembayaran/refund/kas/inventory/checkout, harga, CSP, atau CSRF. Peta rute bertambah dua prefix untuk halaman baru: `/admin/approvals` → `approval.view`, `/admin/cash` → `cash.view` (`/admin/orders` → `order.view` sudah ada).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Dasbor `/admin` | Angka asli outlet aktif, tanggal operasional zona waktu outlet: omzet bersih (pesanan lunas, tanpa batal/refund), transaksi, rata-rata, item terjual, 5 menu terlaris (batang satu warna + angka tertulis), pesanan menunggu bayar/antrean/selesai, kas (saldo sistem sesi terbuka, selisih sesi terakhir dengan ikon + label), "Perlu tindakan". Data dimuat sesudah halaman tampil (deferred + skeleton), diperbarui tiap 60 detik (jeda saat tab tidak aktif) + tombol Perbarui. Tiap bagian hanya dihitung bila peran punya izinnya. Pemilih outlet bila > 1 | `Services/Dashboard/DashboardSummary.php`, `Admin/DashboardController.php`, `pages/admin/dashboard.tsx` |
+| Area Owner | `/admin/orders` (+ detail, struk), `/admin/approvals` (kotak persetujuan pembatalan; setujui dengan konfirmasi, tolak), `/admin/cash` (hanya-lihat). Halaman kasir dipakai ulang dengan prop `area`; di area admin tombol bayar/batal/refund dan buka/tutup laci tidak ditampilkan (endpoint aksi tetap di `/pos`, dijaga `order.create`). Menu sidebar: Pesanan hari ini, Persetujuan, Kas untuk pengguna tanpa akses kasir; Persetujuan untuk semua yang berizin | `Admin/AdminOrderController.php`, `Admin/AdminCashController.php`, `Admin/ApprovalController.php`, `OrderEngine::pendingApprovals`, `layouts/area-layout.tsx`, `lib/area.ts`, `pages/admin/approvals.tsx`, `pages/pos/orders/*`, `pages/pos/cash.tsx`, `components/orders/order-actions.tsx`, `layouts/admin-layout.tsx` |
+| Ekspor menu | Tombol **Ekspor ke spreadsheet** → `.xlsx` (kategori, nama, SKU, deskripsi, harga dasar, status, varian & tambahan, ketersediaan + harga khusus per outlet). Izin `product.view`, brand milik company sendiri; teks disimpan sebagai teks (tidak pernah jadi rumus), karakter kontrol dibuang, `Cache-Control: no-store`. Tanpa dependency baru (ZipArchive) | `Support/Spreadsheet/XlsxWriter.php`, `Services/Catalog/MenuExport.php`, `ProductController::export` |
+| Daftar admin | Menu: filter langsung (pilihan berubah = diterapkan, cari setelah berhenti mengetik), tombol Terapkan dihapus, Hapus filter. Staf: cari nama/email. Log aktivitas: nama aksi bahasa Indonesia (kode asli tetap tampil kecil) + filter kategori | `pages/admin/products/index.tsx`, `pages/admin/users.tsx`, `pages/admin/audit.tsx` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`, server QA lokal 6 worker)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | |
+| Unit/feature | 147/147 (544 assertion) | 0 | termasuk 5 test baru `XlsxWriterTest` |
+| Live `DashboardTest` (baru) | 5/5 (72 assertion) | 0 | angka penjualan/pesanan/kas/persetujuan dari transaksi nyata, izin per bagian, tenant lain tidak terhitung, ekspor xlsx (teks rumus tetap teks, tanpa izin ditolak). Assertion brand tenant lain → `not_found` ditambahkan sesudahnya dan ikut Live suite penuh M7 |
+| E2E `AdminMonitoringTest` (baru) | 4/4 (58 assertion) | 0 | deferred `summary` lewat partial reload, Owner `/pos` 403, area admin (flag aksi kasir mati), setujui pembatalan via `/admin/approvals`, keputusan ganda ditolak, ekspor HTTP (header, `PK`), barista/guest/tenant lain ditolak |
+| Browser `probe-ux5` (baru) | **49/49** | 0 | dasbor desktop/tablet/HP, Perbarui, persetujuan dari dasbor → setujui (omzet turun 69.000 → 42.000), pesanan & kas admin hanya-lihat, ekspor + filter langsung Menu, regresi kasir |
+| Browser `probe-ux5b` (baru) | **15/15** | 0 | grid angka 2 kolom di HP (angka tidak terpotong, kontrol ≥ 44 px), Log aktivitas (label + filter), cari Staf |
+| Regresi `probe-ux4` | **56/56** | 0 | POS, kas, KDS, detail pesanan |
+| Regresi `probe` (M1 admin) | **76/76** | 0 | login, staf, peran, log, 403, HP/tablet |
+| Regresi `probe-m4` | **74/74** | 0 | diulang dengan fixture baru (D10): kasir, KDS, pelanggan, manager; batal → approval → refund → tutup kas; realtime `live` |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D9 | Dasbor HP: kartu angka bertumpuk satu per baris, layar penuh hanya untuk 2 angka (terlihat di screenshot) | UX | 2 kolom di HP/tablet, omzet selebar layar; diuji `probe-ux5b` |
+| D10 | `probe-m4` pertama berhenti: simpan pesanan POS melewati batas 30 detik PHP saat menunggu database dev (log `Maximum execution time … Connection.php`) | Lingkungan (latensi DB dev eu-west-1) | Jalur POS/KDS tidak diubah UX-5; probe M4 diulang dengan fixture baru |
+| D11 | Probe sendiri: pengecekan tombol filter Log memakai ekspresi yang salah | Bug probe | Dicek per label |
+
+### Data, proses, Git
+
+- Database dev bersih setelah QA: 0 company `test-*`, 0 user `sudaya-test-*`, 0 order/pembayaran/kas/approval/meja/produk/kategori; tersisa company seed `sudaya`. Fixture browser dibersihkan dengan `fixture.php cleanup`; file fixture berisi password test dihapus.
+- Commit lokal UX-5 dibuat setelah QA; **belum di-push** (menunggu persetujuan owner). GitHub `main` tetap `df80e00`.
+
+### Risiko tersisa
+
+- Angka dasbor = tanggal operasional (zona waktu outlet) berdasarkan `business_date` saat bayar; daftar Pesanan hari ini memakai tanggal dibuat. Pesanan yang dibuat sebelum tengah malam dan dibayar sesudahnya tampil di dua hari berbeda (perilaku lama, didokumentasikan).
+- Pembaruan otomatis dasbor 60 detik (polling); pesanan dan persetujuan memakai realtime.
+- Live suite penuh dijalankan sekali bersama M7-lite (absensi) agar database dev tidak dipakai bersamaan.

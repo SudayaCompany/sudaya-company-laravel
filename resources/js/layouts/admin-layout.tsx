@@ -1,6 +1,7 @@
 import { Link, usePage } from "@inertiajs/react";
 import {
   ArrowUpRightIcon,
+  BadgeCheckIcon,
   CoffeeIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -38,6 +39,8 @@ type NavItem = {
 };
 
 const nav = (href: string) => (auth: Auth) => auth.navigation.includes(href);
+/** Pengguna tanpa akses kasir (mis. Owner) memantau pesanan dan kas dari area admin. */
+const adminOnly = (href: string) => (auth: Auth) => !auth.navigation.includes("/pos") && auth.navigation.includes(href);
 
 // Grup mengikuti docs/UI_UX_SITEMAP.md §1. Hanya halaman yang sudah ada yang ditautkan.
 const GROUPS: { label: string; items: NavItem[] }[] = [
@@ -47,6 +50,8 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/pos", label: "Kasir", icon: ShoppingBagIcon, visible: nav("/pos"), leavesAdmin: true },
       { href: "/pos/orders", label: "Pesanan hari ini", icon: ReceiptTextIcon, visible: nav("/pos"), leavesAdmin: true },
+      { href: "/admin/orders", label: "Pesanan hari ini", icon: ReceiptTextIcon, visible: adminOnly("/admin/orders") },
+      { href: "/admin/approvals", label: "Persetujuan", icon: BadgeCheckIcon, visible: nav("/admin/approvals") },
       {
         href: "/pos/cash",
         label: "Kas",
@@ -54,6 +59,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         visible: (auth) => auth.navigation.includes("/pos") && auth.permissions.includes("cash.view"),
         leavesAdmin: true,
       },
+      { href: "/admin/cash", label: "Kas", icon: WalletIcon, visible: adminOnly("/admin/cash") },
       { href: "/kds", label: "Barista display", icon: MonitorIcon, visible: nav("/kds"), leavesAdmin: true },
     ],
   },

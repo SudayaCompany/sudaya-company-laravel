@@ -1,5 +1,5 @@
 import { Head, usePage } from "@inertiajs/react";
-import { CopyIcon, KeyRoundIcon, Loader2Icon, PlusIcon, UserPlusIcon, XIcon } from "lucide-react";
+import { CopyIcon, KeyRoundIcon, Loader2Icon, PlusIcon, SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -34,6 +34,9 @@ export default function Users({ users, roles, outlets }: Props) {
   const outletOptions = outlets.map((o) => ({ id: o.id, label: o.name }));
   const outletNames = new Map(outlets.map((o) => [o.id, o.name]));
   const [link, setLink] = useState<{ title: string; url: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  const shown = term === "" ? users : users.filter((u) => u.fullName.toLowerCase().includes(term) || (u.email ?? "").toLowerCase().includes(term));
 
   return (
     <AdminLayout>
@@ -65,9 +68,13 @@ export default function Users({ users, roles, outlets }: Props) {
       <Card>
         <CardHeader>
           <CardTitle>Daftar akun</CardTitle>
-          <CardDescription>{users.length} akun terdaftar</CardDescription>
+          <CardDescription>{term === "" ? `${users.length} akun terdaftar` : `${shown.length} dari ${users.length} akun`}</CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent className="flex flex-col gap-3 overflow-x-auto">
+          <div className="relative max-w-sm">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau email" aria-label="Cari staf" className="pl-8" />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -78,7 +85,7 @@ export default function Users({ users, roles, outlets }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => {
+              {shown.map((user) => {
                 const isSelf = user.id === actorId;
                 return (
                   <TableRow key={user.id} className="align-top">

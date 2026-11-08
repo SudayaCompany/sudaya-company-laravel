@@ -16,6 +16,9 @@ final class RouteAccess
         '/admin/outlets' => ['settings.manage'],
         '/admin/outlet-tables' => ['settings.manage'],
         '/admin/orders' => ['order.view'],
+        // Keputusan (setujui/tolak) diperiksa ulang per outlet di OrderWorkflow.
+        '/admin/approvals' => ['approval.view'],
+        '/admin/cash' => ['cash.view'],
         '/admin/reports' => ['report.sales'],
         '/admin/inventory/stock-in' => ['inventory.receive'],
         '/admin/inventory/stock-out' => ['inventory.issue'],

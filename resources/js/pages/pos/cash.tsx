@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { PosLayout } from "@/layouts/pos-layout";
+import { AreaPage } from "@/layouts/area-layout";
+import { areaBase, type Area } from "@/lib/area";
 import { formatRupiah } from "@/lib/format";
 import { amountFromDigits } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ type Movement = { id: string; type: keyof typeof MOVEMENT_LABELS; amount: number
 type Closed = { id: string; openedAt: string; closedAt: string; openedByName: string; expected: number; actual: number; reason: string | null };
 
 type Props = {
+  area?: Area;
   outlet: { id: string; name: string; timezone: string };
   outlets: { id: string; name: string }[];
   canOpen: boolean;
@@ -59,17 +61,16 @@ function ReasonHint({ value }: { value: string }) {
 }
 
 /** Sesi kas. Angka di layar hanya tampilan; saldo dan selisih dihitung ulang di server. */
-export default function CashPage({ outlet, outlets, canOpen, canClose, current, movements, history }: Props) {
+export default function CashPage({ area = "pos", outlet, outlets, canOpen, canClose, current, movements, history }: Props) {
   const stamp = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: outlet.timezone });
   const format = (iso: string | null) => (iso ? stamp.format(new Date(iso)) : "—");
 
   return (
-    <PosLayout outletId={outlet.id}>
+    <AreaPage area={area} outletId={outlet.id} className="max-w-4xl">
       <Head title="Sesi kas" />
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold">
+            <h1 className={cn("flex items-center gap-2 font-semibold", area === "admin" ? "text-2xl tracking-tight" : "text-xl")}>
               Sesi kas
               <Badge variant={current ? "secondary" : "outline"} className={cn(current && "bg-success/15 text-success-strong")}>
                 {current ? "Terbuka" : "Belum dibuka"}
@@ -78,7 +79,7 @@ export default function CashPage({ outlet, outlets, canOpen, canClose, current, 
             <p className="text-sm text-muted-foreground">{outlet.name}</p>
           </div>
           {outlets.length > 1 ? (
-            <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/pos/cash?outlet=${e.target.value}`)}>
+            <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`${areaBase(area)}/cash?outlet=${e.target.value}`)}>
               {outlets.map((o) => (
                 <NativeSelectOption key={o.id} value={o.id}>
                   {o.name}
@@ -91,7 +92,7 @@ export default function CashPage({ outlet, outlets, canOpen, canClose, current, 
         {current ? (
           <OpenSession outletId={outlet.id} canClose={canClose} session={current} movements={movements} format={format} />
         ) : (
-          <OpenForm outletId={outlet.id} canOpen={canOpen} />
+          <OpenForm area={area} outletId={outlet.id} canOpen={canOpen} />
         )}
 
         {history.length ? (
@@ -128,12 +129,11 @@ export default function CashPage({ outlet, outlets, canOpen, canClose, current, 
             </CardContent>
           </Card>
         ) : null}
-      </main>
-    </PosLayout>
+    </AreaPage>
   );
 }
 
-function OpenForm({ outletId, canOpen }: { outletId: string; canOpen: boolean }) {
+function OpenForm({ area, outletId, canOpen }: { area: Area; outletId: string; canOpen: boolean }) {
   const [opening, setOpening] = useState("");
   const { pending, run } = useAction();
   const amount = amountFromDigits(opening);
@@ -166,7 +166,9 @@ function OpenForm({ outletId, canOpen }: { outletId: string; canOpen: boolean })
         </CardContent>
       ) : (
         <CardContent>
-          <p className="text-sm text-muted-foreground">Hanya kasir atau manager yang dapat membuka sesi kas.</p>
+          <p className="text-sm text-muted-foreground">
+            {area === "admin" ? "Sesi kas dibuka oleh kasir atau manager dari halaman Kasir." : "Hanya kasir atau manager yang dapat membuka sesi kas."}
+          </p>
         </CardContent>
       )}
     </Card>

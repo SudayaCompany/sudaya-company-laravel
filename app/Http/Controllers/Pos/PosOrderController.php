@@ -14,6 +14,9 @@ class PosOrderController
 {
     private const VIEWS = ['pending' => 'pending_payment', 'active' => 'active', 'paid' => 'paid', 'today' => null];
 
+    /** Area tampilan: 'pos' (layout kasir) atau 'admin' (sidebar admin, mis. untuk Owner). */
+    protected const AREA = 'pos';
+
     public function __construct(private OrderEngine $orders) {}
 
     public function index(Request $request): Response
@@ -23,6 +26,7 @@ class PosOrderController
         $q = is_string($request->query('q')) && trim($request->query('q')) !== '' ? mb_substr(trim($request->query('q')), 0, 60) : null;
 
         return Inertia::render('pos/orders/index', [
+            'area' => static::AREA,
             'outlet' => ['id' => $outlet['id'], 'name' => $outlet['name'], 'timezone' => $outlet['timezone']],
             'outlets' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name']], $outlets),
             'view' => $view,
@@ -37,16 +41,20 @@ class PosOrderController
         $detail = $this->load($request, $order);
         $user = $request->user();
         $scope = AccessScope::outlet($detail['outletId']);
+        // Bayar, batal, dan refund adalah aksi kasir: hanya di area POS. Area admin hanya
+        // memantau dan memutuskan persetujuan.
+        $cashier = static::AREA === 'pos';
 
         return Inertia::render('pos/orders/show', [
+            'area' => static::AREA,
             'order' => $detail,
             // Hanya untuk menampilkan tombol; setiap aksi diperiksa ulang di server.
             'flags' => [
-                'canConfirmCash' => $user->can('payment.confirm_cash', $scope),
-                'canCancel' => $user->can('order.void', $scope),
+                'canConfirmCash' => $cashier && $user->can('payment.confirm_cash', $scope),
+                'canCancel' => $cashier && $user->can('order.void', $scope),
                 'canDecide' => ($user->can('approval.approve', $scope) || $user->can('approval.reject', $scope))
                     && ($detail['pendingApproval']['requestedBy'] ?? null) !== $user->id,
-                'canRefund' => $user->can('payment.refund', $scope),
+                'canRefund' => $cashier && $user->can('payment.refund', $scope),
             ],
             'cashSessionOpen' => CashSessions::hasOpen($detail['outletId']),
             'topic' => OrderEngine::outletTopic($detail['outletId']),

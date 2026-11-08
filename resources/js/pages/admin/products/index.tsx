@@ -1,6 +1,6 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { CoffeeIcon, ImageOffIcon, PencilIcon, PlusIcon, PowerIcon, SearchIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { CoffeeIcon, FileSpreadsheetIcon, ImageOffIcon, PencilIcon, PlusIcon, PowerIcon, SearchIcon, Trash2Icon, XIcon } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { ConfirmAction } from "@/components/confirm-action";
 import { EmptyState } from "@/components/empty-state";
@@ -72,6 +72,8 @@ export default function Products({ brand, outlets, outlet, params, list, categor
     outlet: params.outlet,
   };
   const hasFilters = Boolean(params.q || params.category || filters.status || filters.availability);
+  // Filter langsung: pilihan diterapkan saat berubah, pencarian setelah berhenti mengetik.
+  const searchTimer = useRef<number | undefined>(undefined);
 
   return (
     <AdminLayout>
@@ -80,11 +82,17 @@ export default function Products({ brand, outlets, outlet, params, list, categor
         title="Menu"
         description={`${brand.name} · ${list.total} produk${outlet ? ` · Ketersediaan untuk ${outlet.name}` : ""}`}
       >
-        {can.create ? (
-          <Link href="/admin/products/create" className={buttonVariants()}>
-            <PlusIcon /> Produk baru
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {/* File unduhan biasa (bukan kunjungan Inertia). */}
+          <a href={`/admin/products/export?brand=${brand.id}`} className={buttonVariants({ variant: "outline" })} download>
+            <FileSpreadsheetIcon /> Ekspor ke spreadsheet
+          </a>
+          {can.create ? (
+            <Link href="/admin/products/create" className={buttonVariants()}>
+              <PlusIcon /> Produk baru
+            </Link>
+          ) : null}
+        </div>
       </PageHeader>
 
       <form
@@ -93,12 +101,27 @@ export default function Products({ brand, outlets, outlet, params, list, categor
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           const values = Object.fromEntries([...data.entries()].map(([k, v]) => [k, String(v)]));
-          router.get(`/admin/products${query(values)}`, {}, { preserveState: true });
+          router.get(`/admin/products${query(values)}`, {}, { preserveState: true, preserveScroll: true, replace: true });
+        }}
+        onChange={(event) => {
+          if (event.target instanceof HTMLSelectElement) event.currentTarget.requestSubmit();
         }}
       >
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input name="q" defaultValue={params.q ?? ""} placeholder="Cari nama atau SKU" className="pl-8" aria-label="Cari produk" />
+          <Input
+            type="search"
+            name="q"
+            defaultValue={params.q ?? ""}
+            placeholder="Cari nama atau SKU"
+            className="pl-8"
+            aria-label="Cari produk"
+            onChange={(event) => {
+              const form = event.currentTarget.form;
+              window.clearTimeout(searchTimer.current);
+              searchTimer.current = window.setTimeout(() => form?.requestSubmit(), 400);
+            }}
+          />
         </div>
         <NativeSelect name="category" defaultValue={params.category ?? ""} aria-label="Kategori" className="w-full">
           <NativeSelectOption value="">Semua kategori</NativeSelectOption>
@@ -139,9 +162,11 @@ export default function Products({ brand, outlets, outlet, params, list, categor
               ))}
             </NativeSelect>
           ) : null}
-          <Button type="submit" variant="outline">
-            Terapkan
-          </Button>
+          {hasFilters ? (
+            <Link href={`/admin/products${query({ outlet: params.outlet })}`} className={buttonVariants({ variant: "ghost" })}>
+              <XIcon /> Hapus filter
+            </Link>
+          ) : null}
         </div>
       </form>
 

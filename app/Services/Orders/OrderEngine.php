@@ -371,6 +371,54 @@ final class OrderEngine
         ];
     }
 
+    /**
+     * Pengajuan pembatalan pesanan lunas yang menunggu keputusan di satu outlet, terlama
+     * dulu. `canDecide` hanya untuk menampilkan tombol; keputusan diperiksa ulang di server.
+     *
+     * @param  array{id: string}  $outlet
+     * @return list<array<string, mixed>>
+     */
+    public function pendingApprovals(User $actor, array $outlet): array
+    {
+        $scope = AccessScope::outlet($outlet['id']);
+        if (! $actor->can('approval.view', $scope)) {
+            throw AccessException::forbidden();
+        }
+        $mayDecide = $actor->can('approval.approve', $scope) || $actor->can('approval.reject', $scope);
+
+        return DB::table('approvals')
+            ->join('orders', 'orders.id', '=', 'approvals.reference_id')
+            ->leftJoin('users', 'users.id', '=', 'approvals.requested_by')
+            ->where('approvals.company_id', $actor->company_id)
+            ->where('approvals.outlet_id', $outlet['id'])
+            ->where('approvals.type', 'void')
+            ->where('approvals.status', 'pending')
+            ->where('orders.company_id', $actor->company_id)
+            ->orderBy('approvals.created_at')->orderBy('approvals.id')
+            ->limit(100)
+            ->get([
+                'approvals.id', 'approvals.reason', 'approvals.requested_by', 'approvals.created_at',
+                'users.full_name as requested_by_name',
+                'orders.id as order_id', 'orders.order_number', 'orders.customer_name', 'orders.total', 'orders.status as order_status', 'orders.paid_at',
+            ])
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'reason' => $r->reason,
+                'requestedByName' => $r->requested_by_name,
+                'createdAt' => $this->iso($r->created_at),
+                'canDecide' => $mayDecide && $r->requested_by !== $actor->id,
+                'order' => [
+                    'id' => $r->order_id,
+                    'reference' => self::reference($r->order_id),
+                    'orderNumber' => $r->order_number,
+                    'customerName' => $r->customer_name,
+                    'total' => (int) $r->total,
+                    'status' => $r->order_status,
+                    'paidAt' => $this->iso($r->paid_at),
+                ],
+            ])->all();
+    }
+
     // --- Guest ---------------------------------------------------------------------
 
     /** Order milik guest, hanya jika token cocok. Mengembalikan data publik saja. */

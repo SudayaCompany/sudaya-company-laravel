@@ -5,7 +5,8 @@ import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderActions, type OrderActionFlags } from "@/components/orders/order-actions";
 import { OrderLines, OrderStatusBadges, PaymentStatusBadge } from "@/components/orders/order-parts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PosLayout } from "@/layouts/pos-layout";
+import { AreaPage } from "@/layouts/area-layout";
+import { areaBase, type Area } from "@/lib/area";
 import { formatRupiah } from "@/lib/format";
 import { CHANNEL_LABELS, ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
 
@@ -29,16 +30,27 @@ const HISTORY_LABELS: Record<string, string> = {
 const METHOD_LABELS: Record<string, string> = { cash: "Tunai", qris: "QRIS" };
 
 /** Detail order untuk staf. Riwayat diambil dari audit log. */
-export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: { order: StaffOrder; flags: OrderActionFlags; cashSessionOpen: boolean; topic: string }) {
+export default function PosOrderPage({
+  area = "pos",
+  order,
+  flags,
+  cashSessionOpen,
+  topic,
+}: {
+  area?: Area;
+  order: StaffOrder;
+  flags: OrderActionFlags;
+  cashSessionOpen: boolean;
+  topic: string;
+}) {
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "medium", timeZone: order.outlet.timezone });
   const unpaid = order.status === "pending_payment";
 
   return (
-    <PosLayout outletId={order.outletId}>
+    <AreaPage area={area} outletId={order.outletId} className="max-w-5xl">
       <Head title={`Pesanan ${order.orderNumber ?? order.reference}`} />
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href={`/pos/orders?outlet=${order.outletId}`} className="inline-flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground pointer-coarse:min-h-11">
+          <Link href={`${areaBase(area)}/orders?outlet=${order.outletId}`} className="inline-flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-foreground pointer-coarse:min-h-11">
             <ArrowLeftIcon className="size-4" /> Daftar pesanan
           </Link>
           <LiveRefresh topic={topic} only={["order", "flags", "cashSessionOpen"]} />
@@ -81,7 +93,7 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
                     Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
                   </p>
                 ) : null}
-                <OrderActions order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
+                <OrderActions area={area} order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
               </CardContent>
             </Card>
           </div>
@@ -178,7 +190,6 @@ export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: {
             </Card>
           </div>
         </div>
-      </main>
-    </PosLayout>
+    </AreaPage>
   );
 }

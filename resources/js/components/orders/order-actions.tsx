@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { areaBase, type Area } from "@/lib/area";
 import { formatRupiah } from "@/lib/format";
 import { amountFromDigits, shortRupiah, tenderSuggestions } from "@/lib/money";
 import type { StaffOrder } from "@/lib/orders";
@@ -31,7 +32,18 @@ function useAction() {
 }
 
 /** Aksi kasir/manager pada detail order. Semua dicek ulang di server. */
-export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOrder; flags: OrderActionFlags; cashSessionOpen: boolean }) {
+export function OrderActions({
+  area = "pos",
+  order,
+  flags,
+  cashSessionOpen,
+}: {
+  area?: Area;
+  order: StaffOrder;
+  flags: OrderActionFlags;
+  cashSessionOpen: boolean;
+}) {
+  const base = areaBase(area);
   const unpaid = order.status === "pending_payment";
   const terminal = ["completed", "cancelled", "refunded"].includes(order.status);
   const approval = order.pendingApproval;
@@ -79,15 +91,18 @@ export function OrderActions({ order, flags, cashSessionOpen }: { order: StaffOr
             <p className="text-xs text-muted-foreground">Diajukan {new Intl.DateTimeFormat("id-ID", { timeStyle: "short" }).format(new Date(approval.createdAt))}</p>
           ) : null}
           {flags.canDecide ? (
-            <DecideApproval approvalId={approval.id} total={order.total} />
+            <DecideApproval base={base} approvalId={approval.id} total={order.total} />
           ) : (
             <p className="text-xs text-muted-foreground">Menunggu keputusan Manager lain.</p>
           )}
         </div>
       ) : null}
 
+      {area === "admin" && !terminal ? (
+        <p className="text-xs text-muted-foreground">Pembayaran, pembatalan, dan refund dilakukan dari halaman Kasir.</p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
-        <a href={`/pos/orders/${order.id}/receipt?print=1`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline" })}>
+        <a href={`${base}/orders/${order.id}/receipt?print=1`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline" })}>
           <PrinterIcon /> Cetak struk
         </a>
         {!terminal && !approval && flags.canCancel ? <CancelOrder orderId={order.id} paid={order.paymentStatus === "paid"} /> : null}
@@ -247,23 +262,23 @@ function RecordRefund({ orderId, total }: { orderId: string; total: number }) {
   );
 }
 
-function DecideApproval({ approvalId, total }: { approvalId: string; total: number }) {
+export function DecideApproval({ base = "/pos", approvalId, total, size = "lg" }: { base?: string; approvalId: string; total: number; size?: "default" | "lg" }) {
   const { pending, run } = useAction();
   return (
     <div className="flex flex-wrap gap-2">
       {/* Menyetujui membatalkan pesanan lunas (tidak bisa diulang), jadi dikonfirmasi; menolak tidak mengubah pesanan. */}
       <ConfirmAction
         trigger={
-          <Button variant="success" size="lg" disabled={pending}>
+          <Button variant="success" size={size} disabled={pending}>
             {pending ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Setujui
           </Button>
         }
         title="Setujui pembatalan?"
         description={`Pesanan dibatalkan dan keluar dari antrean. Uang ${formatRupiah(total)} dikembalikan terpisah lewat tombol Catat refund tunai saat diserahkan.`}
         confirmLabel="Setujui pembatalan"
-        onConfirm={() => run(`/pos/approvals/${approvalId}/decide`, { approve: true })}
+        onConfirm={() => run(`${base}/approvals/${approvalId}/decide`, { approve: true })}
       />
-      <Button size="lg" variant="outline" disabled={pending} onClick={() => run(`/pos/approvals/${approvalId}/decide`, { approve: false })}>
+      <Button size={size} variant="outline" disabled={pending} onClick={() => run(`${base}/approvals/${approvalId}/decide`, { approve: false })}>
         Tolak
       </Button>
     </div>

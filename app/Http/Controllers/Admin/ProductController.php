@@ -6,6 +6,7 @@ use App\Exceptions\AccessException;
 use App\Services\Audit\AuditContext;
 use App\Services\Catalog\CatalogAdmin;
 use App\Services\Catalog\CatalogInput;
+use App\Services\Catalog\MenuExport;
 use App\Services\Catalog\MenuImages;
 use App\Support\Access\AccessScope;
 use App\Support\Catalog\Pricing;
@@ -13,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /** Semua input divalidasi ulang di CatalogAdmin; actor selalu dari sesi. */
 class ProductController
@@ -153,6 +155,19 @@ class ProductController
                 return ['id' => $g['id'], 'name' => $g['name'], 'summary' => count($active)." pilihan · {$rule}"];
             }, $this->catalog->listModifierGroups($actor, $brandId)),
         ];
+    }
+
+    /** Unduh menu sebagai spreadsheet (.xlsx) untuk Excel/Google Sheets. */
+    public function export(Request $request, MenuExport $export): SymfonyResponse
+    {
+        $file = $export->xlsx($request->user(), $this->brandParam($request->query('brand')));
+
+        return response($file['bytes'], 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$file['filename'].'"',
+            'Cache-Control' => 'no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function brandParam(mixed $value): ?string

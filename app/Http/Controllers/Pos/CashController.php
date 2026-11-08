@@ -15,18 +15,23 @@ use Inertia\Response;
 /** Sesi kas outlet: buka, kas masuk/keluar, tutup dengan hitung uang fisik. */
 class CashController
 {
+    /** Area tampilan: 'pos' (layout kasir) atau 'admin' (hanya memantau, tanpa aksi laci). */
+    protected const AREA = 'pos';
+
     public function __construct(private OrderEngine $orders, private CashSessions $cash) {}
 
     public function index(Request $request): Response
     {
         [$outlets, $outlet] = PosOutlet::resolve($this->orders, $request, 'cash.view');
         $scope = AccessScope::outlet($outlet['id']);
+        $cashier = static::AREA === 'pos';
 
         return Inertia::render('pos/cash', [
+            'area' => static::AREA,
             'outlet' => ['id' => $outlet['id'], 'name' => $outlet['name'], 'timezone' => $outlet['timezone']],
             'outlets' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name']], $outlets),
-            'canOpen' => $request->user()->can('cash.open', $scope),
-            'canClose' => $request->user()->can('cash.close', $scope),
+            'canOpen' => $cashier && $request->user()->can('cash.open', $scope),
+            'canClose' => $cashier && $request->user()->can('cash.close', $scope),
             ...$this->cash->overview($request->user(), $outlet),
         ]);
     }

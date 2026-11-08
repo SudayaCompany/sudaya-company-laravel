@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminCashController;
+use App\Http\Controllers\Admin\AdminOrderController;
+use App\Http\Controllers\Admin\ApprovalController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -65,6 +68,14 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::prefix('admin')->group(function () {
             Route::get('/', DashboardController::class);
 
+            // Pemantauan untuk Owner/Manager: data dan izin sama dengan area kasir.
+            Route::get('/orders', [AdminOrderController::class, 'index']);
+            Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+            Route::get('/orders/{order}/receipt', [AdminOrderController::class, 'receipt']);
+            Route::get('/approvals', [ApprovalController::class, 'index']);
+            Route::post('/approvals/{approval}/decide', [OrderActionController::class, 'decide']);
+            Route::get('/cash', [AdminCashController::class, 'index']);
+
             Route::get('/users', [UserController::class, 'index']);
             Route::post('/users/invite', [UserController::class, 'invite']);
             Route::post('/users/assign-role', [UserController::class, 'assignRole']);
@@ -95,6 +106,7 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
 
             Route::get('/products', [ProductController::class, 'index']);
             Route::get('/products/create', [ProductController::class, 'create']);
+            Route::get('/products/export', [ProductController::class, 'export']);
             Route::post('/products', [ProductController::class, 'store']);
             Route::get('/products/{product}/edit', [ProductController::class, 'edit']);
             // POST, bukan PUT: form multipart (foto) tidak bisa dikirim dengan PUT di PHP.

@@ -61,6 +61,28 @@ final class Browser
         return $this->client->request('POST', $path, ['body' => is_string($body) ? $body : json_encode($body), 'headers' => $headers]);
     }
 
+    /**
+     * Partial reload Inertia seperti router.reload({ only }) — dipakai juga untuk memuat
+     * deferred props. Mengembalikan objek halaman JSON.
+     *
+     * @param  array{component: string, version?: string|null}  $page  halaman yang sedang tampil
+     * @param  list<string>  $only
+     * @return array<string, mixed>|null
+     */
+    public function partial(string $path, array $page, array $only): ?array
+    {
+        $response = $this->client->get($path, ['headers' => [
+            'Accept' => 'text/html, application/xhtml+xml',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) ($page['version'] ?? ''),
+            'X-Inertia-Partial-Component' => $page['component'],
+            'X-Inertia-Partial-Data' => implode(',', $only),
+        ]]);
+
+        return $response->getStatusCode() === 200 ? json_decode((string) $response->getBody(), true) : null;
+    }
+
     public function cookie(string $name): ?string
     {
         return $this->jar->getCookieByName($name)?->getValue();

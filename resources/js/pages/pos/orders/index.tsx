@@ -7,7 +7,8 @@ import { OrderStatusBadges } from "@/components/orders/order-parts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { PosLayout } from "@/layouts/pos-layout";
+import { AreaPage } from "@/layouts/area-layout";
+import { areaBase, type Area } from "@/lib/area";
 import { formatRupiah } from "@/lib/format";
 import { CHANNEL_LABELS, NO_NAME_LABEL, ORDER_TYPE_LABELS, type OrderChannel, type OrderStatus, type OrderType, type PaymentStatus } from "@/lib/orders";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ type Row = {
 };
 
 type Props = {
+  area?: Area;
   outlet: { id: string; name: string; timezone: string };
   outlets: { id: string; name: string }[];
   view: "pending" | "active" | "paid" | "today";
@@ -49,21 +51,21 @@ function query(params: Record<string, string | number | null | undefined>) {
   return text ? `?${text}` : "";
 }
 
-export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }: Props) {
+export default function PosOrdersPage({ area = "pos", outlet, outlets, view, q, list, topic }: Props) {
+  const base = `${areaBase(area)}/orders`;
   const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: outlet.timezone });
 
   return (
-    <PosLayout outletId={outlet.id}>
+    <AreaPage area={area} outletId={outlet.id} className="max-w-4xl">
       <Head title="Pesanan" />
-      <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold">Pesanan hari ini</h1>
+            <h1 className={cn("font-semibold", area === "admin" ? "text-2xl tracking-tight" : "text-xl")}>Pesanan hari ini</h1>
             <p className="text-sm text-muted-foreground">{outlet.name}</p>
           </div>
           <LiveRefresh topic={topic} only={["list"]} />
           {outlets.length > 1 ? (
-            <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/pos/orders${query({ outlet: e.target.value, view })}`)}>
+            <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`${base}${query({ outlet: e.target.value, view })}`)}>
               {outlets.map((o) => (
                 <NativeSelectOption key={o.id} value={o.id}>
                   {o.name}
@@ -77,7 +79,7 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
           {VIEWS.map((v) => (
             <Link
               key={v.id}
-              href={`/pos/orders${query({ outlet: outlet.id, view: v.id })}`}
+              href={`${base}${query({ outlet: outlet.id, view: v.id })}`}
               aria-current={v.id === view ? "page" : undefined}
               className={cn(
                 "flex min-h-10 items-center rounded-full border px-4 text-sm font-medium pointer-coarse:min-h-11",
@@ -92,7 +94,7 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
             onSubmit={(e) => {
               e.preventDefault();
               const value = String(new FormData(e.currentTarget).get("q") ?? "").trim();
-              router.visit(`/pos/orders${query({ outlet: outlet.id, view, q: value })}`);
+              router.visit(`${base}${query({ outlet: outlet.id, view, q: value })}`);
             }}
           >
             <Input
@@ -121,7 +123,7 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
             {list.rows.map((order) => (
               <li key={order.id}>
                 <Link
-                  href={`/pos/orders/${order.id}`}
+                  href={`${base}/${order.id}`}
                   className="flex flex-wrap items-center gap-3 rounded-xl border bg-background p-3 transition-colors hover:border-foreground"
                 >
                   <span className="w-24 font-mono text-lg font-bold">{order.orderNumber ?? order.reference}</span>
@@ -147,19 +149,18 @@ export default function PosOrdersPage({ outlet, outlets, view, q, list, topic }:
             </span>
             <span className="flex gap-2">
               {list.page > 1 ? (
-                <Link href={`/pos/orders${query({ outlet: outlet.id, view, q, page: list.page - 1 })}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <Link href={`${base}${query({ outlet: outlet.id, view, q, page: list.page - 1 })}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                   <ChevronLeftIcon /> Sebelumnya
                 </Link>
               ) : null}
               {list.page < list.pageCount ? (
-                <Link href={`/pos/orders${query({ outlet: outlet.id, view, q, page: list.page + 1 })}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <Link href={`${base}${query({ outlet: outlet.id, view, q, page: list.page + 1 })}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                   Berikutnya <ChevronRightIcon />
                 </Link>
               ) : null}
             </span>
           </nav>
         ) : null}
-      </main>
-    </PosLayout>
+    </AreaPage>
   );
 }
