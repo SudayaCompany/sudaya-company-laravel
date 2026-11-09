@@ -257,7 +257,7 @@ class CatalogTest extends LiveTestCase
         ], $this->audit())['id'];
         $base = ['name' => 'Silang', 'basePrice' => '1000', 'isActive' => true];
 
-        $this->expectAccess('invalid', fn () => $this->catalog()->createProduct($this->ctx()->load($menu['admin']), $A['brandId'], [...$base, 'categoryId' => $menu['coffee'], 'modifierGroupIds' => [$groupB]], null, $this->audit()), 'Grup modifier tidak valid.');
+        $this->expectAccess('invalid', fn () => $this->catalog()->createProduct($this->ctx()->load($menu['admin']), $A['brandId'], [...$base, 'categoryId' => $menu['coffee'], 'modifierGroupIds' => [$groupB]], null, $this->audit()), 'Grup pilihan tidak valid.');
         $catB = DB::table('categories')->where('company_id', $B['id'])->value('id') ?? $this->catalog()->createCategory($this->actor('adminB'), $B['brandId'], ['name' => 'X'], $this->audit())['id'];
         $this->expectAccess('invalid', fn () => $this->catalog()->createProduct($this->ctx()->load($menu['admin']), $A['brandId'], [...$base, 'categoryId' => $catB, 'modifierGroupIds' => []], null, $this->audit()), 'Kategori tidak valid.');
     }
