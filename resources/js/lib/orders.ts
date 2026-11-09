@@ -42,6 +42,26 @@ export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
   delivery: "Antar",
 };
 
+/** Label riwayat pesanan (aksi audit log). */
+export const HISTORY_LABELS: Record<string, string> = {
+  "order.created": "Pesanan dibuat",
+  "payment.confirmed": "Pembayaran dikonfirmasi",
+  "order.queued": "Masuk antrean",
+  "order.preparing": "Mulai dibuat",
+  "order.ready": "Siap diambil",
+  "order.completed": "Selesai",
+  "order.status_override": "Koreksi status oleh Manager",
+  "order.cancel_requested": "Pembatalan diajukan",
+  "approval.approved": "Pembatalan disetujui",
+  "approval.rejected": "Pembatalan ditolak",
+  "order.cancelled": "Dibatalkan",
+  "payment.refunded": "Uang dikembalikan (refund tunai)",
+  "order.expired": "Kedaluwarsa (tidak dibayar tepat waktu)",
+  "inventory.sale_posted": "Stok produk jadi dipotong",
+};
+
+export const METHOD_LABELS: Record<string, string> = { cash: "Tunai", qris: "QRIS" };
+
 /** Nama pemesan untuk staf bila customer tidak mengisi nama. */
 export const NO_NAME_LABEL = "Tanpa nama";
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
@@ -76,6 +77,11 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/roles/set-permission', [RoleController::class, 'setPermission']);
 
             Route::get('/audit', AuditController::class);
+
+            // Owner/Manager: pantau pesanan dan putuskan pembatalan, tanpa aksi kasir.
+            Route::get('/orders', [AdminOrderController::class, 'index']);
+            Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+            Route::post('/orders/approvals/{approval}/decide', [AdminOrderController::class, 'decide']);
 
             Route::get('/outlets', [OutletController::class, 'index']);
             Route::get('/outlets/{outlet}', [OutletController::class, 'edit']);

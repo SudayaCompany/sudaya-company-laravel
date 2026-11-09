@@ -1,6 +1,7 @@
 import { Link, usePage } from "@inertiajs/react";
 import {
   ArrowUpRightIcon,
+  ClipboardCheckIcon,
   CoffeeIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -45,6 +46,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Operasional",
     items: [
+      { href: "/admin/orders", label: "Pesanan & persetujuan", icon: ClipboardCheckIcon, visible: nav("/admin/orders") },
       { href: "/pos", label: "Kasir", icon: ShoppingBagIcon, visible: nav("/pos"), leavesAdmin: true },
       { href: "/pos/orders", label: "Pesanan hari ini", icon: ReceiptTextIcon, visible: nav("/pos"), leavesAdmin: true },
       {

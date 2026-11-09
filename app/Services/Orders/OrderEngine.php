@@ -371,6 +371,46 @@ final class OrderEngine
         ];
     }
 
+    /**
+     * Pengajuan pembatalan yang menunggu keputusan di outlet ini, terlama dulu.
+     * `ownRequest` menandai pengajuan actor sendiri (tidak boleh ia putuskan).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function pendingApprovals(User $actor, array $outlet, int $limit = 50): array
+    {
+        $ownOutlet = DB::table('outlets')->where('id', $outlet['id'])->where('company_id', $actor->company_id)->exists();
+        if (! $ownOutlet || ! $actor->can('approval.view', AccessScope::outlet($outlet['id']))) {
+            throw AccessException::forbidden();
+        }
+
+        return DB::table('approvals')
+            ->join('orders', 'orders.id', '=', 'approvals.reference_id')
+            ->join('users as requester', 'requester.id', '=', 'approvals.requested_by')
+            ->where('approvals.company_id', $actor->company_id)
+            ->where('approvals.outlet_id', $outlet['id'])
+            ->where('orders.company_id', $actor->company_id)
+            ->where('approvals.type', 'void')
+            ->where('approvals.status', 'pending')
+            ->orderBy('approvals.created_at')
+            ->limit($limit)
+            ->get(['approvals.id', 'approvals.reason', 'approvals.requested_by', 'approvals.created_at', 'requester.full_name as requested_by_name',
+                'orders.id as order_id', 'orders.order_number', 'orders.total', 'orders.status', 'orders.customer_name'])
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'reason' => $a->reason,
+                'requestedByName' => $a->requested_by_name,
+                'ownRequest' => $a->requested_by === $actor->id,
+                'createdAt' => $this->iso($a->created_at),
+                'orderId' => $a->order_id,
+                'reference' => self::reference($a->order_id),
+                'orderNumber' => $a->order_number,
+                'orderStatus' => $a->status,
+                'customerName' => $a->customer_name,
+                'total' => (int) $a->total,
+            ])->all();
+    }
+
     // --- Guest ---------------------------------------------------------------------
 
     /** Order milik guest, hanya jika token cocok. Mengembalikan data publik saja. */

@@ -152,6 +152,20 @@ class AccessRulesTest extends TestCase
         $this->assertFalse(RouteAccess::canAccess($owner, '/admin/roles'));
     }
 
+    public function test_admin_orders_owner_dan_manager_bisa_kasir_barista_admin_tidak_bisa(): void
+    {
+        // /admin/orders memakai order.view, tetapi area admin juga butuh dashboard.view
+        // lewat landing; yang diuji di sini adalah peta per path.
+        foreach (['owner', 'manager'] as $role) {
+            $this->assertTrue(RouteAccess::canAccess([self::grant($role)], '/admin/orders'), $role);
+            $this->assertTrue(RouteAccess::canAccess([self::grant($role)], '/admin/orders/approvals/x/decide'), $role);
+        }
+        $this->assertFalse(RouteAccess::canAccess([self::grant('admin')], '/admin/orders'));
+        // Owner tidak bisa membuka kasir: tidak punya order.create.
+        $this->assertFalse(RouteAccess::canAccess([self::grant('owner')], '/pos'));
+        $this->assertFalse(RouteAccess::canAccess([self::grant('owner')], '/pos/orders/x/pay'));
+    }
+
     public function test_prefix_terpanjang_menang_dan_tidak_salah_cocok(): void
     {
         $barista = [self::grant('barista', self::OUTLET_A)];

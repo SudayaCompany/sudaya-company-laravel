@@ -7,26 +7,7 @@ import { OrderLines, OrderStatusBadges, PaymentStatusBadge } from "@/components/
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PosLayout } from "@/layouts/pos-layout";
 import { formatRupiah } from "@/lib/format";
-import { CHANNEL_LABELS, ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
-
-const HISTORY_LABELS: Record<string, string> = {
-  "order.created": "Pesanan dibuat",
-  "payment.confirmed": "Pembayaran dikonfirmasi",
-  "order.queued": "Masuk antrean",
-  "order.preparing": "Mulai dibuat",
-  "order.ready": "Siap diambil",
-  "order.completed": "Selesai",
-  "order.status_override": "Koreksi status oleh Manager",
-  "order.cancel_requested": "Pembatalan diajukan",
-  "approval.approved": "Pembatalan disetujui",
-  "approval.rejected": "Pembatalan ditolak",
-  "order.cancelled": "Dibatalkan",
-  "payment.refunded": "Uang dikembalikan (refund tunai)",
-  "order.expired": "Kedaluwarsa (tidak dibayar tepat waktu)",
-  "inventory.sale_posted": "Stok produk jadi dipotong",
-};
-
-const METHOD_LABELS: Record<string, string> = { cash: "Tunai", qris: "QRIS" };
+import { CHANNEL_LABELS, HISTORY_LABELS, METHOD_LABELS, ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
 
 /** Detail order untuk staf. Riwayat diambil dari audit log. */
 export default function PosOrderPage({ order, flags, cashSessionOpen, topic }: { order: StaffOrder; flags: OrderActionFlags; cashSessionOpen: boolean; topic: string }) {
