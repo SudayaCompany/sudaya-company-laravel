@@ -3,9 +3,11 @@
 use App\Http\Controllers\Admin\AdminCashController;
 use App\Http\Controllers\Admin\AdminOrderController;
 use App\Http\Controllers\Admin\ApprovalController;
+use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\ModifierController;
 use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\ProductController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\Pos\CashController;
 use App\Http\Controllers\Pos\OrderActionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\PosOrderController;
+use App\Http\Controllers\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\StaffController;
 use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
@@ -49,6 +52,13 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
 
     Route::middleware(AuthorizeRoute::class)->group(function () {
         Route::get('/staff', StaffController::class);
+        // Absen GPS + selfie (M7-lite). Izin dicek ulang per outlet di AttendanceEngine.
+        Route::get('/staff/attendance', [StaffAttendanceController::class, 'index']);
+        Route::post('/staff/attendance/location', [StaffAttendanceController::class, 'location']);
+        Route::post('/staff/attendance/check-in', [StaffAttendanceController::class, 'checkIn']);
+        Route::post('/staff/attendance/check-out', [StaffAttendanceController::class, 'checkOut']);
+        Route::get('/staff/attendance/history', [StaffAttendanceController::class, 'history']);
+        Route::post('/staff/attendance/corrections', [StaffAttendanceController::class, 'correction']);
         Route::get('/pos', [PosController::class, 'index']);
         Route::post('/pos/orders', [PosController::class, 'store']);
         Route::get('/pos/orders', [PosOrderController::class, 'index']);
@@ -73,8 +83,23 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
             Route::get('/orders/{order}/receipt', [AdminOrderController::class, 'receipt']);
             Route::get('/approvals', [ApprovalController::class, 'index']);
-            Route::post('/approvals/{approval}/decide', [OrderActionController::class, 'decide']);
+            // Satu pintu keputusan: pembatalan pesanan lunas atau koreksi absen.
+            Route::post('/approvals/{approval}/decide', [ApprovalController::class, 'decide']);
             Route::get('/cash', [AdminCashController::class, 'index']);
+
+            // Karyawan & absensi (M7-lite).
+            Route::get('/attendance', [AttendanceController::class, 'index']);
+            Route::get('/attendance/reports', [AttendanceController::class, 'reports']);
+            Route::get('/attendance/reports/export', [AttendanceController::class, 'export']);
+            Route::get('/attendance/settings', [AttendanceController::class, 'settings']);
+            Route::post('/attendance/settings/outlets/{outlet}', [AttendanceController::class, 'updateGeofence']);
+            Route::post('/attendance/settings/accuracy', [AttendanceController::class, 'updateAccuracy']);
+            Route::get('/attendance/{attendance}/photo/{side}', [AttendanceController::class, 'photo']);
+            Route::get('/employees', [EmployeeController::class, 'index']);
+            Route::get('/employees/create', [EmployeeController::class, 'create']);
+            Route::post('/employees', [EmployeeController::class, 'store']);
+            Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit']);
+            Route::put('/employees/{employee}', [EmployeeController::class, 'update']);
 
             Route::get('/users', [UserController::class, 'index']);
             Route::post('/users/invite', [UserController::class, 'invite']);
@@ -90,6 +115,7 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
 
             Route::get('/outlets', [OutletController::class, 'index']);
             Route::get('/outlets/{outlet}', [OutletController::class, 'edit']);
+            Route::get('/outlets/{outlet}/qr', [OutletController::class, 'qr']);
             Route::put('/outlets/{outlet}', [OutletController::class, 'update']);
             Route::post('/outlets/{outlet}/tables', [OutletController::class, 'storeTables']);
             Route::patch('/outlet-tables/{table}', [OutletController::class, 'updateTable']);

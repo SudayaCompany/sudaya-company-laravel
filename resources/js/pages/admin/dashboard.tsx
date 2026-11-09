@@ -2,6 +2,7 @@ import { Deferred, Head, Link, router, usePage, usePoll } from "@inertiajs/react
 import {
   ArrowRightIcon,
   BadgeCheckIcon,
+  CalendarCheckIcon,
   ChefHatIcon,
   CircleCheckIcon,
   ClipboardCheckIcon,
@@ -49,6 +50,8 @@ type Summary = {
   } | null;
   pendingApprovals: number | null;
   soldOut: number | null;
+  pendingCorrections: number | null;
+  attendance: { employees: number; working: number; done: number; absent: number } | null;
 };
 
 type Props = {
@@ -140,8 +143,10 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
   const cashHref = has("/pos") ? `/pos/cash?outlet=${outlet.id}` : has("/admin/cash") ? `/admin/cash?outlet=${outlet.id}` : null;
   const approvalsHref = has("/admin/approvals") ? `/admin/approvals?outlet=${outlet.id}` : null;
   const productsHref = has("/admin/products") ? `/admin/products?outlet=${outlet.id}&availability=sold_out` : null;
+  const attendanceHref = has("/admin/attendance") ? `/admin/attendance?outlet=${outlet.id}` : null;
+  const { attendance } = summary;
 
-  const nothing = sales === null && orders === null && cash === null && summary.pendingApprovals === null && summary.soldOut === null;
+  const nothing = sales === null && orders === null && cash === null && attendance === null && summary.pendingApprovals === null && summary.soldOut === null;
 
   return (
     <div className="flex flex-col gap-6" aria-busy={reloading}>
@@ -194,6 +199,7 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
         <NeedsAction
           className={sales ? "lg:col-span-2" : "lg:col-span-5"}
           pendingApprovals={summary.pendingApprovals}
+          pendingCorrections={summary.pendingCorrections}
           pendingPayment={orders?.pendingPayment ?? null}
           soldOut={summary.soldOut}
           cashOpen={cash ? cash.open !== null : null}
@@ -201,8 +207,8 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
         />
       </div>
 
-      {orders || cash ? (
-        <div className="grid gap-4 md:grid-cols-2">
+      {orders || cash || attendance ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orders ? (
             <Card>
               <CardHeader>
@@ -242,6 +248,22 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
                 )}
                 {cash.lastClosed ? <LastClosed closed={cash.lastClosed} stamp={stamp} /> : null}
                 {cashHref ? <CardLink href={cashHref}>Lihat kas</CardLink> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+          {attendance ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Kehadiran hari ini</CardTitle>
+                <CardDescription>{attendance.employees} karyawan aktif</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <dl className="grid grid-cols-3 gap-3">
+                  <MiniStat icon={CalendarCheckIcon} label="Bekerja" value={attendance.working} />
+                  <MiniStat icon={CircleCheckIcon} label="Sudah pulang" value={attendance.done} />
+                  <MiniStat icon={HourglassIcon} label="Belum absen" value={attendance.absent} />
+                </dl>
+                {attendanceHref ? <CardLink href={attendanceHref}>Lihat kehadiran</CardLink> : null}
               </CardContent>
             </Card>
           ) : null}
@@ -325,6 +347,7 @@ type ActionLinks = { approvals: string | null; orders: string | null; products: 
 /** Hal yang perlu ditindaklanjuti; status selalu dengan ikon + teks, tidak hanya warna. */
 function NeedsAction({
   pendingApprovals,
+  pendingCorrections,
   pendingPayment,
   soldOut,
   cashOpen,
@@ -332,6 +355,7 @@ function NeedsAction({
   className,
 }: {
   pendingApprovals: number | null;
+  pendingCorrections: number | null;
   pendingPayment: number | null;
   soldOut: number | null;
   cashOpen: boolean | null;
@@ -342,6 +366,7 @@ function NeedsAction({
   if (!tracked) return null;
   const items: { key: string; icon: LucideIcon; text: string; href: string | null; urgent: boolean }[] = [];
   if (pendingApprovals) items.push({ key: "approvals", icon: BadgeCheckIcon, text: `${count(pendingApprovals)} pembatalan menunggu persetujuan`, href: links.approvals, urgent: true });
+  if (pendingCorrections) items.push({ key: "corrections", icon: CalendarCheckIcon, text: `${count(pendingCorrections)} koreksi absen menunggu persetujuan`, href: links.approvals, urgent: true });
   if (pendingPayment) items.push({ key: "payment", icon: HourglassIcon, text: `${count(pendingPayment)} pesanan menunggu pembayaran`, href: links.orders, urgent: false });
   if (soldOut) items.push({ key: "soldout", icon: PackageXIcon, text: `${count(soldOut)} menu ditandai habis`, href: links.products, urgent: false });
   if (cashOpen === false) items.push({ key: "cash", icon: WalletIcon, text: "Kas belum dibuka", href: links.cash, urgent: false });

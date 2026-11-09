@@ -163,3 +163,64 @@ Tidak ada migration, perubahan RBAC (izin per peran), aturan pembayaran/refund/k
 - Angka dasbor = tanggal operasional (zona waktu outlet) berdasarkan `business_date` saat bayar; daftar Pesanan hari ini memakai tanggal dibuat. Pesanan yang dibuat sebelum tengah malam dan dibayar sesudahnya tampil di dua hari berbeda (perilaku lama, didokumentasikan).
 - Pembaruan otomatis dasbor 60 detik (polling); pesanan dan persetujuan memakai realtime.
 - Live suite penuh dijalankan sekali bersama M7-lite (absensi) agar database dev tidak dipakai bersamaan.
+
+## M7-lite — Karyawan & absensi GPS + selfie, QR meja (9 November 2026)
+
+**Status: Development Verified, menunggu review owner.** Keputusan owner: opsi A GPS + foto selfie (8 November), migration enum disetujui (G6), foto disimpan 90 hari (G5), radius awal 30 m dan akurasi maksimal 30 m (G4) — 9 November. Commit lokal; **belum di-push**.
+
+Diport dari referensi Next.js Epic 05 (geofence, koreksi, rekap), dengan verifikasi wajah diganti foto selfie di bucket privat. Tidak ada perubahan RBAC (izin per peran), pembayaran, kas, refund, inventory, checkout, harga, CSP, atau CSRF. Peta rute tidak berubah (prefix `/admin/attendance*`, `/admin/employees`, `/staff/attendance` sudah ada sejak awal).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Migration | `2026_11_09_000001`: nilai `gps_selfie` pada enum `attendance_method` (aditif, di luar transaksi). Dijalankan di dev 9 November | `database/migrations/` |
+| Absen staf `/staff/attendance` | Tombol besar Absen masuk/pulang → kamera depan (selfie diperkecil di HP ke ±960 px) → lokasi dicek otomatis (pratinjau jarak & akurasi dari server) → Kirim. Posisi diambil ulang bila > 60 detik. Status kerja + timer, absen hari ini, peringatan sesi kemarin belum pulang, catatan privasi | `pages/staff/attendance.tsx`, `lib/attendance.ts`, `Staff/AttendanceController.php` |
+| Aturan server | Haversine; tolak posisi > 2 menit, akurasi > batas (default 30 m), di luar radius outlet (default 30 m), outlet tanpa koordinat; penolakan dicatat `attendance.location_rejected`. Satu sesi terbuka per karyawan (unique index), absen pulang kondisional, jam kerja dihitung DB. Foto wajib, dicek dari isi file (JPG/PNG/WebP ≤ 3 MB), disimpan `selfie/<company>/<karyawan>/<bulan>/<uuid>` di bucket privat `attendance-evidence`; gagal simpan → foto dihapus | `Services/Attendance/{AttendanceEngine,Geofence,AttendanceInput,AttendancePhotos}.php` |
+| Koreksi | Staf: lupa absen (masuk+pulang) atau lupa pulang, alasan wajib, tidak boleh masa depan / > 24 jam / ganda. Owner/Manager memutuskan di **Persetujuan** (setujui dengan konfirmasi); disetujui → sesi `manual_correction`, cek tumpang tindih; pemohon tidak bisa memutuskan sendiri | `AttendanceEngine::{requestCorrection,decideCorrection}`, `pages/staff/attendance-history.tsx`, `pages/admin/approvals.tsx`, `ApprovalController::decide` |
+| Admin | **Kehadiran** (papan harian: bekerja/sudah pulang/belum absen, jam, jarak, foto masuk/pulang lewat route berizin `Cache-Control: private, no-store`), **Rekap absensi** + ekspor `.xlsx`, **Data karyawan** (tambah/ubah/nonaktifkan, tautan ke akun staf; tidak bisa dinonaktifkan saat masih tercatat masuk), **Pengaturan absen** (titik dari lokasi perangkat atau ketik, radius 5–1.000 m, batas akurasi company) | `Services/Attendance/{AttendanceAdmin,Employees}.php`, `Admin/{AttendanceController,EmployeeController}.php`, `pages/admin/attendance/*`, `pages/admin/employees/*` |
+| Retensi | `sudaya:purge-attendance-photos` harian 03.15 WIB: foto > 90 hari dihapus dari Storage lalu path dikosongkan; jam, lokasi, metode tetap. Server butuh cron `schedule:run` (dokumen deploy diperbarui) | `Console/Commands/PurgeAttendancePhotosCommand.php`, `routes/console.php` |
+| Navigasi & dasbor | Grup sidebar **Karyawan**; **Absen saya** untuk manager; pintasan **Absen** di beranda staf dan header kasir; dasbor: kartu **Kehadiran hari ini** + "koreksi absen menunggu persetujuan" | `layouts/*`, `pages/staff/home.tsx`, `DashboardSummary.php`, `pages/admin/dashboard.tsx` |
+| QR meja | **Outlet & meja → Cetak QR meja**: lembar A4 2 kolom, satu kartu per meja aktif (nama outlet, nomor, QR SVG hitam-putih, petunjuk). QR dibuat di browser dengan `qrcode-generator` 2.0.4 (MIT, tanpa dependency), tanpa layanan pihak ketiga | `pages/admin/outlets/qr.tsx`, `OutletController::qr` |
+| Panduan | Panduan pemakaian untuk klien (Owner, Super Admin, Kasir, Barista, staf absen) | `docs/PANDUAN_PENGGUNA.md` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`, server QA lokal 6 worker)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | halaman QR jadi chunk terpisah 23,5 kB (8,6 kB gzip) |
+| Unit/feature | 152/152 (561 assertion) | 0 | termasuk 5 test baru `GeofenceTest` (Haversine, radius, akurasi, posisi lama, tugas luar, outlet tanpa koordinat) |
+| Live `AttendanceTest` (baru) | **7/7 (143 assertion)** | 0 | absen masuk/pulang + foto + audit, ganda ditolak, jam kerja dari DB; lokasi luar radius/akurasi/posisi lama/foto palsu ditolak tanpa menyimpan; koreksi lupa pulang & lupa absen (masa depan, urutan jam, ganda, tumpang tindih, pemohon/izin/tenant); papan, rekap (jumlah menit = DB), ekspor, foto berizin; data karyawan (kode unik, tautan akun, nonaktif saat masih masuk ditolak); pengaturan lokasi; retensi 90 hari |
+| Live suite lengkap | **125/125** | 0 | per kelas: AccessControl 19, Attendance 7, Bootstrap 4 (run 9 Nov sebelum jaringan putus), Catalog 21 (setelah D19), Dashboard 5, LoginSecurity 14, OrderEngine 19, OutletSettings 6, PaymentFlow 18, Seed 4, SupabaseSession 8; kelas yang terputus D18 dijalankan ulang satu per satu |
+| E2E suite penuh | **43/43 (494 assertion)** | 0 | termasuk `AttendanceFlowTest` 4/4 (upload multipart ke bucket privat asli lalu dibaca lewat route berizin, koreksi via kotak Persetujuan, rekap + ekspor, karyawan, pengaturan, batas akses) dan `OutletsTest` (lembar QR hanya meja aktif, manager 403) |
+| Browser `probe-m7` (baru) | **35/35** | 0 | Super Admin atur lokasi dari GPS perangkat + tambah karyawan; kasir di HP: Absen → selfie → lokasi ±11 m → kirim; di luar radius (111 m) tombol kirim nonaktif → cek lokasi lagi → pulang; Owner: papan + foto, koreksi disetujui, rekap 2 hari + ekspor, kartu dasbor |
+| Browser `probe-qr` (baru) | **10/10** | 0 | 5 kartu meja aktif, isi QR = URL pesan per meja, SVG terisi, mode cetak 2 kolom tanpa tombol, URL QR membuka menu meja |
+| Regresi `probe-ux5b` | **15/15** | 0 | |
+| Regresi `probe-ux5`, `probe-ux4` | **49/49**, **56/56** | 0 | diulang dengan server QA baru setelah D17/D18 (run pertama 46/49 dan 31/33 karena batas 30 detik) |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D12 | Pesan bentrok kode karyawan bisa salah ("akun sudah ditautkan") karena pesan exception memuat seluruh SQL insert (selalu berisi `user_id`) | Bug aplikasi (ditemukan saat review test) | Dibaca dari pesan driver `Key (user_id)=…`; dicek test Live |
+| D13 | Halaman Absen: umur posisi GPS salah dihitung (memakai umur fix, bukan waktu diterima) sehingga posisi bisa selalu diambil ulang | Bug aplikasi (review kode) | Simpan waktu diterima; posisi < 60 detik dipakai dengan umur diperbarui |
+| D14 | Durasi kerja "0 m" / "8 j 0 m" rancu dengan meter | UX | "45 mnt", "8 j", "2 j 15 mnt" |
+| D15 | Ekspektasi test rekap ≥ 600 menit, padahal koreksi -1 jam dibulatkan ke menit (599) | Bug test | Dibandingkan tepat dengan jumlah menit di DB |
+| D16 | Probe M7: izin lokasi CDP hilang karena koneksi browser ditutup setelah tiap perintah | Bug probe | Koneksi browser tetap untuk izin |
+| D17 | Request sesekali melewati batas 30 detik PHP server QA lokal (dasbor, pembayaran detail) saat menunggu DB dev di Eropa | Lingkungan (latensi DB dev) | Diulang; produksi direncanakan satu region (Singapura) |
+| D18 | Laptop mati/sleep saat Live suite: 93 test gagal karena DNS (`could not translate host name`), satu fixture tertinggal | Lingkungan | Fixture `ecfe6145` dibersihkan; kelas yang terputus dijalankan ulang |
+| D19 | Live CatalogTest mengharapkan "Grup modifier tidak valid.", padahal UX-1 sengaja mengganti label menjadi "Grup pilihan tidak valid." | Test basi sejak UX-1 | Ekspektasi disamakan (assertion tetap persis), commit `7616db6` |
+
+### Data, proses, Git
+
+- Migration `2026_11_09_000001` sudah dijalankan di dev (enum: `biometric, manual_correction, gps_selfie`).
+- Database dev bersih setelah QA: 0 company/user test, 0 karyawan/absen/koreksi/pengaturan absen, 0 foto selfie di bucket; tersisa company seed `sudaya`.
+- Dependency baru: `qrcode-generator` 2.0.4 (MIT, tanpa dependency turunan; `npm audit --omit=dev` 0 kerentanan).
+- Commit lokal M7-lite dibuat setelah QA; **belum di-push**. Commit UX-5 `d115d21` dan perbaikan test `7616db6` juga belum di-push. GitHub `main` tetap `df80e00`.
+- Tidak ada proses QA (server lokal, Chrome headless) yang berjalan.
+
+### Risiko tersisa
+
+- Koordinat GPS dari browser bisa dipalsukan (aplikasi mock location); foto selfie menjadi bukti pendamping, pencocokan wajah belum ada (opsi D menyusul).
+- GPS di dalam ruangan bervariasi per HP; radius/akurasi 30 m perlu diuji langsung di outlet dan disetel di Pengaturan absen.
+- Retensi foto butuh cron `schedule:run` di server (sudah di STAGING_PREFLIGHT dan runbook).
+- QR mencetak alamat web yang sedang dibuka; cetak dari domain produksi.
+- Tugas luar (outside duty) dan jadwal shift/aturan telat belum ada.

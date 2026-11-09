@@ -3,15 +3,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Pos\PosOutlet;
+use App\Services\Attendance\AttendanceEngine;
+use App\Services\Audit\AuditContext;
+use App\Services\Catalog\CatalogInput;
 use App\Services\Orders\OrderEngine;
+use App\Services\Orders\OrderWorkflow;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/** Kotak persetujuan: pengajuan pembatalan pesanan lunas yang menunggu keputusan. */
+/** Kotak persetujuan: pembatalan pesanan lunas dan koreksi absen yang menunggu keputusan. */
 class ApprovalController
 {
-    public function __construct(private OrderEngine $orders) {}
+    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance) {}
 
     public function index(Request $request): Response
     {
@@ -21,7 +27,28 @@ class ApprovalController
             'outlet' => ['id' => $outlet['id'], 'name' => $outlet['name'], 'timezone' => $outlet['timezone']],
             'outlets' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name']], $outlets),
             'approvals' => $this->orders->pendingApprovals($request->user(), $outlet),
+            'corrections' => $this->attendance->pendingCorrections($request->user(), $outlet),
             'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
+    }
+
+    /** Keputusan sesuai jenis pengajuan; izin, outlet, dan pemohon dicek di service. */
+    public function decide(Request $request, string $approval): RedirectResponse
+    {
+        $type = CatalogInput::isUuid($approval)
+            ? DB::table('approvals')->where('id', strtolower($approval))->where('company_id', $request->user()->company_id)->value('type')
+            : null;
+        $raw = ['approvalId' => $approval, 'approve' => $request->input('approve'), 'note' => $request->input('note')];
+        $context = AuditContext::fromRequest($request);
+        if ($type === 'attendance_correction') {
+            $result = $this->attendance->decideCorrection($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Koreksi absen disetujui.' : 'Koreksi absen ditolak.');
+        } else {
+            // Pembatalan (atau id tak dikenal: service menolak dengan pesan yang sama seperti di kasir).
+            $result = $this->workflow->decideCancellation($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Pembatalan disetujui.' : 'Pembatalan ditolak.');
+        }
+
+        return back();
     }
 }

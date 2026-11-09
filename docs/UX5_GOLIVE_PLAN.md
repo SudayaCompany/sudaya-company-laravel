@@ -11,7 +11,8 @@ Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Ke
 | UX-0 rencana, UX-1 design system, UX-4 POS/kas/KDS | DONE, di GitHub (`main` = `df80e00`) |
 | UX-5 dasbor Owner/Admin + ekspor menu | **DONE — Development Verified** (9 Nov, commit lokal, menunggu review owner) |
 | UX-2 CMS halaman depan | Belum (spesifikasi ada) |
-| M5 stok, M6 laporan, **M7 karyawan & absensi** | Ditunda sesuai keputusan owner 3 November |
+| M7-lite karyawan & absensi GPS + selfie, cetak QR meja | **DONE — Development Verified** (9 Nov, commit lokal, menunggu review owner) |
+| M5 stok, M6 laporan, pengenalan wajah, tugas luar | Ditunda (setelah go-live) |
 | Hosting, Supabase production/staging, domain | **Belum ada — penghalang utama** |
 
 ## 2. Apa yang dibutuhkan agar klien bisa langsung memakai web
@@ -21,7 +22,7 @@ Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Ke
 | **Membuka web dari HP/tablet outlet** | Aplikasi hanya berjalan di laptop development. Database dev ada di Eropa (eu-west-1) | Owner memilih dan membeli hosting Singapura, membuat project Supabase Singapura, menyiapkan domain. Langkah teknis siap di [STAGING_PREFLIGHT.md](STAGING_PREFLIGHT.md). **Tanpa ini, fitur apa pun belum bisa dipakai klien** |
 | **Data produk** (menu, harga, foto, varian) | Fitur admin sudah lengkap (`/admin/products`, kategori, varian & tambahan, foto, habis per outlet) | Data asli dari klien. Diinput di staging untuk UAT lalu diulang di production (MASTER_DATA_PREPARATION). Usul: fitur impor/ekspor menu (§5) agar tidak mengetik dua kali |
 | **Akun staf** (kasir, barista, manager) | Sudah ada (undang lewat menu Staf) | Daftar nama dan email staf dari klien |
-| **Absensi karyawan** | **Belum ada di Laravel** (M7 ditunda). Tabel dan aturannya sudah ada di database; referensi Next.js sudah membangun modul ini (Epic 05) | Owner menyetujui M7 dan memilih metode absen (§4) |
+| **Absensi karyawan** | Selesai (M7-lite, 9 Nov): absen GPS + selfie dari HP, koreksi, papan kehadiran, rekap + ekspor, data karyawan | Isi data karyawan asli, tautkan ke akun staf, atur titik lokasi outlet di staging/production |
 | **Owner memantau usaha** | Selesai di UX-5: dasbor angka asli, Pesanan hari ini, Persetujuan, Kas (hanya-lihat) di area admin | Review owner |
 
 ## 3. UX-5: Dasbor dan pengalaman Owner/Admin
@@ -55,7 +56,9 @@ Bila M7 disetujui, menu admin bertambah grup **Karyawan & absensi**, dan dasbor 
 
 **Ditunda (bukan penghalang go-live):** paginasi server Log aktivitas (masih 100 terakhir), tabel yang berubah jadi kartu di HP, nama izin bahasa Indonesia + header sticky di Peran & izin.
 
-## 4. M7-lite: Karyawan dan absensi (perlu persetujuan, karena M7 ditunda)
+## 4. M7-lite: Karyawan dan absensi
+
+**Status 9 November: selesai** (opsi A, GPS + selfie). Hasil QA di `QA_CHECKPOINT.md` bagian M7-lite. Tugas luar dan pengenalan wajah tetap di luar lingkup.
 
 Port dari referensi Next.js (Epic 05), yang sudah punya:
 - engine absensi ±1.350 baris;
@@ -125,13 +128,25 @@ Tidak ada harga atau produk karangan.
 |---|---|---|---|
 | Paralel, mulai sekarang | Pilih + beli hosting Singapura, buat Supabase Singapura, domain; kumpulkan data menu, staf, koordinat outlet, foto | **Owner/klien** | — |
 | 1 | UX-5 inti: dasbor data asli + akses Owner (pesanan, kas, approval) | Developer | **selesai 9 Nov** |
-| 2 | M7-lite absensi (setelah keputusan metode) | Developer | ±3 hari |
+| 2 | M7-lite absensi + cetak QR meja | Developer | **selesai 9 Nov** |
 | 3 | Ekspor menu | Developer | **selesai bersama UX-5** (impor tidak dibuat, keputusan G7) |
 | 4 | Deploy staging + smoke test + UAT outlet (STAGING_PREFLIGHT §5) | Developer + owner | 1–2 hari |
 | 5 | Production + data asli + pelatihan staf | Developer + owner | 1 hari |
 | Setelah go-live | UX-2 CMS halaman depan, UX-3/UX-6 penyempurnaan, M5 stok, M6 laporan | Developer | — |
 
 Perkiraan total kerja developer sampai siap UAT: **±6,5–7,5 hari kerja**, berjalan paralel dengan persiapan hosting dan data oleh owner. Ini perkiraan kasar, bukan komitmen.
+
+## 6a. Checklist serah terima ke klien
+
+| No | Langkah | Oleh | Status |
+|---|---|---|---|
+| 1 | Fitur siap: pesanan QR/kiosk/kasir, kas, barista display, dasbor Owner, persetujuan, menu + ekspor, absensi GPS + selfie, rekap absensi, cetak QR meja | Developer | Selesai di dev (commit lokal, perlu persetujuan push) |
+| 2 | Push commit ke GitHub | Owner menyetujui | Menunggu |
+| 3 | Order Cloud VPS Singapura + project Supabase Singapura + domain/subdomain | Owner | Menunggu (§8) |
+| 4 | Deploy staging: migration (termasuk `2026_11_09_000001`), bucket Storage, cron `schedule:run`, HTTPS | Developer | Setelah no. 3 (STAGING_PREFLIGHT §5, runbook) |
+| 5 | Data asli di staging: outlet, meja, kategori, varian, menu + foto, akun staf, data karyawan (ditautkan), titik lokasi absen diukur di outlet | Klien + developer | Setelah no. 4 |
+| 6 | UAT di outlet: pesanan QR/kiosk/kasir, bayar tunai, KDS, tutup kas, absen masuk/pulang dari HP staf, koreksi, rekap | Klien | Setelah no. 5 (SUDAYA_OUTLET_UAT) |
+| 7 | Production + cetak QR meja dari domain produksi + pelatihan staf memakai `PANDUAN_PENGGUNA.md` | Developer + klien | Setelah UAT lolos |
 
 ## 7. Keputusan yang dibutuhkan dari owner
 
@@ -140,9 +155,9 @@ Perkiraan total kerja developer sampai siap UAT: **±6,5–7,5 hari kerja**, ber
 | G1 | Setujui UX-5 inti (§3) | **Diputuskan 8 Nov: UX-5 dikerjakan lebih dulu** |
 | G2 | Buka M7-lite absensi | **Diputuskan 8 Nov: ya, sesudah UX-5** |
 | G3 | Metode absen harian (§4) | **Diputuskan 8 Nov: opsi A, GPS + foto selfie**; wajah menyusul |
-| G4 | Radius geofence awal dan batas akurasi GPS | PRD 5 m tetap jadi nilai awal; diuji di outlet lalu disetel (umumnya 20–50 m) |
-| G5 | Retensi foto absen dan bukti tugas luar | 90 hari |
-| G6 | Migration aditif enum metode absen (dev, lalu staging/production saat deploy) | Ya |
+| G4 | Radius geofence awal dan batas akurasi GPS | **Diputuskan 9 Nov: radius 30 m, akurasi maksimal 30 m** (bisa diubah di Pengaturan absen) |
+| G5 | Retensi foto absen dan bukti tugas luar | **Diputuskan 9 Nov: 90 hari** (dihapus otomatis tiap hari 03.15 WIB) |
+| G6 | Migration aditif enum metode absen (dev, lalu staging/production saat deploy) | **Diputuskan 9 Nov: ya; sudah dijalankan di dev** |
 | G7 | Data produk (§5) | **Diputuskan 8 Nov: input dari web + ekspor spreadsheet** (tanpa impor) |
 | G8 | Hosting, Supabase Singapura, domain (penghalang utama) | Owner menanyakan DomaiNesia (domain sudah di sana); lihat §8 |
 

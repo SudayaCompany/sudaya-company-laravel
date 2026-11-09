@@ -68,7 +68,8 @@ Tanda di kolom "Jenis":
 |---|---|
 | Pastikan 2 job pg_cron aktif di staging (`select jobname, schedule, active from cron.job`) | Otomatis |
 | Uji kedaluwarsa: buat order QR, jangan bayar, tunggu lewat TTL outlet (default 15 menit) → status berubah "Dibatalkan" dengan alasan batas waktu | Otomatis (bagian UAT) |
-| Cron server (`schedule:run`) belum diperlukan | — |
+| Cron server untuk scheduler Laravel (retensi foto absen 90 hari): `* * * * * cd /var/www/sudaya && php artisan schedule:run >> /dev/null 2>&1`. Verifikasi `php artisan schedule:list` menampilkan `sudaya:purge-attendance-photos` | Pengelola server |
+| Uji retensi tanpa menunggu 90 hari: `php artisan sudaya:purge-attendance-photos --days=1` di staging hanya bila ada data uji | Opsional |
 
 ## 9. HTTPS
 

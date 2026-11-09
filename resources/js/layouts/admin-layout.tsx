@@ -2,17 +2,22 @@ import { Link, usePage } from "@inertiajs/react";
 import {
   ArrowUpRightIcon,
   BadgeCheckIcon,
+  CalendarCheckIcon,
   CoffeeIcon,
+  IdCardIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
+  MapPinIcon,
   MenuIcon,
   MonitorIcon,
   ReceiptTextIcon,
   ScrollTextIcon,
+  SheetIcon,
   ShoppingBagIcon,
   SlidersHorizontalIcon,
   StoreIcon,
   TagsIcon,
+  UserRoundCheckIcon,
   UsersIcon,
   WalletIcon,
   type LucideIcon,
@@ -61,6 +66,16 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       },
       { href: "/admin/cash", label: "Kas", icon: WalletIcon, visible: adminOnly("/admin/cash") },
       { href: "/kds", label: "Barista display", icon: MonitorIcon, visible: nav("/kds"), leavesAdmin: true },
+      { href: "/staff/attendance", label: "Absen saya", icon: UserRoundCheckIcon, visible: nav("/staff/attendance"), leavesAdmin: true },
+    ],
+  },
+  {
+    label: "Karyawan",
+    items: [
+      { href: "/admin/attendance", label: "Kehadiran", icon: CalendarCheckIcon, visible: nav("/admin/attendance") },
+      { href: "/admin/attendance/reports", label: "Rekap absensi", icon: SheetIcon, visible: nav("/admin/attendance/reports") },
+      { href: "/admin/employees", label: "Data karyawan", icon: IdCardIcon, visible: nav("/admin/employees") },
+      { href: "/admin/attendance/settings", label: "Pengaturan absen", icon: MapPinIcon, visible: nav("/admin/attendance/settings") },
     ],
   },
   {
@@ -82,8 +97,11 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   { label: "Administrasi", items: [{ href: "/admin/audit", label: "Log aktivitas", icon: ScrollTextIcon, visible: nav("/admin/audit") }] },
 ];
 
+/** Menu induk yang punya submenu sendiri hanya aktif di halamannya persis. */
+const EXACT = new Set(["/admin", "/pos", "/admin/attendance"]);
+
 function isActive(pathname: string, href: string) {
-  return href === "/admin" || href === "/pos" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return EXACT.has(href) ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function AdminNav({ auth, pathname }: { auth: Auth; pathname: string }) {

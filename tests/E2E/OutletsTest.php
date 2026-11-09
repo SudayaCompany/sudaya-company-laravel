@@ -90,6 +90,12 @@ class OutletsTest extends ServerTestCase
         $flash = $this->act($admin, 'PATCH', "/admin/outlet-tables/{$t02}", ['isActive' => false], "/admin/outlets/{$outletId}");
         $this->assertSame('Meja T02 dinonaktifkan.', $flash['success'] ?? null);
 
+        // Lembar QR siap cetak: hanya meja aktif (checkout QR menolak meja nonaktif).
+        $qr = Browser::page($admin->get("/admin/outlets/{$outletId}/qr"));
+        $this->assertSame('admin/outlets/qr', $qr['component']);
+        $this->assertSame($code, $qr['props']['outlet']['code']);
+        $this->assertSame(['T01'], array_column($qr['props']['tables'], 'number'));
+
         // Halaman QR: meja aktif membuka menu; meja nonaktif/tidak terdaftar ditolak dengan pesan.
         $guest = $this->browser();
         $page = Browser::page($guest->get("/order?outlet={$code}&table=t01"));
@@ -114,6 +120,7 @@ class OutletsTest extends ServerTestCase
         $manager = $this->login($this->f('manager'));
         $this->assertSame(403, $manager->get('/admin/outlets')->getStatusCode());
         $this->assertSame(403, $manager->get("/admin/outlets/{$outletId}")->getStatusCode());
+        $this->assertSame(403, $manager->get("/admin/outlets/{$outletId}/qr")->getStatusCode());
         $this->assertSame(403, $manager->post("/admin/outlets/{$outletId}", ['name' => 'Bajak'], method: 'PUT')->getStatusCode());
         $this->assertSame(403, $manager->post("/admin/outlets/{$outletId}/tables", ['numbers' => 'Z1'])->getStatusCode());
         $this->assertSame(0, DB::table('outlet_tables')->where('outlet_id', $outletId)->where('number', 'Z1')->count());

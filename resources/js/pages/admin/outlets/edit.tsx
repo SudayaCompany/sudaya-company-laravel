@@ -1,12 +1,12 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { Loader2Icon, PlusIcon, SaveIcon, TableIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, PrinterIcon, SaveIcon, TableIcon } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmAction } from "@/components/confirm-action";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -138,6 +138,13 @@ function Tables({ outlet, tables }: { outlet: Outlet; tables: Table[] }) {
         <CardDescription>
           Pesanan dari QR meja hanya diterima untuk meja aktif di daftar ini. {active} dari {tables.length} meja aktif.
         </CardDescription>
+        {active > 0 ? (
+          <CardAction>
+            <Link href={`/admin/outlets/${outlet.id}/qr`} className={buttonVariants({ variant: "outline" })}>
+              <PrinterIcon /> Cetak QR meja
+            </Link>
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <form

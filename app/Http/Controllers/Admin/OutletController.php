@@ -24,6 +24,20 @@ class OutletController
         return Inertia::render('admin/outlets/edit', $this->outlets->get($request->user(), $outlet));
     }
 
+    /** Lembar QR meja siap cetak; hanya meja aktif (checkout QR menolak meja nonaktif). */
+    public function qr(Request $request, string $outlet): Response
+    {
+        $data = $this->outlets->get($request->user(), $outlet);
+
+        return Inertia::render('admin/outlets/qr', [
+            'outlet' => ['id' => $data['outlet']['id'], 'code' => $data['outlet']['code'], 'name' => $data['outlet']['name']],
+            'tables' => array_values(array_map(
+                fn ($t) => ['id' => $t['id'], 'number' => $t['number']],
+                array_filter($data['tables'], fn ($t) => $t['isActive']),
+            )),
+        ]);
+    }
+
     public function update(Request $request, string $outlet): RedirectResponse
     {
         $result = $this->outlets->update($request->user(), $outlet, $request->only(['name', 'address', 'orderNumberPrefix', 'pendingPaymentTtlMinutes', 'isActive']), AuditContext::fromRequest($request));

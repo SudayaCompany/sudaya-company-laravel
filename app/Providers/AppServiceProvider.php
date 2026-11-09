@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Attendance\AttendancePhotoStorage;
+use App\Services\Attendance\SupabaseAttendancePhotoStorage;
 use App\Services\Auth\AuthAdmin;
 use App\Services\Auth\StaffUserProvider;
 use App\Services\Auth\SupabaseAuthAdmin;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     public array $bindings = [
         AuthAdmin::class => SupabaseAuthAdmin::class,
         MenuImageStorage::class => SupabaseMenuImageStorage::class,
+        AttendancePhotoStorage::class => SupabaseAttendancePhotoStorage::class,
     ];
 
     public function boot(): void

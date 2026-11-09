@@ -12,6 +12,7 @@ const NAV: { href: string; label: string; visible: (auth: NonNullable<SharedProp
   { href: "/pos/orders", label: "Pesanan", visible: () => true },
   { href: "/pos/cash", label: "Kas", visible: (auth) => auth.permissions.includes("cash.view") },
   { href: "/kds", label: "Barista", visible: (auth) => auth.navigation.includes("/kds") },
+  { href: "/staff/attendance", label: "Absen", visible: (auth) => auth.navigation.includes("/staff/attendance") },
   { href: "/staff", label: "Beranda", visible: (auth) => auth.navigation.includes("/staff") },
 ];
 
@@ -35,7 +36,7 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
             return (
               <Link
                 key={item.href}
-                href={outletId && item.href !== "/staff" ? `${item.href}?outlet=${outletId}` : item.href}
+                href={outletId && !item.href.startsWith("/staff") ? `${item.href}?outlet=${outletId}` : item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-9 shrink-0 items-center rounded-lg px-3 text-sm font-medium transition-colors pointer-coarse:min-h-11",

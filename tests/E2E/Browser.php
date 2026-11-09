@@ -44,6 +44,31 @@ final class Browser
         return $this->client->request($method, $path, ['json' => $data, 'headers' => $headers]);
     }
 
+    /**
+     * Form multipart dengan file (seperti router.post({ forceFormData: true }) Inertia).
+     *
+     * @param  array<string, string>  $fields
+     * @param  array<string, array{name: string, bytes: string, type: string}>  $files
+     */
+    public function multipart(string $path, array $fields, array $files = []): ResponseInterface
+    {
+        if ($this->cookie('XSRF-TOKEN') === null) {
+            $this->get('/login');
+        }
+        $parts = [];
+        foreach ($fields as $name => $value) {
+            $parts[] = ['name' => $name, 'contents' => $value];
+        }
+        foreach ($files as $name => $file) {
+            $parts[] = ['name' => $name, 'contents' => $file['bytes'], 'filename' => $file['name'], 'headers' => ['Content-Type' => $file['type']]];
+        }
+
+        return $this->client->request('POST', $path, [
+            'multipart' => $parts,
+            'headers' => ['Accept' => 'text/html', 'Origin' => $this->base, 'X-XSRF-TOKEN' => urldecode((string) $this->cookie('XSRF-TOKEN'))],
+        ]);
+    }
+
     /** fetch() JSON seperti placeOrder() di browser: body mentah, header bisa ditimpa. */
     public function json(string $path, array|string $body, array $headers = [], bool $withCsrf = true): ResponseInterface
     {

@@ -1,6 +1,7 @@
 import { Head, Link, usePage } from "@inertiajs/react";
 import {
   ChevronRightIcon,
+  CalendarCheckIcon,
   LayoutDashboardIcon,
   MonitorIcon,
   ReceiptTextIcon,
@@ -23,9 +24,16 @@ type Shortcut = {
   visible: (held: Set<string>, auth: Auth) => boolean;
 };
 
-// Hanya fitur yang sudah tersedia. Absensi, tugas luar, dan stok (M5/M7) belum dibangun,
-// jadi tidak ditampilkan. Setiap halaman tetap memeriksa izin di server.
+// Hanya fitur yang sudah tersedia (tugas luar dan stok belum). Setiap halaman tetap
+// memeriksa izin di server.
 const SHORTCUTS: Shortcut[] = [
+  {
+    label: "Absen",
+    description: "Absen masuk & pulang dengan GPS + selfie",
+    icon: CalendarCheckIcon,
+    href: "/staff/attendance",
+    visible: (_, auth) => auth.navigation.includes("/staff/attendance"),
+  },
   { label: "Kasir", description: "Input pesanan dan terima pembayaran tunai", icon: ShoppingBagIcon, href: "/pos", visible: (_, auth) => auth.navigation.includes("/pos") },
   { label: "Pesanan hari ini", description: "Cari pesanan, bayar, batal, struk", icon: ReceiptTextIcon, href: "/pos/orders", visible: (_, auth) => auth.navigation.includes("/pos") },
   {

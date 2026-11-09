@@ -154,6 +154,13 @@ final class LiveContext
             DB::table('refunds')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('payments')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('cash_sessions')->whereIn('company_id', $this->companyIds)->delete();
+            // Absensi (M7-lite): koreksi merujuk approval + sesi; sesi merujuk karyawan;
+            // pengaturan merujuk users (updated_by).
+            DB::table('attendance_corrections')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('attendances')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('outside_duty_requests')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('employees')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('attendance_settings')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('approvals')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('orders')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('order_number_counters')
@@ -183,6 +190,7 @@ final class LiveContext
             // Foto menu test: <companyId>/<brandId>/<file>.
             foreach ($this->companyIds as $companyId) {
                 $this->removeStorageFolder('menu-images', $companyId);
+                $this->removeAttendancePhotos($companyId);
             }
             // Katalog dulu (FK ke brand); cascade ke outlet_products, product_modifier_groups, modifiers.
             DB::table('products')->whereIn('company_id', $this->companyIds)->delete();
@@ -210,6 +218,21 @@ final class LiveContext
             $paths = array_map(fn ($file) => "{$prefix}/{$folder['name']}/{$file['name']}", $files);
             if ($paths !== []) {
                 $this->admin()->delete("/storage/v1/object/{$bucket}", ['prefixes' => $paths])->throw();
+            }
+        }
+    }
+
+    /** Foto selfie test: selfie/<companyId>/<karyawan>/<YYYY-MM>/<file> di bucket privat. */
+    private function removeAttendancePhotos(string $companyId): void
+    {
+        $list = fn (string $prefix) => $this->admin()->post('/storage/v1/object/list/attendance-evidence', ['prefix' => $prefix, 'limit' => 1000])->json() ?? [];
+        foreach ($list("selfie/{$companyId}") as $employee) {
+            foreach ($list("selfie/{$companyId}/{$employee['name']}") as $month) {
+                $base = "selfie/{$companyId}/{$employee['name']}/{$month['name']}";
+                $paths = array_map(fn ($file) => "{$base}/{$file['name']}", $list($base));
+                if ($paths !== []) {
+                    $this->admin()->delete('/storage/v1/object/attendance-evidence', ['prefixes' => $paths])->throw();
+                }
             }
         }
     }

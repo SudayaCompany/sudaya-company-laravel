@@ -39,6 +39,10 @@ final class DashboardSummary
                 ? DB::table('approvals')->where($where)->where('type', 'void')->where('status', 'pending')->count()
                 : null,
             'soldOut' => $actor->can('product.view', $scope) ? $this->soldOut($actor, $outlet['id']) : null,
+            'pendingCorrections' => $actor->can('approval.view', $scope)
+                ? DB::table('approvals')->where($where)->where('type', 'attendance_correction')->where('status', 'pending')->count()
+                : null,
+            'attendance' => $actor->can('attendance.view', $scope) ? $this->attendance($where, $today) : null,
         ];
     }
 
@@ -125,6 +129,23 @@ final class DashboardSummary
                 'variance' => (int) $closed->actual_amount - (int) $closed->expected_amount,
             ],
         ];
+    }
+
+    /**
+     * Kehadiran karyawan aktif outlet hari ini (tanggal bisnis absen).
+     *
+     * @param  array<string, string>  $where
+     */
+    private function attendance(array $where, string $today): array
+    {
+        $employees = DB::table('employees')->where($where)->where('is_active', true)->count();
+        $row = DB::table('attendances')->where($where)->where('business_date', $today)
+            ->selectRaw('count(distinct employee_id) as present, count(distinct employee_id) filter (where check_out_at is null) as working')
+            ->first();
+        $present = (int) $row->present;
+        $working = (int) $row->working;
+
+        return ['employees' => $employees, 'working' => $working, 'done' => $present - $working, 'absent' => max(0, $employees - $present)];
     }
 
     /** Produk aktif yang ditandai habis di outlet ini. */
