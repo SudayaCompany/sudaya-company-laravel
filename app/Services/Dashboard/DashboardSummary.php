@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Models\User;
 use App\Services\Cash\CashSessions;
+use App\Services\Inventory\InventoryAdmin;
 use App\Support\Access\AccessScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,10 @@ final class DashboardSummary
                 ? DB::table('approvals')->where($where)->where('type', 'attendance_correction')->where('status', 'pending')->count()
                 : null,
             'attendance' => $actor->can('attendance.view', $scope) ? $this->attendance($where, $today) : null,
+            'stock' => $actor->can('inventory.view', $scope) ? app(InventoryAdmin::class)->dashboard($actor->company_id, $outlet['id']) : null,
+            'pendingOpnames' => $actor->can('approval.view', $scope)
+                ? DB::table('approvals')->where($where)->where('type', 'stock_opname')->where('status', 'pending')->count()
+                : null,
         ];
     }
 

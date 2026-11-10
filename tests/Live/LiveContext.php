@@ -161,6 +161,15 @@ final class LiveContext
             DB::table('outside_duty_requests')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('employees')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('attendance_settings')->whereIn('company_id', $this->companyIds)->delete();
+            // Stok (M5-lite): opname → penyesuaian → ledger. Ledger append-only: DELETE hanya dengan
+            // flag maintenance di transaksi yang sama, dibatasi ke company test run ini.
+            DB::table('stock_opname_items')->whereIn('opname_id', DB::table('stock_opnames')->whereIn('company_id', $this->companyIds)->select('id'))->delete();
+            DB::table('stock_opnames')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('inventory_adjustments')->whereIn('company_id', $this->companyIds)->delete();
+            DB::transaction(function () {
+                DB::select("select set_config('sudaya.ledger_maintenance', 'on', true)");
+                DB::table('inventory_transactions')->whereIn('company_id', $this->companyIds)->delete();
+            });
             DB::table('approvals')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('orders')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('order_number_counters')
@@ -191,6 +200,7 @@ final class LiveContext
             foreach ($this->companyIds as $companyId) {
                 $this->removeStorageFolder('menu-images', $companyId);
                 $this->removeAttendancePhotos($companyId);
+                $this->removeStorageFolder('inventory-evidence', $companyId);
             }
             // Katalog dulu (FK ke brand); cascade ke outlet_products, product_modifier_groups, modifiers.
             DB::table('products')->whereIn('company_id', $this->companyIds)->delete();

@@ -6,6 +6,7 @@ use App\Http\Controllers\Pos\PosOutlet;
 use App\Services\Attendance\AttendanceEngine;
 use App\Services\Audit\AuditContext;
 use App\Services\Catalog\CatalogInput;
+use App\Services\Inventory\StockOpnames;
 use App\Services\Orders\OrderEngine;
 use App\Services\Orders\OrderWorkflow;
 use Illuminate\Http\RedirectResponse;
@@ -14,10 +15,10 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/** Kotak persetujuan: pembatalan pesanan lunas dan koreksi absen yang menunggu keputusan. */
+/** Kotak persetujuan: pembatalan pesanan lunas, koreksi absen, dan stock opname. */
 class ApprovalController
 {
-    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance) {}
+    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance, private StockOpnames $opnames) {}
 
     public function index(Request $request): Response
     {
@@ -28,6 +29,7 @@ class ApprovalController
             'outlets' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name']], $outlets),
             'approvals' => $this->orders->pendingApprovals($request->user(), $outlet),
             'corrections' => $this->attendance->pendingCorrections($request->user(), $outlet),
+            'opnames' => $this->opnames->pending($request->user(), $outlet),
             'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
     }
@@ -40,7 +42,10 @@ class ApprovalController
             : null;
         $raw = ['approvalId' => $approval, 'approve' => $request->input('approve'), 'note' => $request->input('note')];
         $context = AuditContext::fromRequest($request);
-        if ($type === 'attendance_correction') {
+        if ($type === 'stock_opname') {
+            $result = $this->opnames->decide($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Stock opname disetujui, stok diperbarui.' : 'Stock opname ditolak.');
+        } elseif ($type === 'attendance_correction') {
             $result = $this->attendance->decideCorrection($request->user(), $raw, $context);
             Inertia::flash('success', $result['approved'] ? 'Koreksi absen disetujui.' : 'Koreksi absen ditolak.');
         } else {

@@ -8,10 +8,12 @@ use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\ModifierController;
 use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\StockOpnameController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\ConfirmController;
 use App\Http\Controllers\Auth\LoginController;
@@ -100,6 +102,25 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/employees', [EmployeeController::class, 'store']);
             Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit']);
             Route::put('/employees/{employee}', [EmployeeController::class, 'update']);
+
+            // Stok (M5-lite). Izin rinci (adjust/receive/issue/opname) dicek di service.
+            Route::get('/inventory', [InventoryController::class, 'index']);
+            Route::get('/inventory/items/create', [InventoryController::class, 'create']);
+            Route::post('/inventory/items', [InventoryController::class, 'store']);
+            Route::get('/inventory/items/{item}/edit', [InventoryController::class, 'edit']);
+            Route::put('/inventory/items/{item}', [InventoryController::class, 'update']);
+            Route::get('/inventory/stock-in', [InventoryController::class, 'stockInPage']);
+            Route::post('/inventory/stock-in', [InventoryController::class, 'stockIn']);
+            Route::get('/inventory/stock-out', [InventoryController::class, 'stockOutPage']);
+            Route::post('/inventory/stock-out', [InventoryController::class, 'stockOut']);
+            Route::get('/inventory/movements', [InventoryController::class, 'movements']);
+            Route::get('/inventory/movements/{movement}/photo', [InventoryController::class, 'evidence']);
+            Route::get('/inventory/opname', [StockOpnameController::class, 'index']);
+            Route::post('/inventory/opname', [StockOpnameController::class, 'store']);
+            Route::get('/inventory/opname/{opname}', [StockOpnameController::class, 'show']);
+            Route::post('/inventory/opname/{opname}/counts', [StockOpnameController::class, 'saveCounts']);
+            Route::post('/inventory/opname/{opname}/submit', [StockOpnameController::class, 'submit']);
+            Route::post('/inventory/opname/{opname}/cancel', [StockOpnameController::class, 'cancel']);
 
             Route::get('/users', [UserController::class, 'index']);
             Route::post('/users/invite', [UserController::class, 'invite']);

@@ -1,8 +1,13 @@
 import { Link, usePage } from "@inertiajs/react";
 import {
   ArrowUpRightIcon,
+  ArrowDownToLineIcon,
+  ArrowUpFromLineIcon,
   BadgeCheckIcon,
+  BoxesIcon,
   CalendarCheckIcon,
+  ClipboardListIcon,
+  HistoryIcon,
   CoffeeIcon,
   IdCardIcon,
   KeyRoundIcon,
@@ -70,6 +75,16 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
+    label: "Stok",
+    items: [
+      { href: "/admin/inventory", label: "Stok", icon: BoxesIcon, visible: nav("/admin/inventory") },
+      { href: "/admin/inventory/stock-in", label: "Stok masuk", icon: ArrowDownToLineIcon, visible: nav("/admin/inventory/stock-in") },
+      { href: "/admin/inventory/stock-out", label: "Stok keluar & waste", icon: ArrowUpFromLineIcon, visible: nav("/admin/inventory/stock-out") },
+      { href: "/admin/inventory/opname", label: "Stock opname", icon: ClipboardListIcon, visible: nav("/admin/inventory/opname") },
+      { href: "/admin/inventory/movements", label: "Riwayat stok", icon: HistoryIcon, visible: nav("/admin/inventory/movements") },
+    ],
+  },
+  {
     label: "Karyawan",
     items: [
       { href: "/admin/attendance", label: "Kehadiran", icon: CalendarCheckIcon, visible: nav("/admin/attendance") },
@@ -98,7 +113,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
 ];
 
 /** Menu induk yang punya submenu sendiri hanya aktif di halamannya persis. */
-const EXACT = new Set(["/admin", "/pos", "/admin/attendance"]);
+const EXACT = new Set(["/admin", "/pos", "/admin/attendance", "/admin/inventory"]);
 
 function isActive(pathname: string, href: string) {
   return EXACT.has(href) ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);

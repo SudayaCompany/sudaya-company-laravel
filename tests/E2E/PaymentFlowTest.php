@@ -42,7 +42,7 @@ class PaymentFlowTest extends ServerTestCase
         ], $audit)['id'];
         $matcha = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Matcha', 'categoryId' => $coffee, 'basePrice' => '28000', 'isActive' => true, 'modifierGroupIds' => [$size]], null, $audit)['id'];
         $large = DB::table('modifiers')->where('group_id', $size)->where('name', 'Large')->value('id');
-        // Produk jadi tertaut stok: pembayaran harus ditolak inventory guard.
+        // Produk jadi tertaut stok: stoknya dipotong otomatis saat dibayar.
         $stocked = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Roti Stok', 'categoryId' => $coffee, 'basePrice' => '20000', 'isActive' => true, 'modifierGroupIds' => []], null, $audit)['id'];
         $item = DB::table('inventory_items')->insertGetId([
             'company_id' => $A['id'], 'brand_id' => $A['brandId'], 'outlet_id' => $A['outletId'],
@@ -269,30 +269,26 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertSame([['Matcha', 2, ['Large']]], array_map(fn ($l) => [$l['productName'], $l['quantity'], array_column($l['modifiers'], 'name')], $card['lines']));
     }
 
-    public function test_inventory_guard_lewat_pos_dan_detail(): void
+    public function test_produk_tertaut_stok_terjual_dan_stok_berkurang(): void
     {
         $outletId = $this->f('A')['outletId'];
         $cashier = $this->login($this->f('cashier'));
         $this->ensureCashSession($cashier);
-        $counter = fn () => (int) DB::table('order_number_counters')->where('outlet_id', $outletId)->max('last_number');
-        $before = $counter();
+        $item = DB::table('outlet_products')->where('outlet_id', $outletId)->where('product_id', $this->f('stocked'))->value('inventory_item_id');
+        $stock = fn () => (string) DB::table('inventory_items')->where('id', $item)->value('stock_qty');
+        $before = $stock();
 
-        // Buat + bayar dari POS: order tersimpan belum dibayar, kasir mendapat alasan jelas.
+        // Buat + bayar dari POS: lunas, nomor antrean terbit, stok produk jadi terpotong.
         $placed = $this->pos($cashier, [
             'outletId' => $outletId,
             'checkout' => $this->checkout(['lines' => [['productId' => $this->f('stocked'), 'modifierIds' => [], 'quantity' => 1]]]),
             'tenderedAmount' => 20_000,
         ]);
-        $this->assertNull($placed['orderNumber']);
-        $this->assertStringContainsString('Roti Stok terhubung ke stok', $placed['warning']);
-
-        // Bayar ulang dari halaman detail: tetap ditolak.
-        $flash = $this->act($cashier, "/pos/orders/{$placed['orderId']}/pay", ['tenderedAmount' => 20_000], "/pos/orders/{$placed['orderId']}");
-        $this->assertStringStartsWith('Pembayaran belum bisa diproses', $flash['error'] ?? '');
-        $this->assertSame($before, $counter());
-        $this->assertSame(['pending_payment', 'pending', null], array_values((array) DB::table('orders')->where('id', $placed['orderId'])->first(['status', 'payment_status', 'queue_number'])));
-        $this->assertSame(['pending'], DB::table('payments')->where('order_id', $placed['orderId'])->pluck('status')->all());
-        $this->assertSame(0, DB::table('audit_logs')->where('entity_id', $placed['orderId'])->where('action', 'payment.confirmed')->count());
+        $this->assertMatchesRegularExpression('/^.+-\d{3}$/', $placed['orderNumber']);
+        $this->assertNull($placed['warning']);
+        $this->assertSame(number_format((float) $before - 1, 3, '.', ''), $stock());
+        $this->assertSame(1, DB::table('inventory_transactions')->where('reference_id', $placed['orderId'])->where('type', 'sale')->count());
+        $this->assertSame(1, DB::table('audit_logs')->where('entity_id', $placed['orderId'])->where('action', 'inventory.sale_posted')->count());
     }
 
     private function ensureCashSession(Browser $cashier): void

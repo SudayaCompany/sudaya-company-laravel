@@ -2,6 +2,7 @@ import { Head, Link, usePage } from "@inertiajs/react";
 import {
   ChevronRightIcon,
   CalendarCheckIcon,
+  ArrowUpFromLineIcon,
   LayoutDashboardIcon,
   MonitorIcon,
   ReceiptTextIcon,
@@ -24,8 +25,7 @@ type Shortcut = {
   visible: (held: Set<string>, auth: Auth) => boolean;
 };
 
-// Hanya fitur yang sudah tersedia (tugas luar dan stok belum). Setiap halaman tetap
-// memeriksa izin di server.
+// Hanya fitur yang sudah tersedia. Setiap halaman tetap memeriksa izin di server.
 const SHORTCUTS: Shortcut[] = [
   {
     label: "Absen",
@@ -42,6 +42,13 @@ const SHORTCUTS: Shortcut[] = [
     icon: WalletIcon,
     href: "/pos/cash",
     visible: (held, auth) => auth.navigation.includes("/pos") && held.has("cash.view"),
+  },
+  {
+    label: "Catat waste / stok keluar",
+    description: "Bahan rusak, tumpah, kedaluwarsa, pemakaian internal",
+    icon: ArrowUpFromLineIcon,
+    href: "/admin/inventory/stock-out",
+    visible: (_, auth) => auth.navigation.includes("/admin/inventory/stock-out"),
   },
   { label: "Barista display", description: "Antrean pembuatan pesanan", icon: MonitorIcon, href: "/kds", visible: (_, auth) => auth.navigation.includes("/kds") },
   { label: "Admin", description: "Dasbor dan pengaturan sesuai peran Anda", icon: LayoutDashboardIcon, href: "/admin", visible: (_, auth) => auth.navigation.includes("/admin") },

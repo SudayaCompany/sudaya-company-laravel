@@ -8,6 +8,8 @@ use App\Services\Audit\AuditContext;
 use App\Services\Audit\AuditLogger;
 use App\Services\Cash\CashSessions;
 use App\Services\Catalog\CatalogInput;
+use App\Services\Inventory\InventoryLedger;
+use App\Services\Inventory\Qty;
 use App\Support\Access\AccessScope;
 use App\Support\Money;
 use App\Support\Orders\OrderFlow;
@@ -63,12 +65,12 @@ final class OrderWorkflow
             if ($tendered < $total) {
                 throw new AccessException('invalid', 'Uang diterima kurang dari total '.Money::rupiah($total).'.');
             }
-            // Pemotongan stok produk jadi (M5) belum ada di Laravel. Produk yang tertaut stok
-            // ditolak sebelum ada tagihan lunas, kas, atau nomor antrean, agar stok tidak salah diam-diam.
-            $this->assertNoLinkedStock($locked);
-
             // Uang tunai hanya diterima saat laci terbuka; tutup sesi menunggu kunci ini.
             $cashSession = CashSessions::lockOpen($locked->outlet_id, 'share');
+
+            // Potong stok produk jadi lebih dulu (keputusan owner 9 November 2026, PRD §21–22):
+            // stok kurang → seluruh pembayaran dibatalkan (rollback), uang tidak dianggap diterima.
+            $sales = InventoryLedger::postSale($locked->id, $locked->outlet_id, $actor->id);
 
             $outlet = DB::table('outlets')->where('id', $locked->outlet_id)->first(['id', 'timezone', 'order_number_prefix']);
             // Counter harian per outlet. Upsert mengunci baris counter sehingga transaksi
@@ -130,6 +132,9 @@ final class OrderWorkflow
             $base = $this->auditBase($locked, $actor);
             $this->audit->record([...$base, 'action' => 'payment.confirmed', 'after' => ['method' => 'cash', 'amount' => $total, 'tendered' => $tendered, 'change' => $change]], $context);
             $this->audit->record([...$base, 'action' => 'order.queued', 'before' => ['status' => $locked->status], 'after' => ['status' => 'queued', 'orderNumber' => $orderNumber, 'businessDate' => $counter->business_date]], $context);
+            if ($sales !== []) {
+                $this->audit->record([...$base, 'action' => 'inventory.sale_posted', 'after' => ['orderNumber' => $orderNumber, 'items' => self::stockLines($sales)]], $context);
+            }
             OrderEngine::notify(self::topics($locked));
 
             return ['orderNumber' => $orderNumber, 'change' => $change, 'alreadyPaid' => false];
@@ -295,6 +300,11 @@ final class OrderWorkflow
                 ]);
                 // Status pembayaran tetap "paid": pengembalian uang adalah proses refund.
                 $this->audit->record([...$base, 'action' => 'order.cancelled', 'before' => ['status' => $locked->status], 'after' => ['status' => 'cancelled', 'paid' => true, 'approvalId' => $approval->id], 'reason' => $approval->reason], $context);
+                // Produk jadi belum diserahkan → stok dikembalikan lewat reversal ledger.
+                $reversed = InventoryLedger::reverseSale($locked->id, $actor->id, 'Pembatalan pesanan '.($locked->order_number ?? OrderEngine::reference($locked->id)));
+                if ($reversed !== []) {
+                    $this->audit->record([...$base, 'action' => 'inventory.sale_reversed', 'after' => ['items' => self::stockLines($reversed)]], $context);
+                }
             }
             $this->audit->record([...$base, 'action' => $approve ? 'approval.approved' : 'approval.rejected', 'after' => ['approvalId' => $approval->id, 'type' => 'void'], 'reason' => $note], $context);
             OrderEngine::notify(self::topics($locked));
@@ -375,23 +385,10 @@ final class OrderWorkflow
 
     // --- Bantuan ------------------------------------------------------------------------
 
-    /**
-     * Penjagaan stok: tolak bila ada produk order yang di outlet ini tertaut ke
-     * inventory item. Tautan tidak diubah; pembayaran saja yang tidak diproses.
-     */
-    private function assertNoLinkedStock(object $order): void
+    /** Ringkasan movement stok untuk log aktivitas: nama, jumlah, saldo sesudah. */
+    private static function stockLines(array $posted): array
     {
-        $names = DB::table('order_items')
-            ->join('outlet_products', fn ($join) => $join->on('outlet_products.product_id', '=', 'order_items.product_id')->where('outlet_products.outlet_id', '=', $order->outlet_id))
-            ->where('order_items.order_id', $order->id)
-            ->whereNotNull('outlet_products.inventory_item_id')
-            ->distinct()
-            ->orderBy('order_items.product_name')
-            ->pluck('order_items.product_name')
-            ->all();
-        if ($names !== []) {
-            throw new AccessException('conflict', 'Pembayaran belum bisa diproses: '.implode(', ', $names).' terhubung ke stok, dan pemotongan stok otomatis belum tersedia. Pesanan tetap menunggu pembayaran. Hubungi Manager.');
-        }
+        return array_map(fn (array $m) => ['item' => $m['name'], 'quantity' => Qty::toDb($m['after'] - $m['before']), 'stockAfter' => Qty::toDb($m['after']), 'unit' => $m['unit']], $posted);
     }
 
     private function loadForStaff(User $actor, string $orderId): object

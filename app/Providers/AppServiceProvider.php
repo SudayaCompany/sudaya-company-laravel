@@ -10,6 +10,8 @@ use App\Services\Auth\StaffUserProvider;
 use App\Services\Auth\SupabaseAuthAdmin;
 use App\Services\Catalog\MenuImageStorage;
 use App\Services\Catalog\SupabaseMenuImageStorage;
+use App\Services\Inventory\EvidenceStorage;
+use App\Services\Inventory\SupabaseEvidenceStorage;
 use App\Support\Access\AccessScope;
 use App\Support\Access\Rbac;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
         AuthAdmin::class => SupabaseAuthAdmin::class,
         MenuImageStorage::class => SupabaseMenuImageStorage::class,
         AttendancePhotoStorage::class => SupabaseAttendancePhotoStorage::class,
+        EvidenceStorage::class => SupabaseEvidenceStorage::class,
     ];
 
     public function boot(): void

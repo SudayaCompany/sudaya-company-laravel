@@ -3,6 +3,7 @@ import {
   ArrowRightIcon,
   BadgeCheckIcon,
   CalendarCheckIcon,
+  BoxesIcon,
   ChefHatIcon,
   CircleCheckIcon,
   ClipboardCheckIcon,
@@ -52,6 +53,8 @@ type Summary = {
   soldOut: number | null;
   pendingCorrections: number | null;
   attendance: { employees: number; working: number; done: number; absent: number } | null;
+  stock: { counts: { ok: number; low: number; out: number; inactive: number }; attention: { id: string; name: string; stock: string; status: "low" | "out" }[] } | null;
+  pendingOpnames: number | null;
 };
 
 type Props = {
@@ -144,7 +147,8 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
   const approvalsHref = has("/admin/approvals") ? `/admin/approvals?outlet=${outlet.id}` : null;
   const productsHref = has("/admin/products") ? `/admin/products?outlet=${outlet.id}&availability=sold_out` : null;
   const attendanceHref = has("/admin/attendance") ? `/admin/attendance?outlet=${outlet.id}` : null;
-  const { attendance } = summary;
+  const { attendance, stock } = summary;
+  const stockHref = has("/admin/inventory") ? `/admin/inventory?outlet=${outlet.id}` : null;
 
   const nothing = sales === null && orders === null && cash === null && attendance === null && summary.pendingApprovals === null && summary.soldOut === null;
 
@@ -200,14 +204,16 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
           className={sales ? "lg:col-span-2" : "lg:col-span-5"}
           pendingApprovals={summary.pendingApprovals}
           pendingCorrections={summary.pendingCorrections}
+          pendingOpnames={summary.pendingOpnames}
+          lowStock={stock ? stock.counts.low + stock.counts.out : null}
           pendingPayment={orders?.pendingPayment ?? null}
           soldOut={summary.soldOut}
           cashOpen={cash ? cash.open !== null : null}
-          links={{ approvals: approvalsHref, orders: ordersHref, products: productsHref, cash: cashHref }}
+          links={{ approvals: approvalsHref, orders: ordersHref, products: productsHref, cash: cashHref, stock: stockHref }}
         />
       </div>
 
-      {orders || cash || attendance ? (
+      {orders || cash || attendance || stock ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {orders ? (
             <Card>
@@ -264,6 +270,35 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
                   <MiniStat icon={HourglassIcon} label="Belum absen" value={attendance.absent} />
                 </dl>
                 {attendanceHref ? <CardLink href={attendanceHref}>Lihat kehadiran</CardLink> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+          {stock ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Stok</CardTitle>
+                <CardDescription>{stock.counts.ok + stock.counts.low + stock.counts.out} item aktif</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <dl className="grid grid-cols-3 gap-3">
+                  <MiniStat icon={CircleCheckIcon} label="Aman" value={stock.counts.ok} />
+                  <MiniStat icon={TriangleAlertIcon} label="Menipis" value={stock.counts.low} />
+                  <MiniStat icon={PackageXIcon} label="Habis" value={stock.counts.out} />
+                </dl>
+                {stock.attention.length > 0 ? (
+                  <ul className="flex flex-col gap-1.5 text-sm" aria-label="Stok perlu perhatian">
+                    {stock.attention.map((i) => (
+                      <li key={i.id} className="flex items-center justify-between gap-3">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {i.status === "out" ? <PackageXIcon className="size-4 shrink-0 text-destructive-strong" aria-hidden /> : <TriangleAlertIcon className="size-4 shrink-0 text-warning-strong" aria-hidden />}
+                          <span className="truncate">{i.name}</span>
+                        </span>
+                        <span className="shrink-0 text-muted-foreground tabular-nums">{i.status === "out" ? "Habis" : i.stock}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {stockHref ? <CardLink href={stockHref}>Lihat stok</CardLink> : null}
               </CardContent>
             </Card>
           ) : null}
@@ -342,12 +377,14 @@ function TopProducts({ items, className }: { items: { name: string; quantity: nu
   );
 }
 
-type ActionLinks = { approvals: string | null; orders: string | null; products: string | null; cash: string | null };
+type ActionLinks = { approvals: string | null; orders: string | null; products: string | null; cash: string | null; stock: string | null };
 
 /** Hal yang perlu ditindaklanjuti; status selalu dengan ikon + teks, tidak hanya warna. */
 function NeedsAction({
   pendingApprovals,
   pendingCorrections,
+  pendingOpnames,
+  lowStock,
   pendingPayment,
   soldOut,
   cashOpen,
@@ -356,6 +393,8 @@ function NeedsAction({
 }: {
   pendingApprovals: number | null;
   pendingCorrections: number | null;
+  pendingOpnames: number | null;
+  lowStock: number | null;
   pendingPayment: number | null;
   soldOut: number | null;
   cashOpen: boolean | null;
@@ -367,6 +406,8 @@ function NeedsAction({
   const items: { key: string; icon: LucideIcon; text: string; href: string | null; urgent: boolean }[] = [];
   if (pendingApprovals) items.push({ key: "approvals", icon: BadgeCheckIcon, text: `${count(pendingApprovals)} pembatalan menunggu persetujuan`, href: links.approvals, urgent: true });
   if (pendingCorrections) items.push({ key: "corrections", icon: CalendarCheckIcon, text: `${count(pendingCorrections)} koreksi absen menunggu persetujuan`, href: links.approvals, urgent: true });
+  if (pendingOpnames) items.push({ key: "opnames", icon: BoxesIcon, text: `${count(pendingOpnames)} stock opname menunggu persetujuan`, href: links.approvals, urgent: true });
+  if (lowStock) items.push({ key: "stock", icon: TriangleAlertIcon, text: `${count(lowStock)} item stok menipis/habis`, href: links.stock, urgent: false });
   if (pendingPayment) items.push({ key: "payment", icon: HourglassIcon, text: `${count(pendingPayment)} pesanan menunggu pembayaran`, href: links.orders, urgent: false });
   if (soldOut) items.push({ key: "soldout", icon: PackageXIcon, text: `${count(soldOut)} menu ditandai habis`, href: links.products, urgent: false });
   if (cashOpen === false) items.push({ key: "cash", icon: WalletIcon, text: "Kas belum dibuka", href: links.cash, urgent: false });

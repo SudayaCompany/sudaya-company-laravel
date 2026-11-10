@@ -36,16 +36,27 @@ type Correction = {
   canDecide: boolean;
 };
 
+type OpnameApproval = {
+  id: string;
+  opnameId: string;
+  reason: string;
+  requestedByName: string | null;
+  createdAt: string;
+  canDecide: boolean;
+  lines: { name: string; variance: string; reason: string | null }[];
+};
+
 type Props = {
   outlet: { id: string; name: string; timezone: string };
   outlets: { id: string; name: string }[];
   approvals: Approval[];
   corrections: Correction[];
+  opnames: OpnameApproval[];
   topic: string;
 };
 
 /** Kotak persetujuan Owner/Manager. Keputusan diperiksa ulang di server (izin + bukan pemohon). */
-export default function ApprovalsPage({ outlet, outlets, approvals, corrections, topic }: Props) {
+export default function ApprovalsPage({ outlet, outlets, approvals, corrections, opnames, topic }: Props) {
   const stamp = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: outlet.timezone });
   const time = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: outlet.timezone });
   const day = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -53,9 +64,9 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
   return (
     <AdminLayout>
       <Head title="Persetujuan" />
-      <PageHeader title="Persetujuan" description={`${outlet.name} · Pembatalan pesanan lunas dan koreksi absen`}>
+      <PageHeader title="Persetujuan" description={`${outlet.name} · Pembatalan pesanan lunas, koreksi absen, dan stock opname`}>
         <div className="flex flex-wrap items-center gap-3">
-          <LiveRefresh topic={topic} only={["approvals", "corrections"]} />
+          <LiveRefresh topic={topic} only={["approvals", "corrections", "opnames"]} />
           {outlets.length > 1 ? (
             <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/admin/approvals?outlet=${e.target.value}`)}>
               {outlets.map((o) => (
@@ -68,12 +79,51 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
         </div>
       </PageHeader>
 
-      {approvals.length === 0 && corrections.length === 0 ? (
+      {approvals.length === 0 && corrections.length === 0 && opnames.length === 0 ? (
         <EmptyState
           icon={BadgeCheckIcon}
           title="Tidak ada pengajuan"
-          description="Pengajuan pembatalan dari kasir dan koreksi absen dari staf akan tampil di sini."
+          description="Pengajuan pembatalan dari kasir, koreksi absen dari staf, dan stock opname akan tampil di sini."
         />
+      ) : null}
+
+      {opnames.length > 0 ? (
+        <section className="flex max-w-4xl flex-col gap-3" aria-labelledby="opnames-title">
+          <h2 id="opnames-title" className="text-base font-semibold">
+            Stock opname
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {opnames.map((o) => (
+              <li key={o.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <Link href={`/admin/inventory/opname/${o.opnameId}`} className="font-semibold underline-offset-4 hover:underline">
+                        {o.reason}
+                      </Link>
+                      <ul className="flex flex-col gap-0.5 text-sm">
+                        {o.lines.map((l) => (
+                          <li key={l.name}>
+                            <span className="font-medium">{l.name}</span> <span className="tabular-nums">{l.variance}</span>
+                            {l.reason ? <span className="text-muted-foreground"> · “{l.reason}”</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-muted-foreground">
+                        Diajukan {o.requestedByName ?? "staf"} · {stamp.format(new Date(o.createdAt))}
+                      </p>
+                    </div>
+                    {o.canDecide ? (
+                      <DecideOpname approvalId={o.id} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground sm:max-w-56 sm:text-right">Menunggu keputusan Owner atau Manager lain.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       {corrections.length > 0 ? (
@@ -154,6 +204,31 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
         Koreksi absen yang disetujui tercatat dengan tanda Koreksi di rekap.
       </p>
     </AdminLayout>
+  );
+}
+
+/** Setujui (dengan konfirmasi) atau tolak stock opname. Disetujui → selisih diterapkan ke stok. */
+function DecideOpname({ approvalId }: { approvalId: string }) {
+  const [pending, setPending] = useState(false);
+  const run = (approve: boolean) =>
+    router.post(`/admin/approvals/${approvalId}/decide`, { approve }, { preserveScroll: true, onStart: () => setPending(true), onFinish: () => setPending(false) });
+  return (
+    <div className="flex flex-wrap gap-2">
+      <ConfirmAction
+        trigger={
+          <Button variant="success" disabled={pending}>
+            {pending ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Setujui
+          </Button>
+        }
+        title="Setujui stock opname?"
+        description="Stok tiap item disesuaikan sebesar selisihnya dan tercatat di riwayat stok."
+        confirmLabel="Setujui opname"
+        onConfirm={() => run(true)}
+      />
+      <Button variant="outline" disabled={pending} onClick={() => run(false)}>
+        Tolak
+      </Button>
+    </div>
   );
 }
 

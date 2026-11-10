@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 
 /**
  * M4: sesi kas, pembayaran tunai, nomor antrean, KDS, pembatalan, approval, refund,
- * dan inventory guard. Padanan bagian pembayaran/KDS/pembatalan tests/integration/orders.test.ts
+ * dan pemotongan stok produk jadi. Padanan bagian pembayaran/KDS/pembatalan tests/integration/orders.test.ts
  * dan batch1-pos.test.ts, ditambah uji konkurensi dari owner.
  */
 class PaymentFlowTest extends LiveTestCase
@@ -336,51 +336,84 @@ class PaymentFlowTest extends LiveTestCase
         $this->expectAccess('conflict', fn () => $this->pay($created['orderId']), '/sudah habis/');
     }
 
-    // --- Inventory guard -----------------------------------------------------------------
+    // --- Stok produk jadi (keputusan owner 9 November 2026) ---------------------------------
 
-    public function test_inventory_guard_menolak_tanpa_perubahan_apa_pun(): void
+    private function stock(): string
+    {
+        return (string) DB::table('inventory_items')->where('id', static::$fixture['item'])->value('stock_qty');
+    }
+
+    public function test_stok_produk_jadi_dipotong_saat_bayar_dan_kembali_saat_batal(): void
+    {
+        $A = static::$fixture['A'];
+        $this->freshSession();
+        DB::table('inventory_items')->where('id', static::$fixture['item'])->update(['stock_qty' => '10.000']);
+        $created = $this->order([['stocked', 2], ['tea', 1]]);
+
+        $paid = $this->pay($created['orderId']);
+        $this->assertFalse($paid['alreadyPaid']);
+        $this->assertSame('8.000', $this->stock());
+        $sale = DB::table('inventory_transactions')->where('reference_id', $created['orderId'])->where('type', 'sale')->first();
+        $this->assertSame(['-2.000', '8.000', 'order', "sale:{$created['orderId']}:".static::$fixture['item']], [$sale->quantity, $sale->balance_after, $sale->reference_type, $sale->idempotency_key]);
+        $this->assertSame(1, $this->ctx()->countAudit($A['id'], 'inventory.sale_posted', $created['orderId']));
+        // Bayar ulang (retry/double click) tidak memotong lagi.
+        $this->assertTrue($this->pay($created['orderId'])['alreadyPaid']);
+        $this->assertSame('8.000', $this->stock());
+
+        // Pembatalan pesanan lunas disetujui → stok kembali lewat reversal.
+        $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'salah input stok'], $this->audit());
+        $approvalId = DB::table('approvals')->where('reference_id', $created['orderId'])->where('status', 'pending')->value('id');
+        $this->flow()->decideCancellation($this->actor('managerA'), ['approvalId' => $approvalId, 'approve' => true], $this->audit());
+        $this->assertSame('10.000', $this->stock());
+        $reversal = DB::table('inventory_transactions')->where('reference_id', $created['orderId'])->where('type', 'reversal')->first();
+        $this->assertSame(['2.000', $sale->id], [$reversal->quantity, $reversal->reverses_id]);
+        $this->assertSame(1, $this->ctx()->countAudit($A['id'], 'inventory.sale_reversed', $created['orderId']));
+    }
+
+    public function test_stok_kurang_membatalkan_seluruh_pembayaran(): void
     {
         $sessionId = $this->freshSession();
-        $created = $this->order([['stocked', 1], ['tea', 1]]);
+        // Stok cukup saat pesanan dibuat (menu sudah menolak jumlah > stok), lalu berkurang
+        // sebelum dibayar (mis. terjual di pesanan lain) — pengecekan ulang saat bayar.
+        DB::table('inventory_items')->where('id', static::$fixture['item'])->update(['stock_qty' => '2.000']);
+        $created = $this->order([['stocked', 2], ['tea', 1]]);
+        DB::table('inventory_items')->where('id', static::$fixture['item'])->update(['stock_qty' => '1.000']);
         $before = [
             'counter' => $this->counter(),
             'totals' => CashSessions::totals($this->cashSession($sessionId)),
-            'movements' => DB::table('cash_movements')->where('cash_session_id', $sessionId)->count(),
             'payments' => DB::table('payments')->where('order_id', $created['orderId'])->get(['status', 'cash_session_id', 'tendered_amount', 'paid_at'])->toArray(),
             'order' => (array) $this->row($created['orderId']),
-            'stock' => DB::table('inventory_items')->where('id', static::$fixture['item'])->value('stock_qty'),
-            'link' => DB::table('outlet_products')->where('outlet_id', $this->outletId())->where('product_id', static::$fixture['stocked'])->value('inventory_item_id'),
+            'ledger' => DB::table('inventory_transactions')->where('item_id', static::$fixture['item'])->count(),
         ];
 
-        $this->expectAccess('conflict', fn () => $this->pay($created['orderId']), '/^Pembayaran belum bisa diproses: Roti Stok QA terhubung ke stok, dan pemotongan stok otomatis belum tersedia\./');
+        $this->expectAccess('conflict', fn () => $this->pay($created['orderId']), '/^Stok Roti Stok QA tidak cukup \(tersisa 1 pcs\)\.$/');
 
         $this->assertSame($before['counter'], $this->counter());
         $this->assertSame($before['totals'], CashSessions::totals($this->cashSession($sessionId)));
-        $this->assertSame($before['movements'], DB::table('cash_movements')->where('cash_session_id', $sessionId)->count());
         $this->assertEquals($before['payments'], DB::table('payments')->where('order_id', $created['orderId'])->get(['status', 'cash_session_id', 'tendered_amount', 'paid_at'])->toArray());
         $this->assertSame($before['order'], (array) $this->row($created['orderId']));
-        $this->assertSame('pending_payment', $before['order']['status']);
-        $this->assertSame($before['stock'], DB::table('inventory_items')->where('id', static::$fixture['item'])->value('stock_qty'));
-        $this->assertSame(static::$fixture['item'], $before['link'], 'tautan stok tidak diubah');
+        $this->assertSame('1.000', $this->stock());
+        $this->assertSame($before['ledger'], DB::table('inventory_transactions')->where('item_id', static::$fixture['item'])->count());
         $this->assertSame(0, $this->ctx()->countAudit(static::$fixture['A']['id'], 'payment.confirmed', $created['orderId']));
-
-        // Order tanpa produk tertaut tetap bisa dibayar normal.
-        $this->assertFalse($this->pay($this->order([['tea', 1]])['orderId'])['alreadyPaid']);
     }
 
-    public function test_inventory_guard_bersamaan_tidak_ada_partial_commit(): void
+    public function test_stok_terakhir_diperebutkan_hanya_satu_lunas(): void
     {
         $sessionId = $this->freshSession();
-        $created = $this->order([['stocked', 2]]);
+        DB::table('inventory_items')->where('id', static::$fixture['item'])->update(['stock_qty' => '1.000']);
+        $first = $this->order([['stocked', 1]]);
+        $second = $this->order([['stocked', 1]]);
         $before = $this->counter();
-        $job = ['op' => 'pay', 'actorId' => static::$fixture['cashierA']['id'], 'input' => ['orderId' => $created['orderId'], 'tenderedAmount' => 40_000]];
-        $results = $this->concurrently([$job, $job]);
+        $job = fn (string $orderId) => ['op' => 'pay', 'actorId' => static::$fixture['cashierA']['id'], 'input' => ['orderId' => $orderId, 'tenderedAmount' => 20_000]];
+        $results = $this->concurrently([$job($first['orderId']), $job($second['orderId'])]);
 
-        $this->assertSame([false, false], array_column($results, 'ok'));
-        $this->assertSame(['conflict', 'conflict'], array_column($results, 'reason'));
-        $this->assertSame($before, $this->counter());
-        $this->assertSame(0, DB::table('payments')->where('cash_session_id', $sessionId)->where('order_id', $created['orderId'])->count());
-        $this->assertSame(['pending_payment', 'pending'], [$this->row($created['orderId'])->status, $this->row($created['orderId'])->payment_status]);
+        $this->assertEqualsCanonicalizing([true, false], array_column($results, 'ok'));
+        $failed = collect($results)->firstWhere('ok', false);
+        $this->assertSame('conflict', $failed['reason']);
+        $this->assertSame('0.000', $this->stock());
+        $this->assertSame($before + 1, $this->counter());
+        $this->assertSame(1, DB::table('payments')->where('cash_session_id', $sessionId)->whereIn('order_id', [$first['orderId'], $second['orderId']])->where('status', 'paid')->count());
+        $this->assertSame(1, DB::table('inventory_transactions')->where('item_id', static::$fixture['item'])->where('type', 'sale')->whereIn('reference_id', [$first['orderId'], $second['orderId']])->count());
     }
 
     // --- KDS -------------------------------------------------------------------------------
