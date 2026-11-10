@@ -370,3 +370,40 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 - **WhatsApp otomatis** butuh WhatsApp Business API berbayar (PRD Fase 3); saat ini tombol WA manual + notifikasi web (berlaku selama halaman status terbuka; push saat browser tertutup butuh hosting HTTPS + service worker).
 - Lantai & bagian divalidasi di form; server menyimpan bila dikirim (tidak diwajibkan server agar alur QR meja lama tetap kompatibel).
 - QR dicetak dari domain presentasi/production, bukan laptop.
+
+## Aplikasi staf di HP (PWA, siap dibuat APK) — 11 November 2026
+
+**Status: Development Verified, menunggu review owner.** Permintaan 11 November: "biar karyawan or baristanya juga bisa absen lewat aplikasi", lalu web diserahkan ke klien sebagai aplikasi. Web kini bisa **dipasang sebagai aplikasi di HP staf** (Android lewat Chrome, iPhone lewat Safari), tanpa Play Store dan tanpa dependency baru. APK terpisah dibuat setelah domain HTTPS production ada (langkah di `docs/APLIKASI_HP.md`).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Manifest | Nama "Sudaya Coffee"/"Sudaya", `start_url` `/login` (staf yang sudah masuk langsung diarahkan ke halaman perannya), layar penuh, ikon 192/512/maskable + apple-touch-icon, jalan pintas **Absen**, **Barista**, **Kasir** | `public/manifest.webmanifest`, `public/icons/` |
+| Hanya area staf | Manifest & service worker hanya dipasang di halaman staf; beranda, menu/QR, status pesanan, dan kiosk tidak menawarkan pemasangan | `App\Support\StaffApp::offeredOn`, `resources/views/app.blade.php` |
+| Service worker | Navigasi halaman selalu dari jaringan; saat offline tampil halaman "Tidak ada koneksi internet". Tidak ada halaman, data Inertia, foto, atau API yang di-cache (data login, pesanan, absen tidak tersimpan di HP). Tanpa perubahan CSP (`'self'` sudah mengizinkan) | `public/sw.js`, `public/offline.html` |
+| Ajakan pasang | Kartu **Pasang** (Android/Chrome, banner otomatis browser dicegah) atau petunjuk **Bagikan → Tambahkan ke Layar Utama** (iPhone); tampil di login, beranda staf, dan halaman absen; bisa ditutup (disembunyikan 14 hari); hilang bila sudah dibuka sebagai aplikasi | `lib/install-prompt.ts`, `components/install-app.tsx` |
+| Siap APK | `/.well-known/assetlinks.json` dari env `ANDROID_APP_PACKAGE` + `ANDROID_APP_SHA256` (divalidasi; 404 bila kosong) agar APK hasil PWABuilder/Bubblewrap terbuka tanpa bilah alamat | `AppLinksController`, `config/services.php`, `.env.example` |
+| Ikon | Placeholder monogram "S" warna brand sampai logo resmi tersedia (cara ganti di `docs/APLIKASI_HP.md`) | `public/icons/` |
+
+### Hasil QA (lokal, `APP_ENV=local`; database dev hanya untuk fixture login)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | |
+| Unit/feature (SQLite) | **163/163 (657 assertion)** | 0 | baru: `Unit\StaffAppTest` (area staf vs pelanggan, manifest & ukuran ikon, service worker tanpa cache data, validasi assetlinks) dan `Feature\StaffAppTest` (manifest di `/login`, tidak di `/`; assetlinks 404 → JSON setelah dikonfigurasi) |
+| Browser Chrome (HP 375 px, UA Android & iPhone) | **28/28** | 0 | file aplikasi 200, manifest terbaca Chrome tanpa error, **syarat pasang Chrome terpenuhi** (`Page.getInstallabilityErrors` kosong), service worker aktif & mengendalikan halaman, tombol Pasang memanggil dialog pasang, offline → halaman offline Sudaya (ikon tetap tampil), petunjuk iPhone + tutup tersimpan, menu pelanggan tanpa manifest/ajakan, barista login dari `start_url` lalu jalan pintas Absen, kontrol ≥ 44 px, tanpa scroll horizontal, tanpa error console/CSP |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D36 | Halaman offline menampilkan ikon rusak saat tidak ada jaringan (gambar dimuat dari server) | Bug aplikasi (uji browser) | Ikon disematkan langsung di halaman offline; service worker hanya menyimpan halaman offline |
+| D37 | Kartu "Pasang aplikasi" sempit di HP 375 px (teks terlipat 4 baris di samping tombol) | Bug UI (uji browser) | Tombol **Pasang aplikasi** dipindah ke bawah teks, selebar kartu |
+| D38 | Probe membaca nama manifest dari field CDP yang kosong dan mengecek syarat pasang di konteks terisolasi (= incognito, selalu `in-incognito`) | Bug test | Manifest dibaca dari isi mentah; syarat pasang dicek di profil biasa |
+| D39 | Sekali login barista di probe pertama tidak selesai dalam 120 detik; dua run berikutnya lolos | Lingkungan | Request login adalah XHR (bukan navigasi) sehingga tidak disentuh service worker; pola latensi DB dev eu-west-1 yang sama sudah tercatat sebelumnya. Diulang di staging |
+
+### Risiko & keputusan berikutnya
+
+- **APK terpisah** baru bisa dibuat setelah domain HTTPS production aktif (APK membungkus alamat itu). Pemasangan dari Chrome Android sudah menghasilkan aplikasi Android sungguhan (WebAPK) tanpa file APK.
+- Absen tetap butuh internet (disengaja agar jam, lokasi, dan foto dicatat server). Tidak ada antrean absen offline.
+- Notifikasi push saat aplikasi tertutup (mis. pesanan baru untuk barista) butuh Web Push + kunci VAPID di server production; belum dibuat.
+- Ikon masih placeholder sampai logo resmi tersedia.

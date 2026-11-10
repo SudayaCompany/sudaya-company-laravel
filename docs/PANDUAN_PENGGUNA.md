@@ -16,6 +16,7 @@ Untuk Owner, Super Admin, Manager, Kasir, Barista, dan seluruh staf. Alamat web 
 - Masuk lewat halaman **Login** dengan email dan password masing-masing. Setelah masuk, setiap orang langsung diarahkan ke halaman sesuai perannya.
 - Lupa password: minta Super Admin membuat **tautan pemulihan** di menu **Staf**.
 - Jangan memakai satu akun bersama. Semua perubahan penting tercatat atas nama akun di **Log aktivitas**.
+- **Aplikasi di HP**: staf bisa memasang Sudaya sebagai aplikasi (ikon di layar HP, terbuka layar penuh) lewat Chrome di Android atau Safari di iPhone. Caranya ada di [Aplikasi Sudaya di HP](APLIKASI_HP.md).
 
 ## 2. Owner
 
@@ -87,7 +88,7 @@ Menu **Barista display** menampilkan antrean **Antre → Dibuat → Siap**. Ketu
 
 ## 8. Absen staf (GPS + selfie)
 
-1. Buka **Absen** dari beranda staf (atau menu **Absen** di kasir).
+1. Buka **Absen** dari beranda staf (atau menu **Absen** di kasir). Bila aplikasi Sudaya sudah terpasang di HP, tekan lama ikonnya lalu pilih **Absen**.
 2. Ketuk **Absen masuk**. Kamera depan terbuka; ambil selfie.
 3. Lokasi dicek otomatis. Bila muncul "Lokasi sesuai", ketuk **Kirim absen masuk**.
 4. Saat pulang, lakukan hal yang sama dengan **Absen pulang**. Jam kerja dihitung otomatis.

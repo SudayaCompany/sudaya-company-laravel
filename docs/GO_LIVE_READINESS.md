@@ -1,8 +1,24 @@
 # Kesiapan go-live Sudaya Coffee (Laravel)
 
-Diperbarui 5 November 2026. Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
+Diperbarui 11 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 November tetap sebagai riwayat). Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
 
 **Kesimpulan:** belum siap production. Fitur transaksi tunai inti terbukti di lingkungan development (database dan Supabase dev). Hosting, database production, HTTPS, backup/restore, monitoring, data menu asli, perangkat outlet, dan UAT belum ada. Seluruh PASS di bawah adalah *Development Verified*, bukan bukti production.
+
+## Ringkasan 11 November 2026 (serah terima)
+
+Semua fitur MVP PRD, Fase 2 (supplier & purchase order, pengeluaran, resep/BOM, data pelanggan), pesanan meja kantor + QRIS statis, dan **aplikasi staf di HP** sudah selesai dan lolos test di lingkungan development. Bukti test per bagian ada di [QA_CHECKPOINT.md](QA_CHECKPOINT.md). Butir yang masih menunggu pihak luar atau keputusan owner:
+
+| Butir | Status | Yang dibutuhkan |
+|---|---|---|
+| Hosting/VPS + domain HTTPS + Supabase production (Singapura) | BLOCKED | Owner membeli; lalu staging → UAT → production sesuai [LARAVEL_DEPLOYMENT_GUIDE.md](LARAVEL_DEPLOYMENT_GUIDE.md) |
+| Aplikasi staf di HP (absen, kasir, barista, admin) | PASS (dev) | Dipasang dari Chrome Android / Safari iPhone setelah domain HTTPS aktif; file APK opsional lewat PWABuilder ([APLIKASI_HP.md](APLIKASI_HP.md)) |
+| QRIS | PASS (statis, konfirmasi kasir) | Owner mengunggah gambar QRIS asli di Admin → Outlet; QRIS otomatis butuh payment gateway |
+| Logo, foto menu, data menu asli | BLOCKED | Dari owner. Menu contoh dihapus dengan `php artisan sudaya:demo-menu --remove`; ikon aplikasi masih placeholder |
+| Harga request di luar menu | BLOCKED | Keputusan aturan bayar: kasir mengisi harga sebelum pelanggan bayar, atau tagihan tambahan saat diantar |
+| Promo/voucher & penukaran poin | BLOCKED | Aturan bisnis tertulis (mengubah harga checkout) |
+| WhatsApp otomatis, notifikasi push saat aplikasi tertutup | BLOCKED | WhatsApp Business API (berbayar) / Web Push + kunci VAPID di server production. Saat ini: tombol WhatsApp + notifikasi di halaman |
+| Absen pengenalan wajah | BLOCKED | Penyedia biometrik; saat ini GPS + selfie |
+| UAT outlet (skenario 1–51) | NOT TESTED | Dijalankan Manager/Owner di staging ([SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md)) |
 
 ## Fitur
 

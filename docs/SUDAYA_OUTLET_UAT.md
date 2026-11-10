@@ -54,10 +54,13 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 46 | Bayar QRIS Sudaya | Admin unggah gambar QRIS di pengaturan outlet → pelanggan pilih QRIS → bayar → kasir cek dana masuk lalu Konfirmasi QRIS diterima | Halaman status menampilkan QRIS + nominal persis; setelah konfirmasi berubah ke nomor antrean; QRIS tidak menambah saldo laci | | | Kasir + Owner |
 | 47 | Request di luar menu | Isi "Pesan menu di luar daftar" saat checkout | Request tampil di catatan pesanan (kasir & barista) | | | Kasir + Barista |
 | 48 | Notifikasi pesanan siap | Pelanggan aktifkan notifikasi di halaman status (isi nomor WA saat checkout) → barista Tandai siap → Kabari via WhatsApp | Banner + bunyi/getar + notifikasi browser di HP pelanggan; WhatsApp staf terbuka dengan pesan siap kirim | | | Barista + pelanggan |
+| 49 | Pasang aplikasi di Android | Di HP Android buka web Sudaya di Chrome → **Pasang** (atau menu ⋮ → Instal aplikasi) → buka dari ikon **Sudaya** | Aplikasi terbuka layar penuh ke halaman sesuai peran; tekan lama ikon menampilkan **Absen**, **Barista**, **Kasir** | | | Barista |
+| 50 | Pasang aplikasi di iPhone | Di iPhone buka web di Safari → **Bagikan** → **Tambahkan ke Layar Utama** → buka dari ikon | Aplikasi terbuka layar penuh; login dan absen berfungsi | | | Kasir atau Manager |
+| 51 | Absen lewat aplikasi | Dari aplikasi: **Absen masuk** (izinkan kamera & lokasi) → **Absen pulang**; lalu matikan data seluler/Wi-Fi dan buka aplikasi | Absen tercatat dengan selfie & lokasi di rekap Owner; saat offline tampil "Tidak ada koneksi internet" dan tidak ada absen yang tersimpan diam-diam | | | Barista + Owner |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–48 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–51 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|

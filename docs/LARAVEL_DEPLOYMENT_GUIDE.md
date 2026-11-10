@@ -38,6 +38,7 @@ Isi di panel hosting, bukan di Git. Contoh lengkap ada di `.env.example`.
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Dari project production |
 | `SUPABASE_SERVICE_ROLE_KEY` | Rahasia. Jangan pernah berawalan `VITE_` |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Diisi saat build aset |
+| `ANDROID_APP_PACKAGE`, `ANDROID_APP_SHA256` | Opsional, hanya bila membuat APK aplikasi staf; lihat [APLIKASI_HP.md](APLIKASI_HP.md). Kosong = `/.well-known/assetlinks.json` 404 |
 | `TRUSTED_IP_HEADER` | Header IP yang ditimpa proxy, mis. `X-Real-IP` di Nginx. Kosong bila tidak yakin |
 | `LOG_CHANNEL`, `LOG_LEVEL` | `stack` atau `daily`, `warning` |
 
@@ -75,6 +76,7 @@ Tidak ada `php artisan migrate` di rilis M1. Mulai M2, migration hanya dijalanka
 - Login sebagai Super Admin, buka `/admin/audit`, pastikan `auth.login` tercatat.
 - Cek header di browser: CSP, HSTS, cookie `Secure` dan `HttpOnly`.
 - Pantau `storage/logs` dan `/api/health` dengan uptime monitor.
+- Aplikasi staf (PWA): buka `https://<domain>/login` di Chrome Android dan pastikan kartu **Pasang aplikasi** muncul. Sajikan `public/sw.js` dengan `Cache-Control: no-cache` dan `.webmanifest` dengan MIME `application/manifest+json`. Panduan staf dan APK: [APLIKASI_HP.md](APLIKASI_HP.md).
 - `php artisan cache:clear` aman dijalankan karena tidak menyentuh store token. Jangan menghapus `storage/framework/auth-tokens` kecuali ingin me-logout semua staf.
 
 ## 6. Hal yang belum siap
