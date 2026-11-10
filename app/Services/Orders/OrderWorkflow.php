@@ -70,6 +70,7 @@ final class OrderWorkflow
 
             // Potong stok produk jadi lebih dulu (keputusan owner 9 November 2026, PRD §21–22):
             // stok kurang → seluruh pembayaran dibatalkan (rollback), uang tidak dianggap diterima.
+            // Bahan resep/BOM ikut dipotong tanpa pernah menolak pembayaran (kekurangan dicatat).
             $sales = InventoryLedger::postSale($locked->id, $locked->outlet_id, $actor->id);
 
             $outlet = DB::table('outlets')->where('id', $locked->outlet_id)->first(['id', 'timezone', 'order_number_prefix']);
@@ -385,10 +386,13 @@ final class OrderWorkflow
 
     // --- Bantuan ------------------------------------------------------------------------
 
-    /** Ringkasan movement stok untuk log aktivitas: nama, jumlah, saldo sesudah. */
+    /** Ringkasan movement stok untuk log aktivitas: nama, jumlah, saldo sesudah, kekurangan bahan resep. */
     private static function stockLines(array $posted): array
     {
-        return array_map(fn (array $m) => ['item' => $m['name'], 'quantity' => Qty::toDb($m['after'] - $m['before']), 'stockAfter' => Qty::toDb($m['after']), 'unit' => $m['unit']], $posted);
+        return array_map(fn (array $m) => [
+            'item' => $m['name'], 'quantity' => Qty::toDb($m['after'] - $m['before']), 'stockAfter' => Qty::toDb($m['after']), 'unit' => $m['unit'],
+            ...(($m['shortfall'] ?? 0) > 0 ? ['shortfall' => Qty::toDb($m['shortfall'])] : []),
+        ], $posted);
     }
 
     private function loadForStaff(User $actor, string $orderId): object

@@ -13,7 +13,7 @@ use Tests\Live\LiveContext;
 
 /**
  * Fase 2 lewat HTTP sungguhan: pengeluaran (+ foto nota ke bucket privat asli) → Persetujuan,
- * supplier → purchase order → disetujui → terima barang → stok,; batas akses.
+ * supplier → purchase order → disetujui → terima barang → stok, dan resep/BOM; batas akses.
  */
 class Phase2FlowTest extends ServerTestCase
 {
@@ -125,6 +125,29 @@ class Phase2FlowTest extends ServerTestCase
         $cashier = $this->login($this->f('cashier'));
         $this->assertSame(403, $cashier->get('/admin/purchase-orders')->getStatusCode());
         $this->assertSame(403, $cashier->get('/admin/suppliers')->getStatusCode());
+    }
+
+    public function test_resep_lewat_http(): void
+    {
+        $outletId = $this->f('A')['outletId'];
+        $manager = $this->login($this->f('manager'));
+        $index = Browser::page($manager->get("/admin/inventory/recipes?outlet={$outletId}"));
+        $this->assertSame('admin/inventory/recipes/index', $index['component']);
+        $this->assertContains('/admin/inventory/recipes', $index['props']['auth']['navigation']);
+        $edit = Browser::page($manager->get("/admin/inventory/recipes/{$this->f('latte')}?outlet={$outletId}"));
+        $this->assertSame(['admin/inventory/recipes/edit', true], [$edit['component'], $edit['props']['canEdit']]);
+
+        $saved = $manager->post("/admin/inventory/recipes/{$this->f('latte')}", ['outletId' => $outletId, 'lines' => [['itemId' => $this->f('beans'), 'quantity' => '18', 'unit' => 'g']]]);
+        $this->assertSame("/admin/inventory/recipes?outlet={$outletId}", Browser::location($saved));
+        $page = Browser::page($manager->get(Browser::location($saved)));
+        $this->assertStringStartsWith('Resep tersimpan (1 bahan)', $page['flash']['success'] ?? '');
+        $this->assertSame(1, collect($page['props']['products'])->firstWhere('name', 'Latte F2')['lines']);
+
+        $barista = $this->login($this->f('barista'));
+        $barista->get("/admin/inventory/recipes/{$this->f('latte')}?outlet={$outletId}");
+        $flash = $this->flash($barista, $barista->post("/admin/inventory/recipes/{$this->f('latte')}", ['outletId' => $outletId, 'lines' => []]));
+        $this->assertNotEmpty($flash['error'] ?? null, 'barista tidak bisa mengubah resep');
+        $this->assertSame(1, DB::table('product_recipe_items')->where('product_id', $this->f('latte'))->count());
     }
 
     public function test_halaman_pelanggan_dan_batas_akses(): void

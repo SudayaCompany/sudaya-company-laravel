@@ -80,34 +80,65 @@ final class InventoryLedger
     }
 
     /**
-     * Potong stok produk jadi saat order dibayar (keputusan owner 9 November 2026). Hanya
-     * produk yang di outlet itu ditautkan ke item stok (outlet_products.inventory_item_id);
-     * produk racikan tanpa tautan tidak memotong bahan baku (BOM = Phase 2). Idempotent per
-     * (order, item); urutan item tetap agar lock antar transaksi tidak deadlock.
+     * Potong stok saat order dibayar. Idempotent per (order, item); urutan item tetap agar lock
+     * antar transaksi tidak deadlock.
+     * - Produk jadi yang ditautkan ke menu di outlet itu (keputusan owner 9 November 2026):
+     *   wajib cukup, stok kurang → exception → seluruh pembayaran dibatalkan.
+     * - Resep/BOM (Fase 2, product_recipe_items): bahan per porsi × jumlah terjual. Tidak pernah
+     *   menolak penjualan: bila stok bahan kurang (stok tidak boleh minus), dipotong sampai habis
+     *   dan kekurangannya dikembalikan sebagai `shortfall` untuk log aktivitas.
      *
      * @return list<array<string, mixed>>
      */
     public static function postSale(string $orderId, string $outletId, ?string $actorId): array
     {
-        $demand = DB::table('order_items')
+        $finished = DB::table('order_items')
             ->join('outlet_products', fn ($j) => $j->on('outlet_products.product_id', '=', 'order_items.product_id')->where('outlet_products.outlet_id', '=', $outletId))
             ->join('inventory_items', fn ($j) => $j->on('inventory_items.id', '=', 'outlet_products.inventory_item_id')->where('inventory_items.outlet_id', '=', $outletId))
             ->where('order_items.order_id', $orderId)
             ->groupBy('outlet_products.inventory_item_id')
-            ->orderBy('outlet_products.inventory_item_id')
             ->selectRaw('outlet_products.inventory_item_id as item_id, sum(order_items.quantity)::int as units')
-            ->get();
+            ->pluck('units', 'item_id')
+            ->map(fn ($units) => (int) $units * 1000);
+        $recipe = DB::table('order_items')
+            ->join('product_recipe_items as r', fn ($j) => $j->on('r.product_id', '=', 'order_items.product_id')->where('r.outlet_id', '=', $outletId))
+            ->where('order_items.order_id', $orderId)
+            ->groupBy('r.item_id')
+            ->selectRaw('r.item_id, sum(order_items.quantity * r.quantity) as qty')
+            ->pluck('qty', 'item_id')
+            ->map(fn ($qty) => Qty::fromDb((string) $qty));
 
-        return $demand->map(fn ($line) => self::post([
-            'itemId' => $line->item_id,
-            'type' => 'sale',
-            'quantity' => -((int) $line->units) * 1000,
-            'idempotencyKey' => "sale:{$orderId}:{$line->item_id}",
-            'actorId' => $actorId,
-            'referenceType' => 'order',
-            'referenceId' => $orderId,
-            'allowInactive' => true,
-        ]))->all();
+        $itemIds = $finished->keys()->merge($recipe->keys())->unique()->sort()->values();
+        $posted = [];
+        foreach ($itemIds as $itemId) {
+            $milli = ($finished[$itemId] ?? 0) + ($recipe[$itemId] ?? 0);
+            $shortfall = 0;
+            if (! $finished->has($itemId)) {
+                // Bahan resep: kunci baris lalu potong paling banyak sebesar stok yang ada.
+                $item = DB::selectOne('select name, unit, stock_qty from inventory_items where id = ? for update', [$itemId]);
+                $available = max(0, Qty::fromDb($item->stock_qty));
+                $shortfall = max(0, $milli - $available);
+                $milli -= $shortfall;
+                if ($milli <= 0) {
+                    $posted[] = ['itemId' => $itemId, 'name' => $item->name, 'unit' => $item->unit, 'before' => 0, 'after' => 0, 'shortfall' => $shortfall];
+
+                    continue;
+                }
+            }
+            $line = self::post([
+                'itemId' => $itemId,
+                'type' => 'sale',
+                'quantity' => -$milli,
+                'idempotencyKey' => "sale:{$orderId}:{$itemId}",
+                'actorId' => $actorId,
+                'referenceType' => 'order',
+                'referenceId' => $orderId,
+                'allowInactive' => true,
+            ]);
+            $posted[] = $shortfall > 0 ? [...$line, 'shortfall' => $shortfall] : $line;
+        }
+
+        return $posted;
     }
 
     /**

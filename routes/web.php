@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\OutsideDutyController as AdminOutsideDutyController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\PurchasingController;
+use App\Http\Controllers\Admin\RecipeController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StockOpnameController;
@@ -137,6 +138,11 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/inventory/opname/{opname}/counts', [StockOpnameController::class, 'saveCounts']);
             Route::post('/inventory/opname/{opname}/submit', [StockOpnameController::class, 'submit']);
             Route::post('/inventory/opname/{opname}/cancel', [StockOpnameController::class, 'cancel']);
+            // Resep/BOM (Fase 2): bahan per porsi, dipotong otomatis saat pesanan dibayar.
+            Route::get('/inventory/recipes', [RecipeController::class, 'index']);
+            Route::get('/inventory/recipes/{product}', [RecipeController::class, 'edit']);
+            Route::post('/inventory/recipes/{product}', [RecipeController::class, 'update']);
+
             // Supplier & purchase order (Fase 2): ajukan → setujui → terima barang → stok masuk.
             Route::get('/suppliers', [PurchasingController::class, 'suppliers']);
             Route::post('/suppliers', [PurchasingController::class, 'storeSupplier']);

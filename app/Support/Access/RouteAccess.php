@@ -23,6 +23,7 @@ final class RouteAccess
         '/admin/customers' => ['customer.view'],
         '/admin/inventory/stock-in' => ['inventory.receive'],
         '/admin/inventory/stock-out' => ['inventory.issue'],
+        '/admin/inventory/recipes' => ['inventory.view'],
         '/admin/inventory' => ['inventory.view'],
         '/admin/suppliers' => ['inventory.view'],
         '/admin/purchase-orders' => ['inventory.view'],
