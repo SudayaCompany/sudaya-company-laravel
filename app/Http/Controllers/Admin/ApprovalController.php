@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Pos\PosOutlet;
 use App\Services\Attendance\AttendanceEngine;
+use App\Services\Attendance\OutsideDuty;
 use App\Services\Audit\AuditContext;
 use App\Services\Catalog\CatalogInput;
 use App\Services\Inventory\StockOpnames;
@@ -15,10 +16,10 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/** Kotak persetujuan: pembatalan pesanan lunas, koreksi absen, dan stock opname. */
+/** Kotak persetujuan: pembatalan pesanan lunas, koreksi absen, tugas luar, dan stock opname. */
 class ApprovalController
 {
-    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance, private StockOpnames $opnames) {}
+    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance, private StockOpnames $opnames, private OutsideDuty $duties) {}
 
     public function index(Request $request): Response
     {
@@ -30,6 +31,7 @@ class ApprovalController
             'approvals' => $this->orders->pendingApprovals($request->user(), $outlet),
             'corrections' => $this->attendance->pendingCorrections($request->user(), $outlet),
             'opnames' => $this->opnames->pending($request->user(), $outlet),
+            'outsideDuties' => $this->duties->pending($request->user(), $outlet),
             'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
     }
@@ -45,6 +47,9 @@ class ApprovalController
         if ($type === 'stock_opname') {
             $result = $this->opnames->decide($request->user(), $raw, $context);
             Inertia::flash('success', $result['approved'] ? 'Stock opname disetujui, stok diperbarui.' : 'Stock opname ditolak.');
+        } elseif ($type === 'outside_duty') {
+            $result = $this->duties->decide($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Tugas luar disetujui.' : 'Tugas luar ditolak.');
         } elseif ($type === 'attendance_correction') {
             $result = $this->attendance->decideCorrection($request->user(), $raw, $context);
             Inertia::flash('success', $result['approved'] ? 'Koreksi absen disetujui.' : 'Koreksi absen ditolak.');

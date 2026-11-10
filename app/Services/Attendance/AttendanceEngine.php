@@ -108,6 +108,7 @@ final class AttendanceEngine
                 'workingMinutes' => $s->working_minutes === null ? null : (int) $s->working_minutes,
                 'manual' => $s->check_in_method === 'manual_correction' || $s->check_out_method === 'manual_correction',
             ])->all(),
+            'outsideDuty' => ($duty = OutsideDuty::active($employee->id)) === null ? null : ['location' => $duty->location, 'endsAt' => self::iso($duty->ends_at)],
             'pendingCorrections' => DB::table('attendance_corrections')
                 ->join('approvals', 'approvals.id', '=', 'attendance_corrections.approval_id')
                 ->where('attendance_corrections.employee_id', $employee->id)
@@ -128,26 +129,28 @@ final class AttendanceEngine
         $position = AttendanceInput::position($raw);
         $settings = $this->settings($actor->company_id);
         $outlet = ['latitude' => self::coord($employee->latitude), 'longitude' => self::coord($employee->longitude), 'radius' => (int) $employee->radius];
-        $decision = $this->checkLocation($actor, $employee, $position, $outlet, $settings, 'check_in', $context);
+        // Tugas luar disetujui & sedang berlangsung: radius outlet tidak berlaku (GPS tetap dicatat).
+        $duty = OutsideDuty::active($employee->id);
+        $decision = $this->checkLocation($actor, $employee, $position, $outlet, $settings, 'check_in', $context, $duty !== null);
         $image = AttendancePhotos::read($photo);
         $businessDate = DB::selectOne('select (now() at time zone ?)::date::text as d', [$employee->timezone])->d;
         $path = AttendancePhotos::path($employee->company_id, $employee->id, $businessDate, $image['ext']);
         $this->photos->upload($path, $image['bytes'], $image['contentType']);
 
         try {
-            return DB::transaction(function () use ($actor, $employee, $position, $decision, $path, $settings, $context) {
+            return DB::transaction(function () use ($actor, $employee, $position, $decision, $path, $settings, $context, $duty) {
                 // Tanggal bisnis dan jam masuk memakai now() yang sama (awal transaksi).
                 $row = DB::selectOne(
                     'insert into attendances (company_id, brand_id, outlet_id, employee_id, business_date, status, policy_version,
                         check_in_method, check_in_latitude, check_in_longitude, check_in_accuracy_meter, check_in_distance_meter,
-                        check_in_photo_path, check_in_device, check_in_ip)
-                     values (?, ?, ?, ?, (now() at time zone ?)::date, \'checked_in\', ?, ?::attendance_method, ?, ?, ?, ?, ?, ?, ?)
+                        check_in_photo_path, check_in_device, check_in_ip, outside_duty_request_id)
+                     values (?, ?, ?, ?, (now() at time zone ?)::date, \'checked_in\', ?, ?::attendance_method, ?, ?, ?, ?, ?, ?, ?, ?)
                      returning id, check_in_at',
                     [
                         $employee->company_id, $employee->brand_id, $employee->outlet_id, $employee->id, $employee->timezone,
                         $settings['policyVersion'], self::METHOD, $position['latitude'], $position['longitude'], $position['accuracy'],
                         $decision['distance'], $path, $context->userAgent === null ? null : mb_substr($context->userAgent, 0, 512),
-                        $context->ip === null ? null : substr($context->ip, 0, 64),
+                        $context->ip === null ? null : substr($context->ip, 0, 64), $duty?->id,
                     ],
                 );
                 $this->audit->record([
@@ -155,7 +158,7 @@ final class AttendanceEngine
                     'action' => 'attendance.check_in',
                     'entity_type' => 'attendance',
                     'entity_id' => $row->id,
-                    'after' => ['method' => self::METHOD, 'distanceMeter' => self::round1($decision['distance']), 'accuracyMeter' => (int) round($position['accuracy'])],
+                    'after' => ['method' => self::METHOD, 'distanceMeter' => self::round1($decision['distance']), 'accuracyMeter' => (int) round($position['accuracy']), 'outsideDutyRequestId' => $duty?->id],
                 ], $context);
 
                 return ['id' => $row->id, 'checkInAt' => self::iso($row->check_in_at), 'distance' => self::round1($decision['distance'])];
@@ -179,7 +182,8 @@ final class AttendanceEngine
         // Geofence mengikuti outlet tempat sesi dibuka.
         $sessionOutlet = DB::table('outlets')->where('id', $open->outlet_id)->first(['latitude', 'longitude', 'attendance_radius_meter']);
         $outlet = ['latitude' => self::coord($sessionOutlet->latitude), 'longitude' => self::coord($sessionOutlet->longitude), 'radius' => (int) $sessionOutlet->attendance_radius_meter];
-        $decision = $this->checkLocation($actor, $employee, $position, $outlet, $settings, 'check_out', $context);
+        $outsideDuty = OutsideDuty::active($employee->id) !== null || $open->outside_duty_request_id !== null;
+        $decision = $this->checkLocation($actor, $employee, $position, $outlet, $settings, 'check_out', $context, $outsideDuty);
         $image = AttendancePhotos::read($photo);
         $path = AttendancePhotos::path($employee->company_id, $employee->id, $open->business_date, $image['ext']);
         $this->photos->upload($path, $image['bytes'], $image['contentType']);
@@ -228,7 +232,8 @@ final class AttendanceEngine
         $settings = $this->settings($actor->company_id);
         $open = $this->open($employee->id);
         $source = $open === null ? $employee : DB::table('outlets')->where('id', $open->outlet_id)->first(['latitude', 'longitude', 'attendance_radius_meter as radius']);
-        $decision = Geofence::evaluate($position, ['latitude' => self::coord($source->latitude), 'longitude' => self::coord($source->longitude), 'radius' => (int) $source->radius], $settings['maxAccuracy'], false);
+        $outsideDuty = OutsideDuty::active($employee->id) !== null || ($open?->outside_duty_request_id ?? null) !== null;
+        $decision = Geofence::evaluate($position, ['latitude' => self::coord($source->latitude), 'longitude' => self::coord($source->longitude), 'radius' => (int) $source->radius], $settings['maxAccuracy'], $outsideDuty);
 
         return [...$decision, 'distance' => self::round1($decision['distance']), 'accuracy' => (int) round($position['accuracy']), 'radius' => (int) $source->radius, 'maxAccuracy' => $settings['maxAccuracy']];
     }
@@ -492,7 +497,7 @@ final class AttendanceEngine
 
     // --- Bantuan ------------------------------------------------------------------------
 
-    private function requireSelf(User $actor, string $permission): object
+    public function requireSelf(User $actor, string $permission): object
     {
         $employee = $this->self($actor) ?? throw new AccessException('forbidden', 'Akun Anda belum terhubung ke data karyawan. Hubungi admin.');
         if (! $actor->can($permission, AccessScope::outlet($employee->outlet_id))) {
@@ -511,13 +516,13 @@ final class AttendanceEngine
     private function open(string $employeeId): ?object
     {
         return DB::table('attendances')->where('employee_id', $employeeId)->whereNull('check_out_at')
-            ->first(['id', 'outlet_id', 'business_date', 'check_in_at']);
+            ->first(['id', 'outlet_id', 'business_date', 'check_in_at', 'outside_duty_request_id']);
     }
 
     /** Geofence; penolakan dicatat di log aktivitas (tanpa foto). */
-    private function checkLocation(User $actor, object $employee, array $position, array $outlet, array $settings, string $purpose, AuditContext $context): array
+    private function checkLocation(User $actor, object $employee, array $position, array $outlet, array $settings, string $purpose, AuditContext $context, bool $outsideDuty): array
     {
-        $decision = Geofence::evaluate($position, $outlet, $settings['maxAccuracy'], false);
+        $decision = Geofence::evaluate($position, $outlet, $settings['maxAccuracy'], $outsideDuty);
         if (! $decision['ok']) {
             $this->audit->record([
                 ...$this->auditBase($employee, $actor),

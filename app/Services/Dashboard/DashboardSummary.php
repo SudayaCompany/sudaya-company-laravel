@@ -48,6 +48,9 @@ final class DashboardSummary
             'pendingOpnames' => $actor->can('approval.view', $scope)
                 ? DB::table('approvals')->where($where)->where('type', 'stock_opname')->where('status', 'pending')->count()
                 : null,
+            'pendingOutsideDuties' => $actor->can('approval.view', $scope)
+                ? DB::table('approvals')->where($where)->where('type', 'outside_duty')->where('status', 'pending')->count()
+                : null,
         ];
     }
 

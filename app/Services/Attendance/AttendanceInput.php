@@ -152,6 +152,48 @@ final class AttendanceInput
         ];
     }
 
+    /**
+     * Pengajuan tugas luar (PRD §15): tanggal + jam lokal outlet, lokasi, tujuan, keterangan.
+     *
+     * @return array{dutyDate: string, startTime: string, endTime: string, location: string, purpose: string, notes: string}
+     */
+    public static function outsideDuty(array $raw): array
+    {
+        $date = self::date($raw['dutyDate'] ?? null) ?? self::fail('Tanggal tugas wajib diisi.');
+        $time = function (mixed $value, string $label): string {
+            if (! is_string($value) || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $value)) {
+                self::fail("{$label} wajib diisi.");
+            }
+
+            return $value;
+        };
+        $start = $time($raw['startTime'] ?? null, 'Jam mulai');
+        $end = $time($raw['endTime'] ?? null, 'Jam selesai');
+        if ($end <= $start) {
+            self::fail('Jam selesai harus setelah jam mulai.');
+        }
+        $text = function (mixed $value, int $min, int $max, string $label): string {
+            $value = is_string($value) ? trim($value) : '';
+            if (mb_strlen($value) < $min) {
+                self::fail($value === '' ? "{$label} wajib diisi." : "{$label} minimal {$min} karakter.");
+            }
+            if (mb_strlen($value) > $max) {
+                self::fail("{$label} maksimal {$max} karakter.");
+            }
+
+            return $value;
+        };
+
+        return [
+            'dutyDate' => $date,
+            'startTime' => $start,
+            'endTime' => $end,
+            'location' => $text($raw['location'] ?? null, 3, 200, 'Lokasi tugas'),
+            'purpose' => $text($raw['purpose'] ?? null, 3, 200, 'Tujuan tugas'),
+            'notes' => $text($raw['notes'] ?? null, 5, 500, 'Keterangan'),
+        ];
+    }
+
     public static function month(mixed $value): ?string
     {
         return is_string($value) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $value) ? $value : null;

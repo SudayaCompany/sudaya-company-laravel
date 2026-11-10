@@ -201,6 +201,8 @@ final class LiveContext
                 $this->removeStorageFolder('menu-images', $companyId);
                 $this->removeAttendancePhotos($companyId);
                 $this->removeStorageFolder('inventory-evidence', $companyId);
+                // Bukti tugas luar: outside-duty/<companyId>/<karyawan>/<file>.
+                $this->removeStorageFolder('attendance-evidence', "outside-duty/{$companyId}");
             }
             // Katalog dulu (FK ke brand); cascade ke outlet_products, product_modifier_groups, modifiers.
             DB::table('products')->whereIn('company_id', $this->companyIds)->delete();

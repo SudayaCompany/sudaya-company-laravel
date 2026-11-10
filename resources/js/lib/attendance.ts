@@ -13,6 +13,8 @@ export type LocationCheck = {
   accuracy: number;
   radius: number;
   maxAccuracy: number;
+  /** "outside_duty" bila tugas luar disetujui sedang berlangsung (radius outlet tidak berlaku). */
+  mode?: string | null;
 };
 
 /** Posisi saat ini (bukan cache), dengan pesan error yang bisa ditindaklanjuti staf. */

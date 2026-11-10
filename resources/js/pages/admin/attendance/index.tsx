@@ -1,5 +1,5 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { ClockIcon, ImageOffIcon, LogOutIcon, SheetIcon, UserRoundCheckIcon, UsersIcon, UserRoundXIcon } from "lucide-react";
+import { BriefcaseBusinessIcon, ClockIcon, ImageOffIcon, LogOutIcon, SheetIcon, UserRoundCheckIcon, UsersIcon, UserRoundXIcon } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
@@ -30,6 +30,7 @@ type Props = {
   outlets: { id: string; name: string }[];
   outlet: { id: string; name: string; timezone: string };
   board: { date: string; isToday: boolean; rows: Row[]; counts: { working: number; done: number; absent: number } };
+  outsideDuties?: { id: string; employeeName: string; startsAt: string | null; endsAt: string | null; location: string; purpose: string }[];
 };
 
 const STATUS = {
@@ -46,7 +47,7 @@ function formatter(options: Intl.DateTimeFormatOptions, timeZone?: string) {
   }
 }
 
-export default function AttendanceBoard({ outlets, outlet, board }: Props) {
+export default function AttendanceBoard({ outlets, outlet, board, outsideDuties = [] }: Props) {
   const time = formatter({ hour: "2-digit", minute: "2-digit" }, outlet.timezone);
   const clock = (iso: string | null) => (iso ? time.format(new Date(iso)) : "—");
   const dayLabel = formatter({ weekday: "long", day: "numeric", month: "long", year: "numeric" }, "UTC").format(new Date(`${board.date}T00:00:00Z`));
@@ -85,6 +86,21 @@ export default function AttendanceBoard({ outlets, outlet, board }: Props) {
         <Count label="Sudah pulang" value={board.counts.done} icon={LogOutIcon} tone="text-muted-foreground" />
         <Count label="Belum absen" value={board.counts.absent} icon={UserRoundXIcon} tone="text-warning-strong" />
       </div>
+
+      {outsideDuties.length > 0 ? (
+        <section aria-labelledby="duty-title" className="flex flex-col gap-2 rounded-xl border border-brand/40 bg-brand-soft p-4">
+          <h2 id="duty-title" className="flex items-center gap-2 text-sm font-semibold">
+            <BriefcaseBusinessIcon className="size-4 text-brand-strong" aria-hidden /> Tugas luar disetujui ({outsideDuties.length})
+          </h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {outsideDuties.map((d) => (
+              <li key={d.id} className="break-words">
+                <span className="font-medium">{d.employeeName}</span> · {clock(d.startsAt)}–{clock(d.endsAt)} · {d.purpose} di {d.location}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {board.rows.length === 0 ? (
         <EmptyState

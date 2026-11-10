@@ -117,7 +117,8 @@ final class AttendanceAdmin
             ->groupBy('employee_id')
             ->selectRaw("employee_id, count(distinct business_date) as days, count(*) as sessions, coalesce(sum(working_minutes), 0) as minutes,
                 count(*) filter (where check_in_method = 'manual_correction' or check_out_method = 'manual_correction') as manual,
-                count(*) filter (where check_out_at is null) as incomplete")
+                count(*) filter (where check_out_at is null) as incomplete,
+                count(*) filter (where outside_duty_request_id is not null) as outside")
             ->get()
             ->keyBy('employee_id');
         $employees = DB::table('employees')
@@ -144,6 +145,7 @@ final class AttendanceAdmin
                     'minutes' => (int) ($s->minutes ?? 0),
                     'manual' => (int) ($s->manual ?? 0),
                     'incomplete' => (int) ($s->incomplete ?? 0),
+                    'outside' => (int) ($s->outside ?? 0),
                 ];
             })->all(),
         ];
@@ -155,15 +157,37 @@ final class AttendanceAdmin
         $report = $this->report($actor, $outlet, $from, $to);
         $rows = array_map(fn ($r) => [
             $r['code'], $r['fullName'], $r['position'], $r['days'], $r['sessions'],
-            sprintf('%d:%02d', intdiv($r['minutes'], 60), $r['minutes'] % 60), $r['minutes'], $r['manual'], $r['incomplete'],
+            sprintf('%d:%02d', intdiv($r['minutes'], 60), $r['minutes'] % 60), $r['minutes'], $r['manual'], $r['outside'], $r['incomplete'],
             $r['isActive'] ? 'Aktif' : 'Nonaktif',
         ], $report['rows']);
-        $header = ['Kode', 'Nama', 'Jabatan', 'Hari hadir', 'Sesi', 'Jam kerja (j:m)', 'Jam kerja (menit)', 'Koreksi manual', 'Belum absen pulang', 'Status karyawan'];
+        $header = ['Kode', 'Nama', 'Jabatan', 'Hari hadir', 'Sesi', 'Jam kerja (j:m)', 'Jam kerja (menit)', 'Koreksi manual', 'Sesi tugas luar', 'Belum absen pulang', 'Status karyawan'];
         $slug = trim((string) preg_replace('/[^a-z0-9]+/', '-', strtolower($outlet['name'] ?? 'outlet')), '-') ?: 'outlet';
+
+        // Data payroll (PRD §60): jam masuk & pulang tiap sesi, waktu lokal outlet.
+        $tz = $outlet['timezone'];
+        $clock = fn (?string $at) => $at === null ? null : CarbonImmutable::parse($at)->setTimezone($tz)->format('H:i');
+        $details = DB::table('attendances')
+            ->join('employees', 'employees.id', '=', 'attendances.employee_id')
+            ->where('attendances.company_id', $actor->company_id)
+            ->where('attendances.outlet_id', $outlet['id'])
+            ->whereBetween('attendances.business_date', [$report['from'], $report['to']])
+            ->orderBy('attendances.business_date')->orderBy('employees.full_name')->orderBy('attendances.check_in_at')
+            ->get(['attendances.business_date', 'attendances.check_in_at', 'attendances.check_out_at', 'attendances.working_minutes',
+                'attendances.check_in_method', 'attendances.check_out_method', 'attendances.outside_duty_request_id', 'employees.employee_code', 'employees.full_name'])
+            ->map(fn ($s) => [
+                $s->business_date, $s->employee_code, $s->full_name, $clock($s->check_in_at), $clock($s->check_out_at),
+                $s->working_minutes === null ? null : (int) $s->working_minutes,
+                $s->check_in_method === 'manual_correction' || $s->check_out_method === 'manual_correction' ? 'Koreksi disetujui' : 'GPS + selfie',
+                $s->outside_duty_request_id === null ? null : 'Ya',
+            ])->all();
 
         return [
             'filename' => "absensi-{$slug}-{$report['from']}-sd-{$report['to']}.xlsx",
-            'bytes' => XlsxWriter::build('Rekap absensi', $header, $rows, [12, 28, 18, 12, 8, 16, 18, 16, 18, 16]),
+            'bytes' => XlsxWriter::workbook([
+                ['name' => 'Rekap absensi', 'header' => $header, 'rows' => $rows, 'widths' => [12, 28, 18, 12, 8, 16, 18, 16, 16, 18, 16]],
+                ['name' => 'Detail absen', 'header' => ['Tanggal', 'Kode', 'Nama', 'Jam masuk', 'Jam pulang', 'Jam kerja (menit)', 'Metode', 'Tugas luar'],
+                    'rows' => $details, 'widths' => [12, 12, 28, 11, 11, 18, 18, 11]],
+            ]),
         ];
     }
 

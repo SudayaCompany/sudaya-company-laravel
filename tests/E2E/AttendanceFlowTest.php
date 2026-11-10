@@ -186,4 +186,60 @@ class AttendanceFlowTest extends ServerTestCase
             $this->assertStringStartsWith('/login', Browser::location($guest));
         }
     }
+
+    public function test_tugas_luar_diajukan_disetujui_lalu_absen_dari_lokasi_tugas(): void
+    {
+        $tz = DB::table('outlets')->where('id', $this->f('A')['outletId'])->value('timezone');
+        $tomorrow = CarbonImmutable::now($tz)->addDay()->toDateString();
+        $cashier = $this->login($this->f('cashier'));
+        $page = Browser::page($cashier->get('/staff/outside-duty'));
+        $this->assertSame('staff/outside-duty', $page['component']);
+        $this->assertSame('Karyawan Kasir E2E', $page['props']['employee']['fullName']);
+        $this->assertContains('/staff/outside-duty', $page['props']['auth']['navigation']);
+
+        $flash = $this->flash($cashier, $cashier->multipart('/staff/outside-duty', [
+            'dutyDate' => $tomorrow, 'startTime' => '09:00', 'endTime' => '15:00', 'location' => 'Gudang pusat E2E', 'purpose' => 'Ambil biji kopi', 'notes' => 'Diminta owner E2E',
+        ], ['photo' => ['name' => 'bukti.jpg', 'bytes' => $this->photo()['photo']['bytes'], 'type' => 'image/jpeg']]));
+        $this->assertSame('Pengajuan tugas luar terkirim dan menunggu persetujuan Manager atau Owner.', $flash['success'] ?? null);
+        $this->assertNotEmpty($this->flash($cashier, $cashier->post('/staff/outside-duty', ['dutyDate' => $tomorrow, 'startTime' => '10:00', 'endTime' => '11:00', 'location' => 'Gudang pusat E2E', 'purpose' => 'Ambil biji kopi', 'notes' => 'Diminta owner E2E']))['error'] ?? null, 'jam bertumpuk ditolak');
+
+        $owner = $this->login($this->f('owner'));
+        $inbox = Browser::page($owner->get('/admin/approvals'));
+        $this->assertCount(1, $inbox['props']['outsideDuties']);
+        $duty = $inbox['props']['outsideDuties'][0];
+        $this->assertSame(['Karyawan Kasir E2E', 'Gudang pusat E2E', true], [$duty['employeeName'], $duty['location'], $duty['canDecide']]);
+        $image = $owner->get($duty['evidenceUrl']);
+        $this->assertSame([200, 'image/jpeg'], [$image->getStatusCode(), $image->getHeaderLine('Content-Type')]);
+        $this->assertStringContainsString('no-store', $image->getHeaderLine('Cache-Control'));
+        // Staf tanpa izin peninjau ditolak di penjaga rute /admin/outside-duty (sebelum service).
+        $this->assertSame(403, $this->login($this->f('barista'))->get($duty['evidenceUrl'])->getStatusCode(), 'staf lain tidak melihat bukti');
+        // Klien test tidak mengirim Referer: buka lagi kotak Persetujuan agar back() kembali ke sana
+        // (browser asli mengirim Referer halaman Persetujuan, bukan URL foto).
+        $owner->get('/admin/approvals');
+        $flash = $this->flash($owner, $owner->post("/admin/approvals/{$duty['id']}/decide", ['approve' => true]));
+        $this->assertSame('Tugas luar disetujui.', $flash['success'] ?? null);
+
+        // Jendela tugas digeser ke sekarang (simulasi hari H; data test saja) lalu absen dari ±222 m.
+        DB::table('outside_duty_requests')->where('id', $duty['requestId'])->update(['starts_at' => DB::raw("now() - interval '1 hour'"), 'ends_at' => DB::raw("now() + interval '2 hours'")]);
+        $state = Browser::page($cashier->get('/staff/attendance'))['props'];
+        $this->assertSame('Gudang pusat E2E', $state['outsideDuty']['location']);
+        $flash = $this->flash($cashier, $cashier->multipart('/staff/attendance/check-in', $this->at(0.002), $this->photo()));
+        $this->assertStringStartsWith('Absen masuk tercatat', $flash['success'] ?? '');
+        $session = DB::table('attendances')->where('employee_id', $this->f('employee'))->whereNull('check_out_at')->first();
+        $this->assertSame($duty['requestId'], $session->outside_duty_request_id);
+        $flash = $this->flash($cashier, $cashier->multipart('/staff/attendance/check-out', $this->at(0.0025), $this->photo()));
+        $this->assertStringStartsWith('Absen pulang tercatat', $flash['success'] ?? '');
+
+        $mine = Browser::page($cashier->get('/staff/outside-duty'))['props']['requests'];
+        $this->assertSame([['approved', true]], array_map(fn ($r) => [$r['status'], $r['active']], $mine));
+        $board = Browser::page($owner->get("/admin/attendance?date={$tomorrow}"))['props']['outsideDuties'];
+        $this->assertSame([$duty['requestId']], array_column($board, 'id'));
+
+        // Batas akses: tamu ke login; Owner (tanpa izin absen) tidak membuka halaman staf ini.
+        $guest = $this->browser()->get('/staff/outside-duty');
+        $this->assertSame(302, $guest->getStatusCode());
+        $this->assertStringStartsWith('/login', Browser::location($guest));
+        $this->assertSame(403, $owner->get('/staff/outside-duty')->getStatusCode());
+        $this->assertSame(1, DB::table('outside_duty_requests')->where('company_id', $this->f('A')['id'])->count(), 'hanya satu pengajuan tersimpan');
+    }
 }

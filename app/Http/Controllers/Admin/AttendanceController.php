@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Exceptions\AccessException;
 use App\Services\Attendance\AttendanceAdmin;
 use App\Services\Attendance\AttendanceInput;
+use App\Services\Attendance\OutsideDuty;
 use App\Services\Audit\AuditContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -16,16 +17,18 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 /** Kehadiran harian, rekap + ekspor, foto absen berizin, dan pengaturan lokasi absen. */
 class AttendanceController
 {
-    public function __construct(private AttendanceAdmin $attendance) {}
+    public function __construct(private AttendanceAdmin $attendance, private OutsideDuty $duties) {}
 
     public function index(Request $request): Response
     {
         [$outlets, $outlet] = $this->outlet($request, 'attendance.view');
+        $board = $this->attendance->board($request->user(), $outlet, AttendanceInput::date($request->query('date')));
 
         return Inertia::render('admin/attendance/index', [
             'outlets' => array_map(fn ($o) => ['id' => $o['id'], 'name' => $o['name']], $outlets),
             'outlet' => ['id' => $outlet['id'], 'name' => $outlet['name'], 'timezone' => $outlet['timezone']],
-            'board' => $this->attendance->board($request->user(), $outlet, AttendanceInput::date($request->query('date'))),
+            'board' => $board,
+            'outsideDuties' => $this->duties->forDate($request->user(), $outlet, $board['date']),
         ]);
     }
 

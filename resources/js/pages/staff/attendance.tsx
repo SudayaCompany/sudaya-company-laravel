@@ -1,6 +1,7 @@
 import { Head, Link, router } from "@inertiajs/react";
 import {
   ArrowLeftIcon,
+  BriefcaseBusinessIcon,
   CameraIcon,
   CircleCheckIcon,
   HistoryIcon,
@@ -42,6 +43,7 @@ type Props = {
   open?: { id: string; checkInAt: string | null; businessDate: string; fromEarlierDay: boolean } | null;
   today?: Session[];
   pendingCorrections?: number;
+  outsideDuty?: { location: string; endsAt: string | null } | null;
 };
 
 /** `at` = waktu posisi diterima di perangkat (ms), untuk menghitung umurnya saat dikirim. */
@@ -69,7 +71,7 @@ function useElapsed(since: string | null | undefined) {
   return since ? Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000)) : null;
 }
 
-export default function StaffAttendance({ employee, settings, open = null, today = [], pendingCorrections = 0 }: Props) {
+export default function StaffAttendance({ employee, settings, open = null, today = [], pendingCorrections = 0, outsideDuty = null }: Props) {
   useInlineFlashError();
   const fileInput = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
@@ -198,6 +200,12 @@ export default function StaffAttendance({ employee, settings, open = null, today
           .
         </Notice>
       ) : null}
+      {outsideDuty ? (
+        <Notice tone="info">
+          <span className="font-medium">Tugas luar aktif</span> di {outsideDuty.location} sampai {clock(outsideDuty.endsAt)}. Absen boleh dari lokasi tugas;
+          GPS dan selfie tetap dicatat.
+        </Notice>
+      ) : null}
       {blocked ? <Notice tone="warning">{blocked}</Notice> : null}
 
       <input
@@ -300,11 +308,18 @@ export default function StaffAttendance({ employee, settings, open = null, today
         <HistoryIcon className="size-5 text-brand-strong" aria-hidden />
         <span className="flex-1">Riwayat & koreksi absen</span>
       </Link>
+      <Link
+        href="/staff/outside-duty"
+        className="flex min-h-12 items-center gap-3 rounded-xl border bg-card px-4 text-sm font-medium transition-colors hover:border-brand focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <BriefcaseBusinessIcon className="size-5 text-brand-strong" aria-hidden />
+        <span className="flex-1">Tugas luar outlet</span>
+      </Link>
 
       <p className="flex items-start gap-2 text-xs text-muted-foreground">
         <ShieldCheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
         Foto dan lokasi hanya dipakai sebagai bukti kehadiran. Foto dihapus otomatis setelah 90 hari. Lokasi dicek dengan radius {employee.radius} m dari
-        outlet dan akurasi GPS maksimal ±{settings.maxAccuracy} m.
+        outlet (kecuali saat tugas luar disetujui) dan akurasi GPS maksimal ±{settings.maxAccuracy} m.
       </p>
     </Shell>
   );
@@ -334,6 +349,14 @@ function LocationStatus({ locating, located, error }: { locating: boolean; locat
       </p>
     );
   }
+  if (check.mode === "outside_duty") {
+    return (
+      <p className="flex items-start gap-1.5 text-success-strong" data-testid="location-result">
+        <BriefcaseBusinessIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+        Lokasi tercatat (tugas luar) · akurasi ±{check.accuracy} m
+      </p>
+    );
+  }
   return (
     <p className="flex items-start gap-1.5 text-success-strong" data-testid="location-result">
       <MapPinIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -342,10 +365,11 @@ function LocationStatus({ locating, located, error }: { locating: boolean; locat
   );
 }
 
-function Notice({ tone, children }: { tone: "warning"; children: React.ReactNode }) {
+function Notice({ tone, children }: { tone: "warning" | "info"; children: React.ReactNode }) {
+  const Icon = tone === "info" ? BriefcaseBusinessIcon : TriangleAlertIcon;
   return (
-    <p className={cn("flex items-start gap-2 rounded-xl border p-3 text-sm", tone === "warning" && "border-warning/50 bg-warning/10")}>
-      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-warning-strong" aria-hidden />
+    <p className={cn("flex items-start gap-2 rounded-xl border p-3 text-sm", tone === "warning" ? "border-warning/50 bg-warning/10" : "border-brand/40 bg-brand-soft")}>
+      <Icon className={cn("mt-0.5 size-4 shrink-0", tone === "warning" ? "text-warning-strong" : "text-brand-strong")} aria-hidden />
       <span>{children}</span>
     </p>
   );

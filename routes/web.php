@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\ModifierController;
 use App\Http\Controllers\Admin\OutletController;
+use App\Http\Controllers\Admin\OutsideDutyController as AdminOutsideDutyController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
@@ -30,6 +31,7 @@ use App\Http\Controllers\Pos\OrderActionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\PosOrderController;
 use App\Http\Controllers\Staff\AttendanceController as StaffAttendanceController;
+use App\Http\Controllers\Staff\OutsideDutyController as StaffOutsideDutyController;
 use App\Http\Controllers\StaffController;
 use App\Http\Middleware\AuthorizeRoute;
 use App\Http\Middleware\EnsureActiveStaff;
@@ -62,6 +64,10 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::post('/staff/attendance/check-out', [StaffAttendanceController::class, 'checkOut']);
         Route::get('/staff/attendance/history', [StaffAttendanceController::class, 'history']);
         Route::post('/staff/attendance/corrections', [StaffAttendanceController::class, 'correction']);
+        // Tugas luar (PRD §15): ajukan, pantau, batalkan yang belum diputuskan.
+        Route::get('/staff/outside-duty', [StaffOutsideDutyController::class, 'index']);
+        Route::post('/staff/outside-duty', [StaffOutsideDutyController::class, 'store']);
+        Route::post('/staff/outside-duty/{duty}/cancel', [StaffOutsideDutyController::class, 'cancel']);
         Route::get('/pos', [PosController::class, 'index']);
         Route::post('/pos/orders', [PosController::class, 'store']);
         Route::get('/pos/orders', [PosOrderController::class, 'index']);
@@ -101,6 +107,7 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/attendance/settings/outlets/{outlet}', [AttendanceController::class, 'updateGeofence']);
             Route::post('/attendance/settings/accuracy', [AttendanceController::class, 'updateAccuracy']);
             Route::get('/attendance/{attendance}/photo/{side}', [AttendanceController::class, 'photo']);
+            Route::get('/outside-duty/{duty}/evidence', [AdminOutsideDutyController::class, 'evidence']);
             Route::get('/employees', [EmployeeController::class, 'index']);
             Route::get('/employees/create', [EmployeeController::class, 'create']);
             Route::post('/employees', [EmployeeController::class, 'store']);

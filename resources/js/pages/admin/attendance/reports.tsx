@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AdminLayout } from "@/layouts/admin-layout";
 import { formatMinutes } from "@/lib/attendance";
 
-type Row = { id: string; code: string; fullName: string; position: string | null; isActive: boolean; days: number; sessions: number; minutes: number; manual: number; incomplete: number };
+type Row = { id: string; code: string; fullName: string; position: string | null; isActive: boolean; days: number; sessions: number; minutes: number; manual: number; incomplete: number; outside: number };
 type Props = {
   outlets: { id: string; name: string }[];
   outlet: { id: string; name: string };
@@ -73,6 +73,7 @@ export default function AttendanceReports({ outlets, outlet, report }: Props) {
                   <TableHead className="text-right">Hari hadir</TableHead>
                   <TableHead className="text-right">Jam kerja</TableHead>
                   <TableHead className="text-right">Koreksi</TableHead>
+                  <TableHead className="text-right">Tugas luar</TableHead>
                   <TableHead className="text-right">Belum pulang</TableHead>
                 </TableRow>
               </TableHeader>
@@ -91,6 +92,7 @@ export default function AttendanceReports({ outlets, outlet, report }: Props) {
                     <TableCell className="text-right tabular-nums">{r.days}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatMinutes(r.minutes)}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.manual}</TableCell>
+                    <TableCell className="text-right tabular-nums">{r.outside}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.incomplete > 0 ? <span className="font-medium text-warning-strong">{r.incomplete}</span> : 0}</TableCell>
                   </TableRow>
                 ))}
@@ -101,7 +103,8 @@ export default function AttendanceReports({ outlets, outlet, report }: Props) {
       )}
       <p className="text-xs text-muted-foreground">
         Jam kerja = jumlah selisih absen masuk dan pulang (sesi yang belum absen pulang belum dihitung). Koreksi = sesi yang dicatat lewat pengajuan koreksi
-        yang disetujui.
+        yang disetujui. Tugas luar = sesi absen saat tugas luar disetujui. File ekspor berisi rekap dan detail jam masuk/pulang tiap sesi untuk
+        payroll.
       </p>
     </AdminLayout>
   );

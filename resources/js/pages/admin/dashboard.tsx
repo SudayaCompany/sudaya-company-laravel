@@ -9,6 +9,7 @@ import {
   ClipboardCheckIcon,
   CoffeeIcon,
   HourglassIcon,
+  MapPinnedIcon,
   PackageXIcon,
   RefreshCwIcon,
   StoreIcon,
@@ -55,6 +56,7 @@ type Summary = {
   attendance: { employees: number; working: number; done: number; absent: number } | null;
   stock: { counts: { ok: number; low: number; out: number; inactive: number }; attention: { id: string; name: string; stock: string; status: "low" | "out" }[] } | null;
   pendingOpnames: number | null;
+  pendingOutsideDuties: number | null;
 };
 
 type Props = {
@@ -209,6 +211,7 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
           pendingApprovals={summary.pendingApprovals}
           pendingCorrections={summary.pendingCorrections}
           pendingOpnames={summary.pendingOpnames}
+          pendingOutsideDuties={summary.pendingOutsideDuties}
           lowStock={stock ? stock.counts.low + stock.counts.out : null}
           pendingPayment={orders?.pendingPayment ?? null}
           soldOut={summary.soldOut}
@@ -388,6 +391,7 @@ function NeedsAction({
   pendingApprovals,
   pendingCorrections,
   pendingOpnames,
+  pendingOutsideDuties,
   lowStock,
   pendingPayment,
   soldOut,
@@ -398,6 +402,7 @@ function NeedsAction({
   pendingApprovals: number | null;
   pendingCorrections: number | null;
   pendingOpnames: number | null;
+  pendingOutsideDuties: number | null;
   lowStock: number | null;
   pendingPayment: number | null;
   soldOut: number | null;
@@ -410,6 +415,7 @@ function NeedsAction({
   const items: { key: string; icon: LucideIcon; text: string; href: string | null; urgent: boolean }[] = [];
   if (pendingApprovals) items.push({ key: "approvals", icon: BadgeCheckIcon, text: `${count(pendingApprovals)} pembatalan menunggu persetujuan`, href: links.approvals, urgent: true });
   if (pendingCorrections) items.push({ key: "corrections", icon: CalendarCheckIcon, text: `${count(pendingCorrections)} koreksi absen menunggu persetujuan`, href: links.approvals, urgent: true });
+  if (pendingOutsideDuties) items.push({ key: "outside", icon: MapPinnedIcon, text: `${count(pendingOutsideDuties)} tugas luar menunggu persetujuan`, href: links.approvals, urgent: true });
   if (pendingOpnames) items.push({ key: "opnames", icon: BoxesIcon, text: `${count(pendingOpnames)} stock opname menunggu persetujuan`, href: links.approvals, urgent: true });
   if (lowStock) items.push({ key: "stock", icon: TriangleAlertIcon, text: `${count(lowStock)} item stok menipis/habis`, href: links.stock, urgent: false });
   if (pendingPayment) items.push({ key: "payment", icon: HourglassIcon, text: `${count(pendingPayment)} pesanan menunggu pembayaran`, href: links.orders, urgent: false });
