@@ -1,6 +1,6 @@
 # UAT operasional outlet Sudaya Coffee
 
-Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
+Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) dan 37–43 (supplier, purchase order, resep, pengeluaran, pelanggan) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
 
 Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATION.md)), smoke test staging lolos ([LARAVEL_STAGING_RUNBOOK.md](LARAVEL_STAGING_RUNBOOK.md) §10), akun UAT untuk Kasir, Barista, Manager (2 orang), dan Owner, serta uang kas uji yang dihitung.
 
@@ -42,10 +42,17 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 34 | Laporan penjualan | Owner → Laporan penjualan → Hari ini, 7 hari, Bulan ini, tanggal bebas | Omzet = dasbor untuk hari ini; perbandingan periode sebelumnya, grafik harian/jam ramai, menu terlaris, kategori, metode bayar sesuai transaksi UAT | | | Owner |
 | 35 | Ekspor & cetak laporan | Laporan penjualan → Ekspor ke spreadsheet; Cetak | File `.xlsx` 6 sheet terbuka di Excel/Google Sheets; versi cetak tanpa menu samping | | | Owner |
 | 36 | Rekap absensi untuk payroll | Rekap absensi → pilih rentang → Ekspor | Sheet Rekap (hari, jam kerja, koreksi, tugas luar) dan Detail absen (jam masuk/pulang tiap sesi) | | | Owner |
+| 37 | Supplier | Manager → Supplier → Supplier baru (nama, kontak, termin) → ubah termin | Supplier tampil dengan kontak & termin; nama ganda ditolak | | | Manager |
+| 38 | Purchase order sampai barang diterima | Manager → Purchase order → Buat PO (mis. 2 kg biji, harga per kg) → Owner setujui di Persetujuan → saat barang datang buka PO → Terima barang (isi jumlah yang datang) | PO "Menunggu persetujuan" → "Disetujui" → "Diterima"; stok bertambah sesuai jumlah diterima (kg dicatat dalam g); harga beli item diperbarui; Manager tidak bisa menyetujui PO-nya sendiri | | | Manager + Owner |
+| 39 | PO ditolak / dibatalkan | Ajukan PO lalu tolak; ajukan PO lain lalu batalkan sebelum diputuskan | PO ditolak tidak bisa diterima; PO batal hilang dari Persetujuan | | | Manager + Owner |
+| 40 | Resep memotong bahan | Atur resep 1 menu (mis. biji 18 g, susu 150 ml) → jual 2 porsi → batalkan 1 pesanan lunas (disetujui) | Bahan berkurang sesuai resep saat dibayar dan kembali setelah pembatalan disetujui (Riwayat stok "Terjual"/"Pembalikan") | | | Kasir + Manager |
+| 41 | Bahan kurang tidak menghentikan penjualan | Kosongkan stok satu bahan resep → jual menu itu | Pembayaran tetap berhasil; stok bahan 0; kekurangan tercatat di Log aktivitas | | | Kasir + Owner |
+| 42 | Pengeluaran | Kasir/Barista → Catat pengeluaran (parkir + foto nota) → Manager/Owner setujui di Persetujuan | Status Disetujui; total per kategori di Pengeluaran; Laporan penjualan menampilkan omzet dikurangi pengeluaran | | | Kasir + Manager |
+| 43 | Data pelanggan | Pesan lewat QR meja 2× dengan nomor HP yang sama (bayar di kasir) → Owner → Pelanggan | Pelanggan tampil dengan 2 transaksi, total belanja, poin (Rp10.000 = 1), menu favorit; nomor disamarkan; pesanan dibatalkan tidak dihitung | | | Owner |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–36 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–43 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|

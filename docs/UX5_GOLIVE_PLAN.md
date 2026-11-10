@@ -16,7 +16,8 @@ Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Ke
 | M6 laporan penjualan (periode, pembanding, harian, per jam, kategori, menu, metode bayar, ekspor multi-sheet, cetak) | **DONE — Development Verified** (9 Nov, commit lokal) |
 | Tugas luar (pengajuan + bukti, persetujuan, absen dari lokasi tugas) + data payroll di ekspor absensi | **DONE — Development Verified** (9 Nov, commit lokal) |
 | Pengenalan wajah, QRIS | Menunggu provider resmi (tidak diaktifkan tanpa provider sah) |
-| Fase 2 PRD (supplier, purchase order, resep/BOM, loyalty, CRM, promo/voucher, pengeluaran) | Belum — butuh tabel baru (migration) dan keputusan owner |
+| Fase 2 PRD: supplier & purchase order, pengeluaran, resep/BOM + potong bahan otomatis, data pelanggan + poin (hanya-baca) | **DONE — Development Verified** (10 Nov, commit lokal; migration aditif dijalankan di dev) |
+| Promo/voucher, penukaran poin/loyalty | Belum — mengubah harga checkout (aturan dikunci owner); butuh aturan bisnis & persetujuan |
 | Hosting, Supabase production/staging, domain | **Belum ada — penghalang utama** |
 
 ## 2. Apa yang dibutuhkan agar klien bisa langsung memakai web

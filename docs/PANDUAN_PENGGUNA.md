@@ -6,12 +6,12 @@ Untuk Owner, Super Admin, Manager, Kasir, Barista, dan seluruh staf. Alamat web 
 
 | Peran | Yang bisa dilakukan |
 |---|---|
-| **Owner** | Dasbor, laporan penjualan & ekspor, pesanan hari ini, persetujuan (pembatalan, koreksi absen, tugas luar, stock opname), kas (hanya-lihat), stok (pantau), menu (tambah/ubah, habis, ekspor), kehadiran & rekap absensi, data karyawan, log aktivitas |
+| **Owner** | Dasbor, laporan penjualan & ekspor, pesanan hari ini, persetujuan (pembatalan, koreksi absen, tugas luar, stock opname, purchase order, pengeluaran), kas (hanya-lihat), stok, supplier & PO, resep (pantau), pengeluaran, menu (tambah/ubah, habis, ekspor), kehadiran & rekap absensi, data karyawan, log aktivitas |
 | **Super Admin** | Semua fitur, termasuk outlet & meja, akun staf, peran & izin, pengaturan absen |
-| **Manager** | Kasir, kas (buka/tutup), barista display, batal & refund tunai, persetujuan, laporan penjualan, stok (item, masuk, keluar, opname), ubah menu & tandai habis, kehadiran, absen |
-| **Kasir** | Kasir (POS), pesanan, kas, absen |
-| **Barista** | Barista display (antrean), ajukan pembatalan, catat waste / stok keluar, absen |
-| **Admin** | Menu, kategori, varian & tambahan, stok (item, masuk, keluar, opname) |
+| **Manager** | Kasir, kas (buka/tutup), barista display, batal & refund tunai, persetujuan, laporan penjualan, stok (item, masuk, keluar, opname), resep, supplier & purchase order (buat, terima barang), pengeluaran, ubah menu & tandai habis, kehadiran, absen |
+| **Kasir** | Kasir (POS), pesanan, kas, catat pengeluaran, absen |
+| **Barista** | Barista display (antrean), ajukan pembatalan, catat waste / stok keluar, catat pengeluaran, absen |
+| **Admin** | Menu, kategori, varian & tambahan, stok (item, masuk, keluar, opname), resep, supplier & purchase order, catat pengeluaran |
 
 - Masuk lewat halaman **Login** dengan email dan password masing-masing. Setelah masuk, setiap orang langsung diarahkan ke halaman sesuai perannya.
 - Lupa password: minta Super Admin membuat **tautan pemulihan** di menu **Staf**.
@@ -32,6 +32,9 @@ Menu **Laporan penjualan** (atau tautan di dasbor). Pilih periode **Hari ini, Ke
 - **Omzet harian** (untuk periode lebih dari 1 hari) dan **Jam ramai**: arahkan kursor/ketuk kolom untuk angkanya, atau buka **Tampilkan sebagai tabel**.
 - **Menu terlaris**, **Per kategori**, dan **Metode pembayaran**.
 - **Ekspor ke spreadsheet**: satu file berisi sheet Ringkasan, Harian, Menu terlaris, Kategori, Per jam, dan Metode bayar. **Cetak** untuk versi kertas/PDF.
+
+### Pelanggan
+Menu **Pelanggan**: daftar pelanggan dari pesanan lunas yang mencantumkan nomor HP (checkout QR/kiosk atau delivery): jumlah transaksi, total belanja, rata-rata, transaksi terakhir, menu favorit, **poin** (Rp10.000 = 1 poin) dan **tier** (Member, Silver ≥ Rp300.000, Gold ≥ Rp1.000.000). Nomor HP disamarkan; ketuk ikon mata untuk melihat nomor lengkap. Pesanan yang dibatalkan/direfund tidak dihitung. Penukaran poin belum tersedia.
 
 ### Persetujuan
 Pembatalan pesanan yang **sudah dibayar**, koreksi absen staf, **tugas luar**, dan **stock opname** yang ada selisihnya harus disetujui Owner atau Manager (bukan orang yang mengajukan). Foto bukti tugas luar bisa dibuka dari kartunya. Menu **Persetujuan**, lalu pilih **Setujui** (dengan konfirmasi) atau **Tolak**. Uang pesanan yang dibatalkan dikembalikan Manager lewat **Catat refund tunai** di detail pesanan saat uang diserahkan.
@@ -60,10 +63,16 @@ Grup menu **Stok**. Satuan bisa dicatat dalam satuan lain yang setara (mis. stok
 3. **Stok keluar & waste**: tumpah, rusak, kedaluwarsa, salah produksi, dipakai sendiri. Alasan wajib; foto bukti bisa diambil langsung dari kamera HP.
 4. **Stock opname** (mis. tiap akhir bulan): **Mulai stock opname**, isi hitungan fisik tiap item, lalu **Ajukan opname**. Tanpa selisih langsung diterapkan; ada selisih → alasan wajib dan menunggu persetujuan Owner/Manager di **Persetujuan**.
 5. **Riwayat stok**: semua gerakan stok per item, siapa yang mencatat, dan foto buktinya. Riwayat tidak bisa diubah atau dihapus.
+6. **Resep (BOM)**: pilih menu, isi bahan per 1 porsi (mis. Latte: biji 18 g, susu 150 ml, cup 1 pcs). Saat pesanan dibayar bahan dipotong otomatis dan kembali bila pembatalan disetujui. Penjualan **tidak pernah ditolak** karena bahan kurang: stok dipotong sampai habis dan kekurangannya tercatat di Log aktivitas — tanda perlu stok masuk atau opname.
+7. **Supplier → Purchase order**: daftarkan supplier (kontak, produk, termin). **Buat PO** (barang, jumlah, harga per satuan) → diajukan ke **Persetujuan** → setelah disetujui, saat barang datang buka PO lalu **Terima barang** (isi jumlah yang benar-benar datang). Stok bertambah otomatis sebagai Pembelian dan harga beli item diperbarui.
 
 Status di daftar stok: **Aman**, **Menipis** (di bawah minimum), **Habis**. Item menipis/habis juga tampil di dasbor Owner.
 
-## 5. Kasir
+## 5. Pengeluaran
+
+Menu **Pengeluaran** (atau pintasan **Catat pengeluaran** di beranda staf): tanggal, nominal, kategori (parkir, transport, pembelian kecil, perawatan, kebersihan, lainnya), keterangan, dan foto nota. Pengeluaran menunggu persetujuan Owner/Manager di **Persetujuan** (bukan orang yang mencatat). Halaman ini menampilkan total disetujui per bulan dan per kategori; **Laporan penjualan** menampilkan "omzet dikurangi pengeluaran" untuk periode yang sama. Uang yang diambil dari laci kasir tetap dicatat juga di **Kas → Kas keluar**.
+
+## 6. Kasir
 
 1. **Buka kas** setiap awal shift: menu **Kas**, isi modal awal (uang di laci), lalu **Buka sesi kas**. Pembayaran tunai baru bisa diterima setelah kas dibuka.
 2. **Kasir (POS)**: ketuk menu untuk menambah (menu dengan varian membuka pilihan), pilih **Bawa pulang / Makan di sini / Antar**, isi uang diterima (atau ketuk nominal cepat), lalu **Bayar tunai & proses**. Nomor antrean dan kembalian tampil besar, dan struk bisa langsung dicetak.
@@ -71,11 +80,11 @@ Status di daftar stok: **Aman**, **Menipis** (di bawah minimum), **Habis**. Item
 4. **Batal & refund**: akun Kasir tidak bisa membatalkan pesanan. Minta Manager (atau Barista mengajukan pembatalan). Pesanan belum dibayar langsung batal; yang sudah dibayar butuh persetujuan Owner/Manager, lalu Manager mencatat **refund tunai** saat uang diserahkan.
 5. **Tutup kas** di akhir shift: hitung uang di laci, isi **Uang fisik**, lalu tulis alasan bila ada selisih.
 
-## 6. Barista
+## 7. Barista
 
 Menu **Barista display** menampilkan antrean **Antre → Dibuat → Siap**. Ketuk **Mulai buat**, lalu **Tandai siap**, lalu **Sudah diambil** sesuai proses. Pesanan baru muncul otomatis. Bila status koneksi bertuliskan "Cek berkala" atau "Tidak ada internet", periksa Wi-Fi.
 
-## 7. Absen staf (GPS + selfie)
+## 8. Absen staf (GPS + selfie)
 
 1. Buka **Absen** dari beranda staf (atau menu **Absen** di kasir).
 2. Ketuk **Absen masuk**. Kamera depan terbuka; ambil selfie.
@@ -92,13 +101,13 @@ Bila absen gagal:
 
 Foto dan lokasi hanya dipakai sebagai bukti kehadiran dan hanya bisa dibuka Owner/Manager. **Foto selfie dan foto bukti tugas luar dihapus otomatis setelah 90 hari**; jam, lokasi absen, dan data pengajuan tetap tersimpan.
 
-## 8. Pelanggan
+## 9. Pelanggan
 
 - **QR meja**: pelanggan memindai QR di meja, memilih menu, lalu membayar di kasir. Status pesanan bisa dipantau dari tautan yang tampil.
 - **Kiosk**: layar pemesanan mandiri di outlet; pembayaran tetap di kasir.
 - Pembayaran QRIS belum aktif. Semua pembayaran tunai di kasir.
 
-## 9. Bantuan cepat
+## 10. Bantuan cepat
 
 | Masalah | Yang dilakukan |
 |---|---|
@@ -109,3 +118,5 @@ Foto dan lokasi hanya dipakai sebagai bukti kehadiran dan hanya bisa dibuka Owne
 | Ada selisih kas | Lihat **Kas → Riwayat sesi** dan **Log aktivitas** |
 | Pembayaran ditolak "Stok … tidak cukup" | Produk jadi yang ditautkan ke menu habis. Catat **Stok masuk**, atau tandai menu **Habis** |
 | Angka stok tidak sesuai fisik | Lakukan **Stock opname**; selisih berlaku setelah disetujui |
+| Stok bahan habis padahal masih ada | Periksa resep menu (jumlah per porsi) lalu lakukan **Stock opname** |
+| PO tidak bisa diterima | PO harus disetujui dulu di **Persetujuan** |

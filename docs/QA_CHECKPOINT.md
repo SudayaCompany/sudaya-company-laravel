@@ -279,3 +279,48 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 - Keterlambatan (telat) butuh jadwal shift per karyawan.
 - Laporan per jam memakai jam bayar; pesanan lama dari sistem lain tidak ada.
 - Stok bahan baku belum berkurang otomatis per penjualan (butuh resep/BOM, Fase 2); dicatat lewat stok keluar dan opname.
+
+## Fase 2 PRD — supplier & purchase order, pengeluaran, resep/BOM (10 November 2026)
+
+**Status: Development Verified, menunggu review owner.** Atas arahan owner 10 November ("gass selesaikan semuanya"). Commit lokal `f687503` (supplier/PO + pengeluaran + pelanggan) dan `8510981` (resep/BOM, terpisah karena menyentuh jalur pembayaran) + commit dokumen; **belum di-push**. Database dev bersih setelah QA (hanya company seed `sudaya`).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Migration (dev, 10 Nov) | `2026_11_10_000001`: nilai `purchase_order` pada enum `approval_type` (aditif, di luar transaksi). `2026_11_10_000002`: tabel baru `suppliers`, `purchase_orders`, `purchase_order_items`, `expenses` (RLS aktif tanpa policy, uang bigint rupiah, kuantitas numeric 14,3). Tabel lama tidak diubah | `database/migrations/` |
+| Supplier & purchase order (PRD §26–27) | Supplier level company (nama unik, kontak, produk, termin, catatan, aktif) + histori (jumlah PO, total diterima, PO terakhir). PO per outlet: barang + jumlah dengan konversi satuan + harga per satuan → total → langsung diajukan ke **Persetujuan** (nomor `PO-yymmdd-NN` berurutan per outlet). Disetujui → **Terima barang** (jumlah yang benar-benar datang; 0 = tidak datang) → stok masuk "Pembelian" lewat ledger yang sama (idempotent per PO+item) + harga beli diperbarui. Ditolak/dibatalkan tidak bisa diterima | `Services/Purchasing/Purchasing.php`, `Admin/PurchasingController.php`, `pages/admin/purchasing/*` |
+| Pengeluaran (PRD §59, §69) | Tanggal (≤ hari ini, ≤ 60 hari ke belakang), kategori (parkir, transport, pembelian kecil, perawatan, kebersihan, lainnya), nominal, keterangan, foto nota (bucket privat `inventory-evidence`). Pengaju melihat miliknya; peninjau melihat semua + total disetujui/menunggu per bulan & per kategori. Persetujuan Owner/Manager, bukan pemohon; batalkan sendiri selama menunggu. Laporan penjualan menampilkan pengeluaran disetujui dan omzet dikurangi pengeluaran (juga di ekspor). Saldo laci kas tidak diubah | `Services/Finance/Expenses.php`, `Admin/ExpenseController.php`, `pages/admin/expenses/index.tsx` |
+| Resep/BOM (PRD §93) | Tabel `product_recipe_items` yang sudah ada: bahan per 1 porsi per outlet (konversi satuan, tanpa duplikat, item produk jadi menu itu ditolak), perkiraan modal bahan dari harga beli terakhir. Saat bayar, bahan dipotong bersama produk jadi dalam transaksi yang sama (urutan item tetap); **bahan tidak pernah menolak penjualan** — stok tidak boleh minus, jadi dipotong sampai habis dan kekurangannya (`shortfall`) dicatat di log aktivitas `inventory.sale_posted`. Pembatalan lunas yang disetujui membalik semua potongan. Produk jadi tetap ketat (keputusan 9 Nov) | `Services/Inventory/{Recipes,InventoryLedger}.php`, `Admin/RecipeController.php`, `pages/admin/inventory/recipes/*` |
+| Data pelanggan (PRD §51–55, hanya-baca) | Dihitung dari pesanan lunas yang mencantumkan nomor HP (checkout QR/kiosk, delivery POS): transaksi, total belanja, rata-rata, terakhir/pertama, menu favorit, poin (contoh PRD Rp10.000 = 1 poin; otomatis turun bila batal/refund karena hanya lunas yang dihitung), tier Member/Silver ≥ Rp300.000/Gold ≥ Rp1.000.000. Nomor disamarkan di daftar (lihat lengkap dengan ikon mata). Tidak mengubah checkout; penukaran poin belum ada | `Services/Customers/CustomerInsights.php`, `Admin/CustomerController.php`, `pages/admin/customers/index.tsx` |
+| Izin (tanpa perubahan RBAC) | Memakai izin yang sudah ada: supplier/PO/terima barang = `inventory.receive` (Manager, Admin), lihat = `inventory.view`; resep ubah = `inventory.adjust`; pengeluaran dicatat oleh pemegang `cash.view` atau `inventory.issue` (Kasir, Barista, Manager, Owner), ditinjau `approval.view`, diputuskan `approval.approve`. Peta rute ditambah `/admin/suppliers`, `/admin/purchase-orders`, `/admin/expenses`, `/admin/inventory/recipes`, `/admin/customers` (customer.view) | `RouteAccess.php`, `HandleInertiaRequests.php` |
+| Navigasi | Sidebar: Resep (BOM), Purchase order, Supplier (grup Stok); Pengeluaran (Operasional); beranda staf: Catat pengeluaran; dasbor: "pengeluaran/PO menunggu persetujuan"; kotak Persetujuan: kartu PO & pengeluaran | `layouts/admin-layout.tsx`, `pages/admin/{approvals,dashboard}.tsx`, `pages/staff/home.tsx` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | |
+| Unit/feature | 157/157 | 0 | |
+| Live `PurchasingExpenseTest` (baru) | **4/4 (73 assertion)** | 0 | supplier (validasi, nama ganda, izin, tenant); PO 2 kg → 2.000 g @ Rp150/g total Rp300.000, belum disetujui tidak bisa diterima, pemohon tidak memutuskan, terima sebagian 1.800 g → stok & harga beli, terima ulang ditolak; PO ditolak/dibatalkan, nomor berurutan, isolasi tenant; pengeluaran (validasi, foto nota, visibilitas pengaju vs peninjau, keputusan, total per kategori, masuk laporan penjualan, bukti berizin, batal sendiri) |
+| Live `RecipeTest` (baru) | **3/3 (25 assertion)** | 0 | validasi resep (duplikat, produk jadi, izin, tenant), 2 latte + 1 croissant → bahan & produk jadi terpotong, batal disetujui → kembali; susu kurang → bayar tetap lunas, susu 0 + shortfall 50 ml di log; susu habis → tanpa movement; produk jadi kurang → seluruh pembayaran batal termasuk bahan resep (rollback) |
+| Live `CustomerInsightsTest` (baru) | **1/1 (9 assertion)** | 0 | agregasi per nomor HP (nama terbaru, 2 transaksi, Rp330.000, rata-rata, 33 poin, Silver, favorit), pesanan batal disetujui tidak dihitung, pesanan tanpa HP tidak tercatat, cari nama/nomor, barista ditolak, tenant lain kosong |
+| Live regresi | **SalesReport 5/5, Dashboard 5/5, PaymentFlow 19/19 (227 assertion)** | 0 | jalur pembayaran berubah (resep) sehingga PaymentFlowTest dijalankan ulang penuh |
+| E2E | **35/35** | 0 | `Phase2FlowTest` (baru) 4/4 (47 assertion): pengeluaran + foto nota ke bucket asli → Persetujuan → rekap & laporan, nota untuk staf lain 404; supplier → PO 1 kg → disetujui → terima 1.000 g → stok 1.500 g & harga beli Rp140/g, kasir 403; resep lewat HTTP (simpan, barista ditolak); halaman Pelanggan (barista 403). Regresi: AdminMonitoring 5/5, PaymentFlow 5/5, Routes 18/18, InventoryFlow 3/3. Kelas E2E lain tidak tersentuh perubahan Fase 2 (lolos 47/47 di run sebelumnya hari ini) |
+| Browser `probe-p2` (baru) | **42/42** | 0 | Kasir di HP: pintasan → catat pengeluaran + foto nota (kontrol ≥ 44 px, tanpa scroll horizontal) → Menunggu. Super Admin: sidebar 4 menu baru, supplier lewat dialog, item stok, PO 2 kg @ Rp150.000/kg (pratinjau Rp300.000) → diajukan, resep Lemon Tea (18 g) tersimpan. Owner: dasbor "pengeluaran/PO menunggu persetujuan", kartu PO & pengeluaran, nota berizin, setujui keduanya, rekap Rp12.500, halaman Pelanggan. Terima barang → stok 3.000 g. Tablet & HP: 5 halaman baru tanpa scroll horizontal. Tanpa error console/CSP. Run 1: 41/42 (D28) |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D27 | Owner ikut bisa mencatat pengeluaran karena memegang `cash.view` (kas hanya-lihat); test awal mengharapkan ditolak | Bug test (aturan izin) | Dibiarkan sesuai izin yang ada (pengajuan Owner tetap diputuskan Manager/Owner lain); test memeriksa tenant lain ditolak |
+| D28 | Probe: cek "supplier tersimpan" menunggu toast sukses, padahal simpan di DB dev ±12 detik (POST 6,3 dtk + muat ulang 5,5 dtk, diukur dari jaringan browser) sehingga toast sudah hilang saat dialog tertutup | Bug probe | Cek hasil yang menetap (dialog tertutup + supplier tercantum); perilaku aplikasi benar |
+
+### Catatan Git
+
+- Remote `main` kini `a0edbfa` (kontributor `bani1610`, 9 Nov 17.08: dasbor & pesanan admin versi lain) sehingga commit lokal tidak bisa di-push fast-forward. Uji merge di worktree terpisah: 8 file konflik (`AdminOrderController`, `DashboardController`, `HandleInertiaRequests`, `OrderEngine`, `admin-layout`, `dashboard.tsx`, `routes/web.php`, `DashboardTest`). Butuh keputusan owner/tim sebelum push; tidak ada force push.
+
+### Risiko tersisa
+
+- Promo/voucher dan loyalty/CRM belum dibuat: mengubah harga checkout (aturan yang dikunci owner) dan butuh aturan bisnis + persetujuan.
+- Resep memakai jumlah per porsi tetap; varian (mis. Large, extra shot) belum menambah bahan.
+- Izin modul baru menumpang izin lama; bila owner ingin izin khusus (mis. `expense.create`, `purchase.manage`), perlu perubahan RBAC terpisah.
+- PO satu kali penerimaan; penerimaan bertahap (partial berkali-kali) belum ada.
