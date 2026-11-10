@@ -224,3 +224,58 @@ Diport dari referensi Next.js Epic 05 (geofence, koreksi, rekap), dengan verifik
 - Retensi foto butuh cron `schedule:run` di server (sudah di STAGING_PREFLIGHT dan runbook).
 - QR mencetak alamat web yang sedang dibuka; cetak dari domain produksi.
 - Tugas luar (outside duty) dan jadwal shift/aturan telat belum ada.
+
+## M5-lite stok, M6 laporan penjualan, tugas luar (9–10 November 2026)
+
+**Status: Development Verified, menunggu review owner.** Keputusan owner 9 November: stok produk jadi **dipotong otomatis saat pembayaran** dan dikembalikan saat pembatalan disetujui (menggantikan penolakan pembayaran untuk menu bertaut stok). Tiga commit lokal per milestone + satu commit dokumen; **belum di-push**.
+
+Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_requests`, enum `approval_type` sudah ada di skema dev). Tanpa perubahan izin peran (RBAC), harga server, alur kas/refund, CSP, atau CSRF.
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Stok (M5-lite) | Item stok per outlet (bahan baku / produk jadi / kemasan, SKU unik, satuan + konversi g↔kg, ml↔l, stok minimum, harga beli, kedaluwarsa, saldo awal), **Stok masuk** (pembelian/retur/penyesuaian; harga beli terakhir), **Stok keluar & waste** (alasan wajib, foto bukti dari kamera ke bucket privat `inventory-evidence`), **Riwayat stok** (ledger append-only, idempotent per kunci), **Stock opname** (lembar dari saldo sistem, selisih + alasan → kotak Persetujuan; disetujui → koreksi sebesar selisih). Status Aman/Menipis/Habis di daftar dan dasbor. Produk jadi yang ditautkan ke menu: dipotong dalam transaksi pembayaran (`FOR UPDATE`, stok kurang → seluruh pembayaran batal) dan dibalik saat pembatalan disetujui | `Services/Inventory/*`, `Admin/{InventoryController,StockOpnameController}.php`, `pages/admin/inventory/*`, `OrderWorkflow.php` |
+| Laporan penjualan (M6) | `/admin/reports` (report.sales: Owner, Manager, Super Admin): periode cepat (hari ini … bulan lalu) atau tanggal bebas ≤ 92 hari; omzet bersih, transaksi, rata-rata, item terjual dengan perbandingan periode sebelumnya; pesanan lunas yang dibatalkan/direfund terpisah; **Omzet harian** & **Jam ramai** (kolom satu warna, tooltip + keyboard + tabel kembaran), menu terlaris, per kategori, metode bayar; **Ekspor** satu file 6 sheet; **Cetak**. Angka sama dengan dasbor (pesanan lunas per tanggal operasional) | `Services/Reports/SalesReport.php`, `Admin/ReportController.php`, `pages/admin/reports/sales.tsx`, `XlsxWriter::workbook` |
+| Tugas luar (PRD §15) | Staf: **Absen → Tugas luar outlet** (tanggal ≤ 60 hari ke depan, jam, lokasi, tujuan, keterangan, foto bukti opsional), batalkan selama menunggu. Owner/Manager (`attendance.approve_outside_duty`, bukan pemohon) memutuskan di **Persetujuan**. Selama jendela tugas yang disetujui radius outlet tidak berlaku saat absen (akurasi GPS, posisi segar, dan selfie tetap wajib; sesi menyimpan `outside_duty_request_id`). Tugas luar tampil di **Kehadiran**, dasbor "tugas luar menunggu persetujuan". Bukti hanya untuk pemohon & peninjau (`no-store`); retensi 90 hari ikut `sudaya:purge-attendance-photos` | `Services/Attendance/OutsideDuty.php`, `{Staff,Admin}/OutsideDutyController.php`, `pages/staff/outside-duty.tsx`, `AttendanceEngine.php` |
+| Data payroll (PRD §60) | Ekspor rekap absensi kini 2 sheet: rekap (+ kolom sesi tugas luar) dan **Detail absen** (tanggal, jam masuk, jam pulang waktu lokal outlet, menit kerja, metode, tugas luar). Keterlambatan belum bisa dihitung karena belum ada jadwal shift | `AttendanceAdmin::exportReport`, `pages/admin/attendance/reports.tsx` |
+| Navigasi | Sidebar: **Laporan penjualan** (Ringkasan), grup **Stok**; beranda staf: **Catat waste / stok keluar**, **Tugas luar**; tautan laporan di dasbor; layout admin rapi saat dicetak | `layouts/admin-layout.tsx`, `pages/staff/home.tsx`, `pages/admin/dashboard.tsx` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | |
+| Unit/feature | 157/157 (608 assertion) | 0 | baru: `QtyTest` (konversi satuan), `XlsxWriterTest` multi-sheet |
+| Live `InventoryTest` (baru) | **5/5 (85 assertion)** | 0 | master item (SKU, satuan, konversi), stok masuk/keluar idempotent + stok tidak boleh minus, tautan produk jadi, opname → persetujuan (pemohon tidak memutuskan sendiri), isolasi tenant |
+| Live `PaymentFlowTest` | **19/19** | 0 | 18 lolos di run kelas penuh (1.153 detik); 1 test stok diperbaiki skenarionya (D20) lalu lolos di run ulang (9 assertion). Termasuk stok dipotong saat bayar & kembali saat batal, stok kurang membatalkan seluruh pembayaran tanpa jejak, stok terakhir diperebutkan dua kasir bersamaan → hanya satu lunas |
+| Live `DashboardTest` | **5/5 (73 assertion)** | 0 | kartu stok + opname menunggu |
+| Live `SalesReportTest` (baru) | **5/5 (36 assertion)** | 0 | laporan kosong, angka dari pesanan lunas (batal disetujui terpisah, belum bayar tidak dihitung), kategori & porsi, metode bayar, per jam di zona outlet = jam bayar di DB, periode pembanding + rentang terbalik + batas 92 hari, ekspor 6 sheet, izin (kasir/barista ditolak) dan isolasi tenant |
+| Live `OutsideDutyTest` (baru) | **6/6 (84 assertion)** | 0 | validasi (lewat, jam terbalik, teks pendek, > 60 hari, akun tanpa karyawan), tumpang tindih, foto bukti; belum disetujui → radius tetap berlaku; disetujui → absen ±222 m diterima, akurasi tetap wajib, pulang setelah jendela habis tetap boleh untuk sesi tugas luar; pemohon (manager) tidak memutuskan sendiri; ditolak/dibatalkan tidak pernah aktif; bukti hanya pemohon & peninjau; tenant lain not found; retensi bukti 90 hari; ekspor payroll (kolom tugas luar, sheet Detail absen, jam lokal) |
+| Live `AttendanceTest` (regresi) | **7/7 (143 assertion)** | 0 | dijalankan ulang setelah perubahan engine absen dan ekspor |
+| E2E suite penuh | **47/47** | 0 | per kelas (satu proses per kelas, berurutan): Routes 18/18, InventoryFlow 3/3 (baru; upload bukti ke bucket asli, opname → Persetujuan → dasbor), AdminMonitoring 5/5 (+ laporan lewat HTTP: angka, tanggal tidak sah, rentang dipotong 92 hari, ekspor xlsx `no-store`, kasir/barista 403, tamu ke login, tenant lain melihat outletnya sendiri), AttendanceFlow 5/5 (+ tugas luar: form multipart + foto ke bucket asli, tumpang tindih ditolak, bukti untuk Owner `no-store` & staf lain 403, disetujui → absen ±222 m masuk & pulang, papan Kehadiran), PaymentFlow 5/5, Orders 6/6, Catalog 4/4, Outlets 2/2. Test tugas luar lolos di run ulang setelah D24/D25 |
+| Browser `probe-m5` (baru) | **60/60** | 0 | Super Admin: item stok → stok masuk 2 l (7.000 ml) → waste + foto kamera (6.750 ml) → riwayat + foto berizin → opname: selisih −250 langsung tampil, alasan wajib → diajukan. Owner: kartu Stok + tautan laporan di dasbor, setujui opname → 6.500 ml, hanya pantau (tanpa Item baru). Laporan: omzet 69.000 = dasbor, 3 transaksi, rata-rata 23.000, menu terlaris, kategori 65,2 %, tunai; preset 7 hari → 7 kolom, tooltip saat hover, panah kiri dibaca `aria-live`, tabel kembaran, ekspor xlsx. Tablet & HP: kontrol ≥ 44 px, tanpa scroll horizontal. Kasir di HP: tile & tautan Tugas luar, form + foto, terkirim (Menunggu); Owner membuka foto bukti dan menyetujui; status Disetujui. Tanpa error console/CSP. Run 1–2 berhenti karena bug probe (D26) |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D20 | Live `PaymentFlowTest` "stok kurang membatalkan seluruh pembayaran" gagal di pembuatan pesanan: menu sudah menolak jumlah melebihi stok, sehingga skenario tidak pernah sampai ke pembayaran | Bug test (skenario) | Stok cukup saat pesanan dibuat lalu berkurang sebelum dibayar; assertion tetap sama persis |
+| D21 | Pengajuan tugas luar gagal: `date + unknown` ambigu di PostgreSQL untuk batas 60 hari | Bug aplikasi (ditemukan Live test) | Parameter di-cast `::int` |
+| D22 | Test E2E tugas luar menganggap akun barista belum punya data karyawan, padahal test rekap di kelas yang sama menautkannya | Bug test | Batas akses diuji lewat Owner (tanpa izin absen → 403) dan tamu |
+| D23 | Laptop mati saat Live `AttendanceTest`; fixture `5682e39d` tertinggal | Lingkungan | Fixture dibersihkan; kelas dijalankan ulang |
+| D24 | E2E tugas luar mengharapkan 404 untuk staf lain yang membuka bukti, padahal penjaga rute `/admin/outside-duty` sudah menolak dengan 403 | Bug test | Ekspektasi 403 (akses tetap ditolak) |
+| D25 | E2E: setelah Owner membuka foto bukti, `back()` saat menyetujui kembali ke URL foto karena klien test tidak mengirim Referer (browser asli mengirim Referer halaman Persetujuan; `Referrer-Policy: strict-origin-when-cross-origin`) | Bug test | Test membuka kotak Persetujuan lagi sebelum memutuskan (pola test E2E lain) |
+| D26 | Probe M5 memakai label tombol yang salah ("Tambah item", seharusnya "Item baru") dan setter textarea untuk kolom alasan opname yang berupa input | Bug probe | Diperbaiki; run 3 lolos 60/60 |
+
+### Data, proses, Git
+
+- Database dev bersih setelah QA: 0 company/user test, 0 item/gerakan/opname stok, 0 tugas luar, 0 objek bukti/selfie test di Storage; tersisa company seed `sudaya`.
+- Tidak ada dependency baru.
+- Commit lokal (belum di-push): `cec4dd6` (M5-lite stok), `5e0ab56` (M6 laporan penjualan), `d0f8c81` (tugas luar + data payroll), lalu commit dokumen ini. Commit sebelumnya yang juga belum di-push: `d115d21` (UX-5), `7616db6`, `5d7700e` (M7-lite). GitHub `main` tetap `df80e00`.
+
+### Risiko tersisa
+
+- QRIS dan pengenalan wajah menunggu provider resmi (tidak diaktifkan tanpa provider sah).
+- Fase 2 PRD (supplier, purchase order, resep/BOM + potong bahan baku otomatis, loyalty, CRM, promo/voucher, pengeluaran) butuh tabel baru (migration) dan keputusan owner; promo/voucher/loyalty mengubah harga sehingga perlu aturan bisnis tertulis.
+- Keterlambatan (telat) butuh jadwal shift per karyawan.
+- Laporan per jam memakai jam bayar; pesanan lama dari sistem lain tidak ada.
+- Stok bahan baku belum berkurang otomatis per penjualan (butuh resep/BOM, Fase 2); dicatat lewat stok keluar dan opname.

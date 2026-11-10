@@ -1,6 +1,6 @@
 # Rencana UX-5 dan jalur go-live klien
 
-Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Keputusan owner 8 November tercatat di §7; hosting dibahas di §8. **Pembaruan 9 November: UX-5 inti selesai (Development Verified, commit lokal, belum di-push)**; hasil QA di `QA_CHECKPOINT.md` bagian UX-5.
+Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Keputusan owner 8 November tercatat di §7; hosting dibahas di §8. **Pembaruan 9 November: UX-5 inti selesai (Development Verified, commit lokal, belum di-push)**; hasil QA di `QA_CHECKPOINT.md` bagian UX-5. **Pembaruan 10 November: seluruh fitur MVP PRD sudah ada kecuali yang menunggu provider (QRIS, pengenalan wajah)** — stok, laporan penjualan, dan tugas luar selesai (Development Verified, commit lokal, belum di-push).
 
 ## 1. Posisi sekarang
 
@@ -12,7 +12,11 @@ Disusun 8 November 2026 setelah UX-4 disetujui owner dan di-push (`df80e00`). Ke
 | UX-5 dasbor Owner/Admin + ekspor menu | **DONE — Development Verified** (9 Nov, commit lokal, menunggu review owner) |
 | UX-2 CMS halaman depan | Belum (spesifikasi ada) |
 | M7-lite karyawan & absensi GPS + selfie, cetak QR meja | **DONE — Development Verified** (9 Nov, commit lokal, menunggu review owner) |
-| M5 stok, M6 laporan, pengenalan wajah, tugas luar | Ditunda (setelah go-live) |
+| M5-lite stok (item, masuk, keluar/waste + foto, opname + persetujuan, potong otomatis produk jadi saat bayar) | **DONE — Development Verified** (9 Nov, commit lokal) |
+| M6 laporan penjualan (periode, pembanding, harian, per jam, kategori, menu, metode bayar, ekspor multi-sheet, cetak) | **DONE — Development Verified** (9 Nov, commit lokal) |
+| Tugas luar (pengajuan + bukti, persetujuan, absen dari lokasi tugas) + data payroll di ekspor absensi | **DONE — Development Verified** (9 Nov, commit lokal) |
+| Pengenalan wajah, QRIS | Menunggu provider resmi (tidak diaktifkan tanpa provider sah) |
+| Fase 2 PRD (supplier, purchase order, resep/BOM, loyalty, CRM, promo/voucher, pengeluaran) | Belum — butuh tabel baru (migration) dan keputusan owner |
 | Hosting, Supabase production/staging, domain | **Belum ada — penghalang utama** |
 
 ## 2. Apa yang dibutuhkan agar klien bisa langsung memakai web

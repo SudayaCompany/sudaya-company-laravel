@@ -1,6 +1,6 @@
 # UAT operasional outlet Sudaya Coffee
 
-Disusun 4 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
+Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
 
 Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATION.md)), smoke test staging lolos ([LARAVEL_STAGING_RUNBOOK.md](LARAVEL_STAGING_RUNBOOK.md) §10), akun UAT untuk Kasir, Barista, Manager (2 orang), dan Owner, serta uang kas uji yang dihitung.
 
@@ -30,10 +30,22 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 22 | Customer kiosk mendapat nomor antrean | Customer kiosk menyebut kode referensi ke kasir → kasir menerima uang dan mencetak struk | Struk memuat nomor antrean dan kode referensi; customer menunggu nomornya dipanggil (keputusan sementara EXT-012) | | | Kasir |
 | 23 | QR meja tidak valid | Buka URL QR dengan kode outlet salah; lalu dengan nomor meja berformat salah (mis. spasi/simbol) | Outlet salah: "Outlet tidak ditemukan". Nomor meja berformat salah ditolak saat checkout. (Nomor meja di luar daftar resmi belum ditolak sampai master meja dibuat) | | | Manager |
 | 24 | Pembatalan saat hanya satu Manager bertugas | Barista mengajukan pembatalan order lunas → Manager bertugas menyetujui | Berhasil tanpa self-approval; bila Manager sendiri yang mengajukan, tombol Setujui tidak muncul untuknya | | | Manager |
+| 25 | Absen masuk & pulang di outlet | Staf di dalam outlet → Absen → Absen masuk → selfie → "Lokasi sesuai" → Kirim; saat pulang ulangi dengan Absen pulang | Jam masuk/pulang tercatat, total jam kerja tampil; Owner melihat foto dan jarak di Kehadiran | | | Kasir + Owner |
+| 26 | Absen dari luar outlet ditolak | Staf mencoba absen ±100 m di luar outlet | Pesan "Anda di luar area absen", tombol kirim tidak aktif; tidak ada sesi tercatat | | | Barista |
+| 27 | Koreksi absen | Staf → Riwayat & koreksi → ajukan lupa absen pulang → Owner/Manager lain menyetujui di Persetujuan | Sesi tertutup dengan tanda Koreksi; pemohon tidak bisa menyetujui sendiri | | | Kasir + Manager |
+| 28 | Tugas luar | Staf → Absen → Tugas luar outlet → isi tanggal, jam, lokasi, tujuan, foto bukti → Owner/Manager setujui → pada jam tugas staf absen dari lokasi tugas | Pengajuan "Menunggu" → "Disetujui"; absen di luar radius diterima hanya pada jam tugas; tampil di Kehadiran | | | Barista + Manager |
+| 29 | Item stok & stok masuk | Manager → Stok → Tambah item (mis. susu, satuan ml, minimum 1.000, saldo awal) → Stok masuk 2 l dengan harga beli | Saldo bertambah 2.000 ml; harga beli per ml tersimpan; tercatat di Riwayat stok | | | Manager |
+| 30 | Waste dengan foto | Barista → Catat waste / stok keluar → pilih item, jumlah, alasan cepat "Tumpah", ambil foto → Catat | Saldo berkurang; foto bukti bisa dibuka Owner/Manager dari Riwayat stok | | | Barista + Owner |
+| 31 | Stock opname | Manager → Stock opname → Mulai → isi hitungan fisik + alasan selisih → Ajukan → Owner menyetujui di Persetujuan | Saldo sistem berubah sebesar selisih; tanpa selisih langsung diterapkan | | | Manager + Owner |
+| 32 | Produk jadi terpotong saat bayar | Tautkan item produk jadi (mis. roti) ke menu → jual 2 lewat POS → batalkan satu pesanan lunas (disetujui) | Stok berkurang 2 saat dibayar, kembali 1 setelah pembatalan disetujui; bila stok kurang, pembayaran ditolak dengan pesan sisa stok | | | Kasir + Manager |
+| 33 | Status stok di dasbor | Buat item di bawah stok minimum | Status "Menipis"/"Habis" di daftar Stok dan kartu Stok dasbor Owner | | | Owner |
+| 34 | Laporan penjualan | Owner → Laporan penjualan → Hari ini, 7 hari, Bulan ini, tanggal bebas | Omzet = dasbor untuk hari ini; perbandingan periode sebelumnya, grafik harian/jam ramai, menu terlaris, kategori, metode bayar sesuai transaksi UAT | | | Owner |
+| 35 | Ekspor & cetak laporan | Laporan penjualan → Ekspor ke spreadsheet; Cetak | File `.xlsx` 6 sheet terbuka di Excel/Google Sheets; versi cetak tanpa menu samping | | | Owner |
+| 36 | Rekap absensi untuk payroll | Rekap absensi → pilih rentang → Ekspor | Sheet Rekap (hari, jam kerja, koreksi, tugas luar) dan Detail absen (jam masuk/pulang tiap sesi) | | | Owner |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–24 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–36 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|
