@@ -151,6 +151,47 @@ class AdminMonitoringTest extends ServerTestCase
         $this->assertStringStartsWith('/login', Browser::location($guest));
     }
 
+    public function test_laporan_penjualan_lewat_http(): void
+    {
+        $outletId = $this->f('A')['outletId'];
+        $owner = $this->login($this->f('owner'));
+        $page = Browser::page($owner->get('/admin/reports'));
+        $this->assertSame('admin/reports/sales', $page['component']);
+        $this->assertContains('/admin/reports', $page['props']['auth']['navigation']);
+        $this->assertSame($outletId, $page['props']['outlet']['id']);
+        $report = $page['props']['report'];
+        $this->assertSame([$page['props']['today'], $page['props']['today'], 1], [$report['from'], $report['to'], $report['days']]);
+        // Sesudah pembatalan disetujui: satu pesanan lunas tersisa, satu tercatat batal.
+        $this->assertSame(['revenue' => 25_000, 'transactions' => 1, 'average' => 25_000, 'itemsSold' => 1, 'voided' => ['count' => 1, 'amount' => 25_000]], $report['summary']);
+        $this->assertSame([['name' => 'Iced Latte', 'quantity' => 1, 'revenue' => 25_000]], $report['products']);
+
+        // Tanggal tidak sah → hari ini; rentang terlalu panjang dipotong 92 hari.
+        $this->assertSame($page['props']['today'], Browser::page($owner->get('/admin/reports?from=2026-02-30&to=abc'))['props']['report']['from']);
+        $this->assertSame(92, Browser::page($owner->get("/admin/reports?from=2020-01-01&to={$page['props']['today']}"))['props']['report']['days']);
+
+        $file = $owner->get("/admin/reports/export?outlet={$outletId}");
+        $this->assertSame(200, $file->getStatusCode());
+        $this->assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $file->getHeaderLine('Content-Type'));
+        $this->assertMatchesRegularExpression('/^attachment; filename="penjualan-[a-z0-9-]+\.xlsx"$/', $file->getHeaderLine('Content-Disposition'));
+        $this->assertStringContainsString('no-store', $file->getHeaderLine('Cache-Control'));
+        $this->assertSame('PK', substr((string) $file->getBody(), 0, 2));
+
+        // Kasir & barista tidak membuka laporan; tamu diarahkan ke login.
+        foreach (['cashier', 'barista'] as $role) {
+            $user = $this->login($this->f($role));
+            $this->assertSame(403, $user->get('/admin/reports')->getStatusCode(), $role);
+            $this->assertSame(403, $user->get('/admin/reports/export')->getStatusCode(), $role);
+        }
+        $guest = $this->browser()->get('/admin/reports');
+        $this->assertSame(302, $guest->getStatusCode());
+        $this->assertStringStartsWith('/login', Browser::location($guest));
+
+        // Owner tenant lain yang menyebut outlet A tetap melihat outletnya sendiri.
+        $other = Browser::page($this->login($this->f('ownerB'))->get("/admin/reports?outlet={$outletId}"));
+        $this->assertSame($this->f('B')['outletId'], $other['props']['outlet']['id']);
+        $this->assertSame(0, $other['props']['report']['summary']['revenue']);
+    }
+
     public function test_batas_akses_peran_dan_tenant(): void
     {
         $barista = $this->login($this->f('barista'));

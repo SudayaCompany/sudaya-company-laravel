@@ -149,6 +149,7 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
   const attendanceHref = has("/admin/attendance") ? `/admin/attendance?outlet=${outlet.id}` : null;
   const { attendance, stock } = summary;
   const stockHref = has("/admin/inventory") ? `/admin/inventory?outlet=${outlet.id}` : null;
+  const reportsHref = has("/admin/reports") ? `/admin/reports?outlet=${outlet.id}` : null;
 
   const nothing = sales === null && orders === null && cash === null && attendance === null && summary.pendingApprovals === null && summary.soldOut === null;
 
@@ -178,9 +179,12 @@ function SummaryView({ summary, outlet, auth, reloading }: { summary: Summary; o
 
       {sales ? (
         <section aria-labelledby="sales-title" className="flex flex-col gap-3">
-          <h2 id="sales-title" className="text-base font-semibold">
-            Penjualan hari ini
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="sales-title" className="text-base font-semibold">
+              Penjualan hari ini
+            </h2>
+            {reportsHref ? <CardLink href={reportsHref}>Laporan penjualan</CardLink> : null}
+          </div>
           {/* HP & tablet: omzet selebar layar, angka lain dua kolom; ≥ 1280 px: satu baris. */}
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {/* Angka utama dasbor: omzet. */}

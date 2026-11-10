@@ -68,6 +68,26 @@ class XlsxWriterTest extends TestCase
         $this->assertStringNotContainsString('?', explode('<sheets>', $parts['xl/workbook.xml'])[1]);
     }
 
+    public function test_beberapa_sheet_dalam_satu_file(): void
+    {
+        $parts = $this->parts(XlsxWriter::workbook([
+            ['name' => 'Ringkasan', 'header' => ['Metrik', 'Nilai'], 'rows' => [['Omzet', 50000]]],
+            ['name' => 'Harian', 'header' => ['Tanggal', 'Omzet'], 'rows' => [['2026-11-09', 50000]], 'widths' => [14, 16]],
+        ]));
+
+        $this->assertArrayHasKey('xl/worksheets/sheet1.xml', $parts);
+        $this->assertArrayHasKey('xl/worksheets/sheet2.xml', $parts);
+        $this->assertStringContainsString('<sheet name="Ringkasan" sheetId="1" r:id="rId1"/><sheet name="Harian" sheetId="2" r:id="rId2"/>', $parts['xl/workbook.xml']);
+        $this->assertStringContainsString('Id="rId3"', $parts['xl/_rels/workbook.xml.rels'], 'styles setelah semua sheet');
+        $this->assertStringContainsString('/xl/worksheets/sheet2.xml', $parts['[Content_Types].xml']);
+        $this->assertStringContainsString('2026-11-09', $parts['xl/worksheets/sheet2.xml']);
+        foreach ($parts as $name => $xml) {
+            if (str_ends_with($name, '.xml') || str_ends_with($name, '.rels')) {
+                $this->assertNotFalse(simplexml_load_string($xml), "{$name} XML sah");
+            }
+        }
+    }
+
     public function test_kolom_lebih_dari_26_memakai_huruf_ganda(): void
     {
         $header = array_map(fn ($i) => "K{$i}", range(1, 28));

@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\ModifierController;
 use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StockOpnameController;
 use App\Http\Controllers\Admin\UserController;
@@ -88,6 +89,9 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             // Satu pintu keputusan: pembatalan pesanan lunas atau koreksi absen.
             Route::post('/approvals/{approval}/decide', [ApprovalController::class, 'decide']);
             Route::get('/cash', [AdminCashController::class, 'index']);
+            // Laporan penjualan + ekspor spreadsheet (report.sales).
+            Route::get('/reports', [ReportController::class, 'sales']);
+            Route::get('/reports/export', [ReportController::class, 'export']);
 
             // Karyawan & absensi (M7-lite).
             Route::get('/attendance', [AttendanceController::class, 'index']);

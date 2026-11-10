@@ -5,6 +5,7 @@ import {
   ArrowUpFromLineIcon,
   BadgeCheckIcon,
   BoxesIcon,
+  ChartColumnIcon,
   CalendarCheckIcon,
   ClipboardListIcon,
   HistoryIcon,
@@ -54,7 +55,13 @@ const adminOnly = (href: string) => (auth: Auth) => !auth.navigation.includes("/
 
 // Grup mengikuti docs/UI_UX_SITEMAP.md §1. Hanya halaman yang sudah ada yang ditautkan.
 const GROUPS: { label: string; items: NavItem[] }[] = [
-  { label: "Ringkasan", items: [{ href: "/admin", label: "Dasbor", icon: LayoutDashboardIcon, visible: nav("/admin") }] },
+  {
+    label: "Ringkasan",
+    items: [
+      { href: "/admin", label: "Dasbor", icon: LayoutDashboardIcon, visible: nav("/admin") },
+      { href: "/admin/reports", label: "Laporan penjualan", icon: ChartColumnIcon, visible: nav("/admin/reports") },
+    ],
+  },
   {
     label: "Operasional",
     items: [
@@ -176,13 +183,13 @@ export function AdminLayout({ breadcrumbs, children }: { breadcrumbs?: Crumb[]; 
     <div className="flex min-h-svh flex-1 flex-col lg:flex-row">
       <a
         href="#konten"
-        className="sr-only z-50 rounded-lg bg-background px-4 py-2 shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        className="sr-only z-50 rounded-lg bg-background px-4 py-2 shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 print:hidden"
       >
         Langsung ke konten
       </a>
 
       {/* Layar kecil: bar atas + drawer. */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur lg:hidden print:hidden">
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Buka menu">
           <MenuIcon />
         </Button>
@@ -210,7 +217,7 @@ export function AdminLayout({ breadcrumbs, children }: { breadcrumbs?: Crumb[]; 
       ) : null}
 
       {/* Layar lebar: sidebar tetap. */}
-      <aside className="hidden w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-svh">
+      <aside className="hidden w-64 shrink-0 flex-col gap-6 border-r bg-sidebar p-4 lg:sticky lg:top-0 lg:flex lg:h-svh print:hidden">
         <Link href="/admin" className="flex flex-col rounded-md px-1">
           <Brand className="text-lg" />
           <span className="text-xs text-muted-foreground">Sudaya Admin</span>
@@ -219,7 +226,7 @@ export function AdminLayout({ breadcrumbs, children }: { breadcrumbs?: Crumb[]; 
         {auth ? <Profile auth={auth} /> : null}
       </aside>
 
-      <main id="konten" tabIndex={-1} className="flex min-w-0 flex-1 flex-col gap-6 p-4 outline-none sm:p-6 lg:p-8">
+      <main id="konten" tabIndex={-1} className="flex min-w-0 flex-1 flex-col gap-6 p-4 outline-none sm:p-6 lg:p-8 print:p-0">
         {breadcrumbs?.length ? <Breadcrumb items={breadcrumbs} /> : null}
         {children}
       </main>
