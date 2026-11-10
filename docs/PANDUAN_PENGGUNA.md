@@ -52,6 +52,7 @@ Menu **Pesanan hari ini** dan **Kas** hanya untuk memantau. Bayar, batal, refund
 1. **Outlet & meja**: periksa nama dan alamat outlet, lalu tambahkan nomor meja. Pilih **Cetak QR meja** untuk lembar QR siap tempel (satu kartu per meja aktif). Tes satu QR dengan kamera HP sebelum mencetak semua, dan buka lembar QR dari alamat web resmi (bukan alamat uji), karena alamat itu yang tercetak di QR.
 2. **Menu**: buat **Kategori**, lalu **Varian & tambahan** (mis. ukuran, gula), lalu **Menu** (foto, harga, varian). Foto JPG, PNG, atau WebP, maksimal 2 MB.
 3. **Staf**: undang setiap staf dengan email dan peran. Staf membuat password sendiri lewat tautan undangan.
+3a. **Pesanan meja kantor** (halaman outlet → kartu *Pesanan meja kantor*): isi **biaya antar ke meja** per pesanan (0 = gratis) dan unggah **gambar QRIS** resmi Sudaya agar pelanggan bisa bayar QRIS. Tanpa gambar QRIS, pilihan QRIS tidak muncul.
 4. **Pengaturan absen**: berdiri di dalam outlet dengan HP atau laptop, pilih **Pakai lokasi perangkat ini**, lalu **Simpan lokasi**. Radius yang disarankan 30 m.
 5. **Data karyawan**: tambah karyawan (kode, nama, jabatan, outlet) dan **tautkan ke akun staf** agar bisa absen dari HP.
 
@@ -76,13 +77,13 @@ Menu **Pengeluaran** (atau pintasan **Catat pengeluaran** di beranda staf): tang
 
 1. **Buka kas** setiap awal shift: menu **Kas**, isi modal awal (uang di laci), lalu **Buka sesi kas**. Pembayaran tunai baru bisa diterima setelah kas dibuka.
 2. **Kasir (POS)**: ketuk menu untuk menambah (menu dengan varian membuka pilihan), pilih **Bawa pulang / Makan di sini / Antar**, isi uang diterima (atau ketuk nominal cepat), lalu **Bayar tunai & proses**. Nomor antrean dan kembalian tampil besar, dan struk bisa langsung dicetak.
-3. Pesanan dari **QR meja** atau **kiosk** masuk ke **Pesanan → Menunggu bayar**. Buka pesanan, terima uang, lalu **Konfirmasi pembayaran**.
+3. Pesanan dari **QR meja** atau **kiosk** masuk ke **Pesanan → Menunggu bayar**. Buka pesanan, terima uang, lalu **Konfirmasi pembayaran**. Bila pelanggan memilih **QRIS**, cek dulu dana sudah masuk di aplikasi QRIS/bank Sudaya, lalu tekan **Konfirmasi QRIS diterima** (tidak masuk saldo laci). Pesanan "Antar ke meja" menampilkan biaya antar, meja, lantai, dan bagian; permintaan di luar menu tampil di catatan pesanan.
 4. **Batal & refund**: akun Kasir tidak bisa membatalkan pesanan. Minta Manager (atau Barista mengajukan pembatalan). Pesanan belum dibayar langsung batal; yang sudah dibayar butuh persetujuan Owner/Manager, lalu Manager mencatat **refund tunai** saat uang diserahkan.
 5. **Tutup kas** di akhir shift: hitung uang di laci, isi **Uang fisik**, lalu tulis alasan bila ada selisih.
 
 ## 7. Barista
 
-Menu **Barista display** menampilkan antrean **Antre → Dibuat → Siap**. Ketuk **Mulai buat**, lalu **Tandai siap**, lalu **Sudah diambil** sesuai proses. Pesanan baru muncul otomatis. Bila status koneksi bertuliskan "Cek berkala" atau "Tidak ada internet", periksa Wi-Fi.
+Menu **Barista display** menampilkan antrean **Antre → Dibuat → Siap**. Ketuk **Mulai buat**, lalu **Tandai siap**, lalu **Sudah diambil** sesuai proses. Kartu bertanda **ANTAR KE MEJA** diantar ke meja/lantai/bagian yang tertulis. Saat pesanan siap dan pelanggan mengisi nomor HP, tombol **Kabari via WhatsApp** membuka WhatsApp dengan pesan siap kirim. Pesanan baru muncul otomatis. Bila status koneksi bertuliskan "Cek berkala" atau "Tidak ada internet", periksa Wi-Fi.
 
 ## 8. Absen staf (GPS + selfie)
 
@@ -103,9 +104,11 @@ Foto dan lokasi hanya dipakai sebagai bukti kehadiran dan hanya bisa dibuka Owne
 
 ## 9. Pelanggan
 
-- **QR meja**: pelanggan memindai QR di meja, memilih menu, lalu membayar di kasir. Status pesanan bisa dipantau dari tautan yang tampil.
+- **QR meja (meja kantor)**: pelanggan memindai QR di meja, memilih menu (varian ukuran/gula/es dan catatan cepat seperti *Less sugar*, *Less ice*), lalu checkout: **Antar ke meja** (kena biaya antar) atau **Ambil di counter**; isi **nama, lantai, bagian** (nomor meja otomatis), nomor WA bila ingin dikabari, dan **pesan menu di luar daftar** bila perlu (harganya dikonfirmasi barista/kasir).
+- **Bayar**: tunai di kasir, atau **QRIS Sudaya** — halaman status menampilkan QRIS dan nominal persis (simpan gambar untuk "scan dari galeri" bila memesan dari HP yang sama). Setelah kasir mengonfirmasi, halaman berubah sendiri.
+- **Notifikasi**: ketuk **Aktifkan notifikasi saat pesanan siap** di halaman status; saat siap muncul banner, bunyi, getar, dan notifikasi browser.
 - **Kiosk**: layar pemesanan mandiri di outlet; pembayaran tetap di kasir.
-- Pembayaran QRIS belum aktif. Semua pembayaran tunai di kasir.
+- QRIS memakai QRIS statis milik outlet dengan konfirmasi manual kasir; QRIS otomatis butuh payment gateway resmi.
 
 ## 10. Bantuan cepat
 

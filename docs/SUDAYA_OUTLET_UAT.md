@@ -1,6 +1,6 @@
 # UAT operasional outlet Sudaya Coffee
 
-Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) dan 37–43 (supplier, purchase order, resep, pengeluaran, pelanggan) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
+Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) 37–43 (supplier, purchase order, resep, pengeluaran, pelanggan), dan 44–48 (pesanan meja kantor, QRIS, notifikasi) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
 
 Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATION.md)), smoke test staging lolos ([LARAVEL_STAGING_RUNBOOK.md](LARAVEL_STAGING_RUNBOOK.md) §10), akun UAT untuk Kasir, Barista, Manager (2 orang), dan Owner, serta uang kas uji yang dihitung.
 
@@ -49,10 +49,15 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 41 | Bahan kurang tidak menghentikan penjualan | Kosongkan stok satu bahan resep → jual menu itu | Pembayaran tetap berhasil; stok bahan 0; kekurangan tercatat di Log aktivitas | | | Kasir + Owner |
 | 42 | Pengeluaran | Kasir/Barista → Catat pengeluaran (parkir + foto nota) → Manager/Owner setujui di Persetujuan | Status Disetujui; total per kategori di Pengeluaran; Laporan penjualan menampilkan omzet dikurangi pengeluaran | | | Kasir + Manager |
 | 43 | Data pelanggan | Pesan lewat QR meja 2× dengan nomor HP yang sama (bayar di kasir) → Owner → Pelanggan | Pelanggan tampil dengan 2 transaksi, total belanja, poin (Rp10.000 = 1), menu favorit; nomor disamarkan; pesanan dibatalkan tidak dihitung | | | Owner |
+| 44 | Pesan dari QR meja kantor, antar ke meja | Scan QR meja → pilih menu + catatan cepat (Less sugar/Less ice) → Antar ke meja → isi nama, lantai, bagian → tunai | Total = harga menu + biaya antar outlet; kartu barista bertanda ANTAR KE MEJA dengan meja, lantai, bagian, catatan | | | Manager (sebagai pelanggan) + Barista |
+| 45 | Ambil di counter tanpa biaya antar | Ulangi skenario 44 dengan Ambil di counter | Tidak ada biaya antar | | | Manager |
+| 46 | Bayar QRIS Sudaya | Admin unggah gambar QRIS di pengaturan outlet → pelanggan pilih QRIS → bayar → kasir cek dana masuk lalu Konfirmasi QRIS diterima | Halaman status menampilkan QRIS + nominal persis; setelah konfirmasi berubah ke nomor antrean; QRIS tidak menambah saldo laci | | | Kasir + Owner |
+| 47 | Request di luar menu | Isi "Pesan menu di luar daftar" saat checkout | Request tampil di catatan pesanan (kasir & barista) | | | Kasir + Barista |
+| 48 | Notifikasi pesanan siap | Pelanggan aktifkan notifikasi di halaman status (isi nomor WA saat checkout) → barista Tandai siap → Kabari via WhatsApp | Banner + bunyi/getar + notifikasi browser di HP pelanggan; WhatsApp staf terbuka dengan pesan siap kirim | | | Barista + pelanggan |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–43 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–48 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|

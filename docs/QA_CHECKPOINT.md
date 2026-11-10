@@ -324,3 +324,49 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 - Resep memakai jumlah per porsi tetap; varian (mis. Large, extra shot) belum menambah bahan.
 - Izin modul baru menumpang izin lama; bila owner ingin izin khusus (mis. `expense.create`, `purchase.manage`), perlu perubahan RBAC terpisah.
 - PO satu kali penerimaan; penerimaan bertahap (partial berkali-kali) belum ada.
+
+## Pesanan meja kantor, QRIS statis, notifikasi, menu contoh (10 November 2026, untuk presentasi)
+
+**Status: Development Verified, menunggu review owner.** Permintaan owner 10 November: QR di tiap meja kantor untuk pesan & bayar; antar oleh barista dikenakan biaya (nominal diatur admin, awal 0); pemesan mengisi nama, meja, lantai, bagian; catatan seperti less sugar/less ice; request di luar menu; notifikasi saat pesanan siap; menu contoh untuk presentasi. Bayar memakai QRIS milik Sudaya (asal QRIS belum diketahui owner → QRIS statis dengan konfirmasi manual kasir).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Migration (dev, 10 Nov) | `2026_11_10_000003`: `outlets.delivery_fee` (0–1.000.000), `outlets.qris_image_path`, `orders.delivery_fee` — aditif | `database/migrations/` |
+| Checkout QR meja | Antar ke meja (biaya antar outlet, dihitung server, disimpan per pesanan, masuk total/tagihan/struk/laporan) atau Ambil di counter (tanpa biaya). Lantai & bagian wajib di form (meja dari QR), disimpan sebagai keterangan lokasi "Lantai 3 · Keuangan". Kolom "Pesan menu di luar daftar" masuk catatan pesanan | `CheckoutInput.php`, `OrderEngine::create`, `components/storefront/storefront.tsx` |
+| QRIS statis | Admin mengunggah gambar QRIS di **Outlet → Pesanan meja kantor** (bucket publik, gambar lama dihapus, cache menu dibuang). Pelanggan yang memilih QRIS melihat QRIS + nominal persis + tombol simpan. Kasir: **Konfirmasi QRIS diterima** setelah cek dana (izin `payment.confirm_cash`), tanpa sesi kas/kembalian; tunai & QRIS memakai satu jalur `settle()` (kunci order, nomor antrean, potong stok, audit `manualConfirmation`). Tanpa gambar QRIS: pilihan QRIS ditolak | `OrderWorkflow::{confirmQris,settle}`, `OutletSettings::updateOrdering`, `pages/order/status.tsx`, `pages/pos/orders/show.tsx`, `pages/admin/outlets/edit.tsx` |
+| Catatan & notifikasi | Catatan cepat per item (Less sugar, No sugar, Less ice, Tanpa es, Extra panas, Tanpa sedotan). Halaman status: tombol aktifkan notifikasi; saat **siap** muncul banner + bunyi + getar + notifikasi browser. Barista & detail kasir: **Kabari via WhatsApp** (wa.me, tanpa API berbayar) bila pelanggan mengisi nomor; kartu barista **ANTAR KE MEJA** | `components/catalog/product-options.tsx`, `lib/whatsapp.ts`, `pages/kds/index.tsx` |
+| Menu contoh | `php artisan sudaya:demo-menu` (ditolak di production): 9 menu contoh, 3 kategori, varian ukuran/gula/es/tambahan lewat service katalog; SKU `CONTOH-`, deskripsi "contoh"; `--remove` menghapus. Dipasang di company `sudaya` dev. Placeholder foto "Foto menyusul" | `Console/Commands/DemoMenuCommand.php` |
+| Presentasi | Naskah demo 3 perangkat | `docs/DEMO_PRESENTASI.md` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build, unit/feature | lolos, **157/157 (608 assertion)** | 0 | |
+| Live `DeskOrderTest` (baru) | **3/3 (33 assertion)** | | pengaturan biaya/QRIS (izin, batas, ganti gambar menghapus lama, audit, menu publik), antar ke meja 2×25.000 + 3.000 = 53.000 dengan lokasi & catatan, ambil sendiri tanpa biaya, QRIS dikonfirmasi kasir tanpa masuk laci, barista ditolak, idempotent, QRIS hilang setelah lunas, tanpa gambar QRIS ditolak, tunai termasuk biaya antar |
+| Live `PaymentFlowTest` (regresi `settle()`) | **19/19 (227 assertion)** | 0 | |
+| Live `OrderEngineTest` | **19/19 (141 assertion)** | | 2 ekspektasi disesuaikan dengan perilaku baru (audit `deliveryFee`, pesan QRIS) |
+| E2E `DeskFlowTest` (baru, HTTP sungguhan) | **2/2 (20 assertion)** | 0 | admin mengunggah QRIS + biaya antar lewat multipart persis seperti browser, kasir ditolak di halaman admin; pesan dari QR meja (lantai, bagian, catatan, request di luar menu, QRIS), barista ditolak konfirmasi, kasir konfirmasi, kartu barista lengkap dengan nomor WA, QRIS hilang setelah lunas |
+| E2E `OrdersTest` (regresi) | **6/6 (96 assertion)** | 0 | pesan QRIS disesuaikan |
+| E2E `PaymentFlowTest`, `OutletsTest` (regresi) | **5/5 (100 assertion)**, **2/2 (36 assertion)** | 0 | |
+| Browser Chrome (HP 375 px, tablet, desktop) | **29/29** | 0 | admin simpan biaya antar Rp 3.000 + gambar QRIS → pelanggan scan QR meja L3-01, catatan cepat "Less ice", lantai & bagian, request di luar menu, QRIS + nominal Rp 18.000 → kasir konfirmasi QRIS → HP berubah lunas sendiri → barista ANTAR KE MEJA, tandai siap, tombol Kabari via WhatsApp → banner siap di HP; kontrol ≥ 44 px, tanpa scroll horizontal, tanpa error console/CSP |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D29 | Menu pelanggan di-cache sehingga biaya antar/QRIS baru tidak langsung tampil | Bug aplikasi (review) | Cache outlet dibuang saat pengaturan pesanan meja disimpan |
+| D30 | Test membandingkan log audit dengan urutan kunci; `jsonb` menyusun ulang kunci | Bug test | Perbandingan nilai tanpa urutan kunci (nilai tetap persis) |
+| D31 | OrderEngineTest mengharapkan pesan "online belum tersedia" dan audit tanpa `deliveryFee` | Ekspektasi lama | Disesuaikan ke perilaku baru yang diminta owner |
+| D32 | Simpan biaya antar/QRIS dari layar admin ditolak "Input tidak valid": form multipart mengirim `removeQris` sebagai teks "0", service hanya menerima boolean | Bug aplikasi (uji browser) | Controller membaca `removeQris` sebagai boolean form (pola sama dengan hapus foto menu); E2E kini mengirim payload persis seperti browser |
+| D33 | Tombol "Antar ke meja"/"Ambil di counter" di HP setinggi 42 px (< 44 px) | Bug UI (uji browser) | Tinggi minimum 44 px |
+| D34 | E2E: flash penolakan barista hilang karena `back()` tanpa halaman sebelumnya | Bug test | Barista membuka layar barista dulu (pola sama dengan kasir) |
+| D35 | Getar HP dipanggil sebelum pelanggan menyentuh halaman → peringatan console Chrome | Bug UI (uji browser) | Bunyi & getar hanya setelah ada sentuhan; banner & notifikasi browser tetap tampil |
+
+### Risiko & keputusan berikutnya
+
+- **Harga request di luar menu**: tercatat dan terlihat staf, tetapi belum bisa diberi harga di sistem. Pesanan dibuat barista setelah lunas, jadi menambah harga sesudah antar butuh aturan bayar baru (mis. bayar saat diantar atau harga diisi kasir sebelum bayar) — keputusan owner.
+- **QRIS statis**: dana tidak terverifikasi otomatis; kasir wajib cek aplikasi bank/QRIS sebelum konfirmasi. QRIS otomatis butuh payment gateway resmi.
+- **WhatsApp otomatis** butuh WhatsApp Business API berbayar (PRD Fase 3); saat ini tombol WA manual + notifikasi web (berlaku selama halaman status terbuka; push saat browser tertutup butuh hosting HTTPS + service worker).
+- Lantai & bagian divalidasi di form; server menyimpan bila dikirim (tidak diwajibkan server agar alur QR meja lama tetap kompatibel).
+- QR dicetak dari domain presentasi/production, bukan laptop.
