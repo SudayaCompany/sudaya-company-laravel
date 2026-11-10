@@ -7,9 +7,11 @@ use App\Services\Attendance\AttendanceEngine;
 use App\Services\Attendance\OutsideDuty;
 use App\Services\Audit\AuditContext;
 use App\Services\Catalog\CatalogInput;
+use App\Services\Finance\Expenses;
 use App\Services\Inventory\StockOpnames;
 use App\Services\Orders\OrderEngine;
 use App\Services\Orders\OrderWorkflow;
+use App\Services\Purchasing\Purchasing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,7 @@ use Inertia\Response;
 /** Kotak persetujuan: pembatalan pesanan lunas, koreksi absen, tugas luar, dan stock opname. */
 class ApprovalController
 {
-    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance, private StockOpnames $opnames, private OutsideDuty $duties) {}
+    public function __construct(private OrderEngine $orders, private OrderWorkflow $workflow, private AttendanceEngine $attendance, private StockOpnames $opnames, private OutsideDuty $duties, private Expenses $expenses, private Purchasing $purchasing) {}
 
     public function index(Request $request): Response
     {
@@ -32,6 +34,8 @@ class ApprovalController
             'corrections' => $this->attendance->pendingCorrections($request->user(), $outlet),
             'opnames' => $this->opnames->pending($request->user(), $outlet),
             'outsideDuties' => $this->duties->pending($request->user(), $outlet),
+            'expenses' => $this->expenses->pending($request->user(), $outlet),
+            'purchaseOrders' => $this->purchasing->pending($request->user(), $outlet),
             'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
     }
@@ -47,6 +51,12 @@ class ApprovalController
         if ($type === 'stock_opname') {
             $result = $this->opnames->decide($request->user(), $raw, $context);
             Inertia::flash('success', $result['approved'] ? 'Stock opname disetujui, stok diperbarui.' : 'Stock opname ditolak.');
+        } elseif ($type === 'expense') {
+            $result = $this->expenses->decide($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Pengeluaran disetujui.' : 'Pengeluaran ditolak.');
+        } elseif ($type === 'purchase_order') {
+            $result = $this->purchasing->decide($request->user(), $raw, $context);
+            Inertia::flash('success', $result['approved'] ? 'Purchase order disetujui; barang siap diterima.' : 'Purchase order ditolak.');
         } elseif ($type === 'outside_duty') {
             $result = $this->duties->decide($request->user(), $raw, $context);
             Inertia::flash('success', $result['approved'] ? 'Tugas luar disetujui.' : 'Tugas luar ditolak.');

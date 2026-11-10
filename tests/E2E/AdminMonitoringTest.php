@@ -162,7 +162,7 @@ class AdminMonitoringTest extends ServerTestCase
         $report = $page['props']['report'];
         $this->assertSame([$page['props']['today'], $page['props']['today'], 1], [$report['from'], $report['to'], $report['days']]);
         // Sesudah pembatalan disetujui: satu pesanan lunas tersisa, satu tercatat batal.
-        $this->assertSame(['revenue' => 25_000, 'transactions' => 1, 'average' => 25_000, 'itemsSold' => 1, 'voided' => ['count' => 1, 'amount' => 25_000]], $report['summary']);
+        $this->assertSame(['revenue' => 25_000, 'transactions' => 1, 'average' => 25_000, 'itemsSold' => 1, 'voided' => ['count' => 1, 'amount' => 25_000], 'expenses' => 0], $report['summary']);
         $this->assertSame([['name' => 'Iced Latte', 'quantity' => 1, 'revenue' => 25_000]], $report['products']);
 
         // Tanggal tidak sah → hari ini; rentang terlalu panjang dipotong 92 hari.

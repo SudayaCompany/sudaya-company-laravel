@@ -51,6 +51,10 @@ final class DashboardSummary
             'pendingOutsideDuties' => $actor->can('approval.view', $scope)
                 ? DB::table('approvals')->where($where)->where('type', 'outside_duty')->where('status', 'pending')->count()
                 : null,
+            // Fase 2: pengeluaran dan purchase order yang menunggu keputusan.
+            'pendingFinance' => $actor->can('approval.view', $scope)
+                ? DB::table('approvals')->where($where)->whereIn('type', ['expense', 'purchase_order'])->where('status', 'pending')->count()
+                : null,
         ];
     }
 

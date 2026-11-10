@@ -8,6 +8,9 @@ import {
   ChartColumnIcon,
   CalendarCheckIcon,
   ClipboardListIcon,
+  HandCoinsIcon,
+  ShoppingCartIcon,
+  TruckIcon,
   HistoryIcon,
   CoffeeIcon,
   IdCardIcon,
@@ -25,6 +28,7 @@ import {
   TagsIcon,
   UserRoundCheckIcon,
   UsersIcon,
+  UsersRoundIcon,
   WalletIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -60,6 +64,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin", label: "Dasbor", icon: LayoutDashboardIcon, visible: nav("/admin") },
       { href: "/admin/reports", label: "Laporan penjualan", icon: ChartColumnIcon, visible: nav("/admin/reports") },
+      { href: "/admin/customers", label: "Pelanggan", icon: UsersRoundIcon, visible: nav("/admin/customers") },
     ],
   },
   {
@@ -77,6 +82,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         leavesAdmin: true,
       },
       { href: "/admin/cash", label: "Kas", icon: WalletIcon, visible: adminOnly("/admin/cash") },
+      { href: "/admin/expenses", label: "Pengeluaran", icon: HandCoinsIcon, visible: nav("/admin/expenses") },
       { href: "/kds", label: "Barista display", icon: MonitorIcon, visible: nav("/kds"), leavesAdmin: true },
       { href: "/staff/attendance", label: "Absen saya", icon: UserRoundCheckIcon, visible: nav("/staff/attendance"), leavesAdmin: true },
     ],
@@ -89,6 +95,8 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/admin/inventory/stock-out", label: "Stok keluar & waste", icon: ArrowUpFromLineIcon, visible: nav("/admin/inventory/stock-out") },
       { href: "/admin/inventory/opname", label: "Stock opname", icon: ClipboardListIcon, visible: nav("/admin/inventory/opname") },
       { href: "/admin/inventory/movements", label: "Riwayat stok", icon: HistoryIcon, visible: nav("/admin/inventory/movements") },
+      { href: "/admin/purchase-orders", label: "Purchase order", icon: ShoppingCartIcon, visible: nav("/admin/purchase-orders") },
+      { href: "/admin/suppliers", label: "Supplier", icon: TruckIcon, visible: nav("/admin/suppliers") },
     ],
   },
   {

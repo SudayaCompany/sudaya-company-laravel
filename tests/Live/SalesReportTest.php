@@ -118,7 +118,7 @@ class SalesReportTest extends LiveTestCase
         $r = $this->report('ownerA');
 
         $this->assertSame([$this->today(), $this->today(), 1], [$r['from'], $r['to'], $r['days']]);
-        $this->assertSame(['revenue' => 0, 'transactions' => 0, 'average' => 0, 'itemsSold' => 0, 'voided' => ['count' => 0, 'amount' => 0]], $r['summary']);
+        $this->assertSame(['revenue' => 0, 'transactions' => 0, 'average' => 0, 'itemsSold' => 0, 'voided' => ['count' => 0, 'amount' => 0], 'expenses' => 0], $r['summary']);
         $this->assertSame([['date' => $this->today(), 'transactions' => 0, 'revenue' => 0]], $r['daily']);
         $this->assertCount(24, $r['hourly']);
         $this->assertSame(0, array_sum(array_column($r['hourly'], 'transactions')));
@@ -142,7 +142,7 @@ class SalesReportTest extends LiveTestCase
         app(OrderWorkflow::class)->decideCancellation($this->actor('ownerA'), ['approvalId' => $approval, 'approve' => true], $this->audit());
 
         $r = $this->report('managerA');
-        $this->assertSame(['revenue' => 105_000, 'transactions' => 3, 'average' => 35_000, 'itemsSold' => 5, 'voided' => ['count' => 1, 'amount' => 15_000]], $r['summary']);
+        $this->assertSame(['revenue' => 105_000, 'transactions' => 3, 'average' => 35_000, 'itemsSold' => 5, 'voided' => ['count' => 1, 'amount' => 15_000], 'expenses' => 0], $r['summary']);
         $this->assertSame([['date' => $this->today(), 'transactions' => 3, 'revenue' => 105_000]], $r['daily']);
         $this->assertSame([
             ['name' => 'Iced Latte', 'quantity' => 3, 'revenue' => 75_000],

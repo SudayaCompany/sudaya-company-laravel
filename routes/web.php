@@ -6,13 +6,16 @@ use App\Http\Controllers\Admin\ApprovalController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AuditController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CustomerController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\EmployeeController;
+use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\ModifierController;
 use App\Http\Controllers\Admin\OutletController;
 use App\Http\Controllers\Admin\OutsideDutyController as AdminOutsideDutyController;
 use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\PurchasingController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StockOpnameController;
@@ -98,6 +101,8 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             // Laporan penjualan + ekspor spreadsheet (report.sales).
             Route::get('/reports', [ReportController::class, 'sales']);
             Route::get('/reports/export', [ReportController::class, 'export']);
+            // Data pelanggan & poin (hanya-baca, customer.view).
+            Route::get('/customers', [CustomerController::class, 'index']);
 
             // Karyawan & absensi (M7-lite).
             Route::get('/attendance', [AttendanceController::class, 'index']);
@@ -132,6 +137,22 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/inventory/opname/{opname}/counts', [StockOpnameController::class, 'saveCounts']);
             Route::post('/inventory/opname/{opname}/submit', [StockOpnameController::class, 'submit']);
             Route::post('/inventory/opname/{opname}/cancel', [StockOpnameController::class, 'cancel']);
+            // Supplier & purchase order (Fase 2): ajukan → setujui → terima barang → stok masuk.
+            Route::get('/suppliers', [PurchasingController::class, 'suppliers']);
+            Route::post('/suppliers', [PurchasingController::class, 'storeSupplier']);
+            Route::put('/suppliers/{supplier}', [PurchasingController::class, 'updateSupplier']);
+            Route::get('/purchase-orders', [PurchasingController::class, 'orders']);
+            Route::get('/purchase-orders/create', [PurchasingController::class, 'create']);
+            Route::post('/purchase-orders', [PurchasingController::class, 'store']);
+            Route::get('/purchase-orders/{order}', [PurchasingController::class, 'show']);
+            Route::post('/purchase-orders/{order}/receive', [PurchasingController::class, 'receive']);
+            Route::post('/purchase-orders/{order}/cancel', [PurchasingController::class, 'cancel']);
+
+            // Pengeluaran (Fase 2): catat + bukti → persetujuan Owner/Manager.
+            Route::get('/expenses', [ExpenseController::class, 'index']);
+            Route::post('/expenses', [ExpenseController::class, 'store']);
+            Route::post('/expenses/{expense}/cancel', [ExpenseController::class, 'cancel']);
+            Route::get('/expenses/{expense}/evidence', [ExpenseController::class, 'evidence']);
 
             Route::get('/users', [UserController::class, 'index']);
             Route::post('/users/invite', [UserController::class, 'invite']);

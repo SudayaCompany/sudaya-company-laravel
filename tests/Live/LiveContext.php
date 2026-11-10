@@ -161,6 +161,11 @@ final class LiveContext
             DB::table('outside_duty_requests')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('employees')->whereIn('company_id', $this->companyIds)->delete();
             DB::table('attendance_settings')->whereIn('company_id', $this->companyIds)->delete();
+            // Fase 2: pengeluaran, purchase order (+ baris), supplier — sebelum ledger & approvals.
+            DB::table('expenses')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('purchase_order_items')->whereIn('purchase_order_id', DB::table('purchase_orders')->whereIn('company_id', $this->companyIds)->select('id'))->delete();
+            DB::table('purchase_orders')->whereIn('company_id', $this->companyIds)->delete();
+            DB::table('suppliers')->whereIn('company_id', $this->companyIds)->delete();
             // Stok (M5-lite): opname → penyesuaian → ledger. Ledger append-only: DELETE hanya dengan
             // flag maintenance di transaksi yang sama, dibatasi ke company test run ini.
             DB::table('stock_opname_items')->whereIn('opname_id', DB::table('stock_opnames')->whereIn('company_id', $this->companyIds)->select('id'))->delete();

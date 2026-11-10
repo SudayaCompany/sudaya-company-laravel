@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Exceptions\AccessException;
 use App\Models\User;
+use App\Services\Finance\Expenses;
 use App\Support\Access\AccessScope;
 use App\Support\Spreadsheet\XlsxWriter;
 use Carbon\CarbonImmutable;
@@ -92,6 +93,8 @@ final class SalesReport
                 'average' => $transactions === 0 ? 0 : intdiv($revenue, $transactions),
                 'itemsSold' => $items,
                 'voided' => ['count' => (int) $voided->n, 'amount' => (int) $voided->amount],
+                // Pengeluaran outlet yang disetujui pada periode yang sama (Fase 2, PRD §59).
+                'expenses' => Expenses::approvedTotal($actor->company_id, $outlet['id'], $from, $to),
             ],
             'daily' => array_map(function (int $i) use ($start, $daily) {
                 $date = $start->addDays($i)->toDateString();
@@ -124,6 +127,8 @@ final class SalesReport
                     ['Item terjual', $s['itemsSold']],
                     ['Pesanan lunas yang dibatalkan/direfund', $s['voided']['count']],
                     ['Nilai pembatalan/refund (Rp)', $s['voided']['amount']],
+                    ['Pengeluaran disetujui (Rp)', $s['expenses']],
+                    ['Omzet dikurangi pengeluaran (Rp)', $s['revenue'] - $s['expenses']],
                     ["Omzet periode sebelumnya {$r['previous']['from']} s/d {$r['previous']['to']} (Rp)", $r['previous']['revenue']],
                 ]],
                 ['name' => 'Harian', 'header' => ['Tanggal', 'Transaksi', 'Omzet (Rp)'], 'widths' => [14, 12, 16],

@@ -20,7 +20,7 @@ type Report = {
   to: string;
   days: number;
   previous: { from: string; to: string; revenue: number; transactions: number; itemsSold: number };
-  summary: { revenue: number; transactions: number; average: number; itemsSold: number; voided: { count: number; amount: number } };
+  summary: { revenue: number; transactions: number; average: number; itemsSold: number; voided: { count: number; amount: number }; expenses: number };
   daily: (Point & { date: string })[];
   hourly: (Point & { hour: number })[];
   products: { name: string; quantity: number; revenue: number }[];
@@ -155,6 +155,17 @@ export default function SalesReport({ outlets, outlet, today, report }: Props) {
           <p className="text-xs text-muted-foreground">
             Omzet = pesanan lunas, tanpa yang dibatalkan atau direfund. Pembanding: {rangeLabel(p.from, p.to)} ({formatRupiah(p.revenue)}).
           </p>
+          {s.expenses > 0 ? (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-sm">
+              <span>
+                Pengeluaran disetujui <span className="font-medium">{formatRupiah(s.expenses)}</span>
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span>
+                Omzet dikurangi pengeluaran <span className="font-semibold">{formatRupiah(s.revenue - s.expenses)}</span>
+              </span>
+            </p>
+          ) : null}
           {s.voided.count > 0 ? (
             <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
               <Undo2Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />

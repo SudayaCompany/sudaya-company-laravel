@@ -62,6 +62,9 @@ type OutsideDutyApproval = {
   canDecide: boolean;
 };
 
+type ExpenseApproval = { id: string; expenseId: string; date: string; categoryLabel: string; amount: number; description: string; requestedByName: string | null; evidenceUrl: string | null; createdAt: string | null; canDecide: boolean };
+type PurchaseApproval = { id: string; purchaseOrderId: string; number: string; supplier: string; total: number; expectedDate: string | null; requestedByName: string | null; createdAt: string | null; lines: string[]; canDecide: boolean };
+
 type Props = {
   outlet: { id: string; name: string; timezone: string };
   outlets: { id: string; name: string }[];
@@ -69,11 +72,13 @@ type Props = {
   corrections: Correction[];
   opnames: OpnameApproval[];
   outsideDuties?: OutsideDutyApproval[];
+  expenses?: ExpenseApproval[];
+  purchaseOrders?: PurchaseApproval[];
   topic: string;
 };
 
 /** Kotak persetujuan Owner/Manager. Keputusan diperiksa ulang di server (izin + bukan pemohon). */
-export default function ApprovalsPage({ outlet, outlets, approvals, corrections, opnames, outsideDuties = [], topic }: Props) {
+export default function ApprovalsPage({ outlet, outlets, approvals, corrections, opnames, outsideDuties = [], expenses = [], purchaseOrders = [], topic }: Props) {
   const stamp = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: outlet.timezone });
   const time = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: outlet.timezone });
   const day = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -81,9 +86,9 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
   return (
     <AdminLayout>
       <Head title="Persetujuan" />
-      <PageHeader title="Persetujuan" description={`${outlet.name} · Pembatalan pesanan lunas, koreksi absen, tugas luar, dan stock opname`}>
+      <PageHeader title="Persetujuan" description={`${outlet.name} · Pembatalan, koreksi absen, tugas luar, stock opname, purchase order, dan pengeluaran`}>
         <div className="flex flex-wrap items-center gap-3">
-          <LiveRefresh topic={topic} only={["approvals", "corrections", "opnames", "outsideDuties"]} />
+          <LiveRefresh topic={topic} only={["approvals", "corrections", "opnames", "outsideDuties", "expenses", "purchaseOrders"]} />
           {outlets.length > 1 ? (
             <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.visit(`/admin/approvals?outlet=${e.target.value}`)}>
               {outlets.map((o) => (
@@ -96,7 +101,7 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
         </div>
       </PageHeader>
 
-      {approvals.length === 0 && corrections.length === 0 && opnames.length === 0 && outsideDuties.length === 0 ? (
+      {approvals.length === 0 && corrections.length === 0 && opnames.length === 0 && outsideDuties.length === 0 && expenses.length === 0 && purchaseOrders.length === 0 ? (
         <EmptyState
           icon={BadgeCheckIcon}
           title="Tidak ada pengajuan"
@@ -132,6 +137,86 @@ export default function ApprovalsPage({ outlet, outlets, approvals, corrections,
                     </div>
                     {o.canDecide ? (
                       <DecideOpname approvalId={o.id} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground sm:max-w-56 sm:text-right">Menunggu keputusan Owner atau Manager lain.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {purchaseOrders.length > 0 ? (
+        <section className="flex max-w-4xl flex-col gap-3" aria-labelledby="po-title">
+          <h2 id="po-title" className="text-base font-semibold">
+            Purchase order
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {purchaseOrders.map((p) => (
+              <li key={p.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="font-semibold">
+                        <Link href={`/admin/purchase-orders/${p.purchaseOrderId}`} className="underline-offset-4 hover:underline">
+                          {p.number}
+                        </Link>{" "}
+                        <span className="text-sm font-normal text-muted-foreground">· {p.supplier}</span>
+                      </p>
+                      <p className="text-sm break-words">{p.lines.join(", ")}</p>
+                      <p className="text-sm">
+                        Total <span className="font-semibold tabular-nums">{formatRupiah(p.total)}</span>
+                        {p.expectedDate ? ` · datang ${p.expectedDate}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Diajukan {p.requestedByName ?? "—"} · {p.createdAt ? stamp.format(new Date(p.createdAt)) : "—"}
+                      </p>
+                    </div>
+                    {p.canDecide ? (
+                      <DecideSimple approvalId={p.id} title="Setujui purchase order?" description="Setelah disetujui, barang bisa diterima dan stok bertambah." confirmLabel="Setujui PO" />
+                    ) : (
+                      <p className="text-xs text-muted-foreground sm:max-w-56 sm:text-right">Menunggu keputusan Owner atau Manager lain.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {expenses.length > 0 ? (
+        <section className="flex max-w-4xl flex-col gap-3" aria-labelledby="expense-title">
+          <h2 id="expense-title" className="text-base font-semibold">
+            Pengeluaran
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {expenses.map((x) => (
+              <li key={x.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="font-semibold tabular-nums">
+                        {formatRupiah(x.amount)} <span className="text-sm font-normal text-muted-foreground">· {x.categoryLabel}</span>
+                      </p>
+                      <p className="text-sm break-words">{x.description}</p>
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>
+                          {day.format(new Date(`${x.date}T00:00:00Z`))} · {x.requestedByName ?? "—"}
+                        </span>
+                        {x.evidenceUrl ? (
+                          <a href={x.evidenceUrl} target="_blank" rel="noopener" className="inline-flex min-h-9 items-center gap-1 font-medium text-brand-strong underline-offset-4 hover:underline pointer-coarse:min-h-11">
+                            <ImageIcon className="size-3.5" aria-hidden /> Lihat nota
+                          </a>
+                        ) : (
+                          <span>Tanpa foto nota</span>
+                        )}
+                      </p>
+                    </div>
+                    {x.canDecide ? (
+                      <DecideSimple approvalId={x.id} title="Setujui pengeluaran?" description="Pengeluaran tercatat disetujui dan masuk rekap pengeluaran outlet." confirmLabel="Setujui pengeluaran" />
                     ) : (
                       <p className="text-xs text-muted-foreground sm:max-w-56 sm:text-right">Menunggu keputusan Owner atau Manager lain.</p>
                     )}
@@ -296,6 +381,32 @@ function DecideOpname({ approvalId }: { approvalId: string }) {
 }
 
 /** Setujui (dengan konfirmasi) atau tolak koreksi absen. */
+/** Setujui (konfirmasi) atau tolak pengajuan sederhana: pengeluaran, purchase order. */
+function DecideSimple({ approvalId, title, description, confirmLabel }: { approvalId: string; title: string; description: string; confirmLabel: string }) {
+  const [pending, setPending] = useState(false);
+  const run = (approve: boolean) =>
+    router.post(`/admin/approvals/${approvalId}/decide`, { approve }, { preserveScroll: true, onStart: () => setPending(true), onFinish: () => setPending(false) });
+  return (
+    <div className="flex flex-wrap gap-2">
+      <ConfirmAction
+        trigger={
+          <Button variant="success" disabled={pending}>
+            {pending ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Setujui
+          </Button>
+        }
+        title={title}
+        description={description}
+        confirmLabel={confirmLabel}
+        destructive={false}
+        onConfirm={() => run(true)}
+      />
+      <Button variant="outline" disabled={pending} onClick={() => run(false)}>
+        Tolak
+      </Button>
+    </div>
+  );
+}
+
 /** Setujui (dengan konfirmasi) atau tolak tugas luar. Disetujui → radius outlet tidak berlaku pada jam tugas. */
 function DecideOutsideDuty({ approvalId }: { approvalId: string }) {
   const [pending, setPending] = useState(false);
