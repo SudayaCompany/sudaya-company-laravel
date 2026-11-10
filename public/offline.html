@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#17100c">
+    <title>Tidak ada koneksi · Sudaya Coffee</title>
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100svh; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #fcf6ee; color: #17100c; }
+        main { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; text-align: center; }
+        .mark { margin: 0 auto; width: 72px; height: 72px; border-radius: 18px; }
+        h1 { margin: 0; font-size: 1.5rem; line-height: 1.25; }
+        p { margin: 0; font-size: 1rem; line-height: 1.55; color: #4a3b31; }
+        a.retry { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 12px;
+            background: #17100c; color: #fcf6ee; font-weight: 600; font-size: 1rem; text-decoration: none; }
+        a.retry:focus-visible { outline: 3px solid #f37513; outline-offset: 3px; }
+    </style>
+</head>
+<body>
+<main>
+    <!-- Ikon disematkan (data URI) agar tetap tampil saat offline. -->
+    <img class="mark" src="data:image/png;base64,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" width="72" height="72" alt="Sudaya Coffee">
+    <h1>Tidak ada koneksi internet</h1>
+    <p>Absen, kasir, dan layar barista butuh internet agar data tersimpan aman. Periksa Wi-Fi atau data seluler, lalu coba lagi.</p>
+    <!-- href kosong = muat ulang alamat yang tadi dibuka. -->
+    <a class="retry" href="">Coba lagi</a>
+</main>
+</body>
+</html>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Brand } from "@/components/brand";
+import { InstallApp } from "@/components/install-app";
 import { LogoutButton } from "@/components/logout-button";
 import { Badge } from "@/components/ui/badge";
 import type { AccessibleOutlet, SharedProps } from "@/types";
@@ -82,6 +83,7 @@ export default function StaffHome({ outlets, permissions }: { outlets: Accessibl
         <Brand className="text-lg" />
         <LogoutButton variant="ghost" />
       </header>
+      <InstallApp />
 
       <section className="flex flex-col gap-2 rounded-2xl bg-espresso p-5 text-espresso-foreground">
         <p className="text-sm text-espresso-foreground/70">Selamat bertugas,</p>

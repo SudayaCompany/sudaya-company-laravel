@@ -2,6 +2,7 @@ import { Head, useForm } from "@inertiajs/react";
 import { Loader2Icon, LogInIcon } from "lucide-react";
 
 import { AuthLayout } from "@/components/auth-layout";
+import { InstallApp } from "@/components/install-app";
 import { LogoutButton } from "@/components/logout-button";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export default function Login({ next, notice, reason }: Props) {
       ) : (
         <LoginForm next={next ?? undefined} notice={notice ?? undefined} />
       )}
+      <InstallApp />
     </AuthLayout>
   );
 }

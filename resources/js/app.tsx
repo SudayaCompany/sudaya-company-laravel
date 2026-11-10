@@ -3,7 +3,11 @@ import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
 import { shouldToastFlashError } from "@/lib/feedback";
+import { setupStaffApp } from "@/lib/install-prompt";
 import type { Flash } from "@/types";
+
+// Aplikasi staf (PWA): tombol pasang + service worker, hanya di area staf.
+setupStaffApp();
 
 router.on("flash", (event) => {
   const { success, error } = event.detail.flash as Flash;

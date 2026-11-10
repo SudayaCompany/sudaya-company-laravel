@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\StockOpnameController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AppLinksController;
 use App\Http\Controllers\Auth\ConfirmController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -42,6 +43,9 @@ use App\Http\Middleware\EnsureActiveStaff;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class);
+
+// APK Android (Trusted Web Activity) aplikasi staf; 404 sampai paket & sidik jari diisi di env.
+Route::get('/.well-known/assetlinks.json', AppLinksController::class);
 
 // Menu customer, checkout guest, status pesanan, dan kiosk.
 Route::get('/order', [OrderController::class, 'show']);

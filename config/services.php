@@ -34,6 +34,13 @@ return [
         'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
     ],
 
+    // APK Android aplikasi staf (Trusted Web Activity), opsional setelah domain production ada.
+    // sha256 = sidik jari sertifikat penandatangan APK; pisahkan dengan koma bila lebih dari satu.
+    'android' => [
+        'package' => env('ANDROID_APP_PACKAGE'),
+        'sha256' => env('ANDROID_APP_SHA256'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

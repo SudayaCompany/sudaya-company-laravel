@@ -17,6 +17,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { Brand } from "@/components/brand";
+import { InstallApp } from "@/components/install-app";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -389,6 +390,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <Brand className="text-lg" />
       </header>
       <h1 className="sr-only">Absen</h1>
+      <InstallApp />
       {children}
     </div>
   );
