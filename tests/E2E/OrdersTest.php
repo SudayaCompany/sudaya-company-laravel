@@ -223,7 +223,8 @@ class OrdersTest extends ServerTestCase
         $invalid = $this->place($guest, $this->checkout(['customerName' => null]));
         $this->assertSame([422, 'Nama pemesan wajib diisi (min. 2 karakter).'], [$invalid->getStatusCode(), self::body($invalid)['error']]);
         $qris = $this->place($guest, $this->checkout(['paymentMethod' => 'qris']));
-        $this->assertSame([422, 'Pembayaran online belum tersedia. Silakan pilih tunai.'], [$qris->getStatusCode(), self::body($qris)['error']]);
+        // QRIS hanya bila outlet mengunggah QRIS statisnya; outlet test belum punya → ditolak.
+        $this->assertSame([422, 'QRIS belum tersedia di outlet ini. Silakan pilih tunai.'], [$qris->getStatusCode(), self::body($qris)['error']]);
         $closed = $guest->json('/order/checkout', ['outlet' => 'TIDAKADA', 'channel' => 'website', 'checkout' => $this->checkout()]);
         $this->assertSame(422, $closed->getStatusCode());
         $this->ctx()->trackRateLimitKey('checkout:outlet:TIDAKADA');

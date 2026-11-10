@@ -8,6 +8,7 @@ use App\Services\Audit\AuditContext;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\AccessLoader;
 use App\Services\Catalog\CatalogInput;
+use App\Services\Catalog\MenuImages;
 use App\Services\Catalog\Storefront;
 use App\Services\Outlets\OutletSettings;
 use App\Support\Access\AccessScope;
@@ -34,7 +35,7 @@ final class OrderEngine
 
     public const ORDER_PAGE_SIZE = 25;
 
-    private const OUTLET_COLUMNS = ['id', 'code', 'name', 'company_id', 'brand_id', 'timezone', 'order_number_prefix', 'pending_payment_ttl_minutes', 'is_active'];
+    private const OUTLET_COLUMNS = ['id', 'code', 'name', 'company_id', 'brand_id', 'timezone', 'order_number_prefix', 'pending_payment_ttl_minutes', 'is_active', 'delivery_fee', 'qris_image_path'];
 
     public function __construct(
         private AuditLogger $audit,
@@ -94,16 +95,16 @@ final class OrderEngine
         if (! $isPos && ($nameError = CheckoutInput::requireCustomerName($input)) !== null) {
             throw new AccessException('invalid', $nameError);
         }
-        // Belum ada payment gateway (EXT-001): hanya tunai di kasir.
-        if ($input['paymentMethod'] !== 'cash') {
-            throw new AccessException('invalid', 'Pembayaran online belum tersedia. Silakan pilih tunai.');
-        }
-
         $row = isset($outlet['id'])
             ? $this->loadOutlet('id', CatalogInput::uuid($outlet['id']))
             : $this->loadOutlet('code', strtoupper(trim($outlet['code'])));
         if ($row === null || ! $row->is_active) {
             throw new AccessException('invalid', 'Outlet tidak ditemukan atau sedang tutup.');
+        }
+        // Belum ada payment gateway (EXT-001): tunai di kasir, atau QRIS statis milik outlet yang
+        // gambarnya diunggah admin — pembayaran QRIS dikonfirmasi manual oleh kasir.
+        if ($input['paymentMethod'] === 'qris' && $row->qris_image_path === null) {
+            throw new AccessException('invalid', 'QRIS belum tersedia di outlet ini. Silakan pilih tunai.');
         }
         if ($isPos) {
             if ($row->company_id !== $actor->company_id) {
@@ -126,15 +127,18 @@ final class OrderEngine
             }
         }
         $subtotal = $quote['total'];
+        // Biaya antar ke meja (diatur admin per outlet, dihitung server): hanya pesanan QR meja yang diantar.
+        $deliveryFee = $channel === 'qr_table' && $input['type'] === 'dine_in' ? (int) $row->delivery_fee : 0;
+        $total = $subtotal + $deliveryFee;
         $token = $isPos ? null : GuestTokens::create();
         $requestHash = CheckoutInput::requestHash($input);
 
-        return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $token, $requestHash, $context) {
+        return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $deliveryFee, $total, $token, $requestHash, $context) {
             $inserted = DB::selectOne(
                 'insert into orders (company_id, brand_id, outlet_id, channel, type, status, payment_status,
                     idempotency_key, request_hash, customer_name, customer_phone, table_number, location_note,
-                    delivery_address, notes, subtotal, discount_total, total, access_token_hash, expires_at, created_by)
-                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?,
+                    delivery_address, notes, subtotal, discount_total, total, delivery_fee, access_token_hash, expires_at, created_by)
+                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
                     now() + make_interval(mins => ?::int), ?)
                  on conflict (outlet_id, idempotency_key) do nothing
                  returning id',
@@ -144,7 +148,7 @@ final class OrderEngine
                     $input['type'] === 'dine_in' ? $input['tableNumber'] : null,
                     $input['type'] === 'dine_in' ? $input['locationNote'] : null,
                     $input['type'] === 'delivery' ? $input['deliveryAddress'] : null,
-                    $input['notes'], $subtotal, $subtotal, $token['hash'] ?? null,
+                    $input['notes'], $subtotal, $total, $deliveryFee, $token['hash'] ?? null,
                     $row->pending_payment_ttl_minutes, $actor?->id,
                 ],
             );
@@ -219,7 +223,7 @@ final class OrderEngine
                 'order_id' => $orderId,
                 'method' => $input['paymentMethod'],
                 'status' => 'pending',
-                'amount' => $subtotal,
+                'amount' => $total,
                 'created_by' => $actor?->id,
             ]);
 
@@ -234,14 +238,15 @@ final class OrderEngine
                 'after' => [
                     'channel' => $channel,
                     'type' => $input['type'],
-                    'total' => $subtotal,
+                    'total' => $total,
+                    'deliveryFee' => $deliveryFee,
                     'items' => array_sum(array_column($quote['lines'], 'quantity')),
                     'paymentMethod' => $input['paymentMethod'],
                 ],
             ], $context);
             self::notify([self::outletTopic($row->id)]);
 
-            return ['orderId' => $orderId, 'reference' => self::reference($orderId), 'total' => $subtotal, 'replayed' => false, 'accessToken' => $token['token'] ?? null];
+            return ['orderId' => $orderId, 'reference' => self::reference($orderId), 'total' => $total, 'replayed' => false, 'accessToken' => $token['token'] ?? null];
         });
     }
 
@@ -292,6 +297,8 @@ final class OrderEngine
             'customerPhone' => $order->customer_phone,
             'locationNote' => $order->location_note,
             'deliveryAddress' => $order->delivery_address,
+            'subtotal' => (int) $order->subtotal,
+            'deliveryFee' => (int) $order->delivery_fee,
             'cancelReason' => $order->cancel_reason,
             'expiresAt' => $this->iso($order->expires_at),
             'outlet' => ['id' => $outlet->id, 'name' => $outlet->name, 'timezone' => $outlet->timezone],
@@ -430,7 +437,7 @@ final class OrderEngine
         $order = DB::table('orders')
             ->join('outlets', 'outlets.id', '=', 'orders.outlet_id')
             ->where('orders.id', strtolower($orderId))
-            ->first(['orders.*', 'outlets.name as outlet_name', 'outlets.code as outlet_code', 'outlets.timezone']);
+            ->first(['orders.*', 'outlets.name as outlet_name', 'outlets.code as outlet_code', 'outlets.timezone', 'outlets.qris_image_path']);
         if ($order === null || ! GuestTokens::verify($token, $order->access_token_hash)) {
             return null;
         }
@@ -444,6 +451,11 @@ final class OrderEngine
             'outletCode' => $order->outlet_code,
             'timezone' => $order->timezone,
             'paymentMethod' => $method,
+            'subtotal' => (int) $order->subtotal,
+            'deliveryFee' => (int) $order->delivery_fee,
+            'locationNote' => $order->location_note,
+            // QRIS statis outlet ditampilkan selama pesanan QRIS menunggu dibayar.
+            'qrisImageUrl' => $method === 'qris' && $order->payment_status === 'pending' ? MenuImages::url($order->qris_image_path) : null,
             'lines' => $this->lines([$order->id])[$order->id] ?? [],
             // Topik realtime turunan hash token: hanya pemegang token yang tahu.
             'topic' => GuestTokens::topic($order->access_token_hash),
@@ -461,7 +473,7 @@ final class OrderEngine
         if (! $actor->can('kds.view', AccessScope::outlet($outlet['id']))) {
             throw AccessException::forbidden();
         }
-        $columns = ['id', 'order_number', 'queue_number', 'status', 'type', 'channel', 'customer_name', 'table_number', 'location_note', 'notes', 'paid_at', 'preparing_at', 'ready_at', 'completed_at'];
+        $columns = ['id', 'order_number', 'queue_number', 'status', 'type', 'channel', 'customer_name', 'customer_phone', 'table_number', 'location_note', 'notes', 'paid_at', 'preparing_at', 'ready_at', 'completed_at'];
         $active = DB::table('orders')
             ->where('outlet_id', $outlet['id'])
             ->where('company_id', $actor->company_id)
@@ -488,6 +500,7 @@ final class OrderEngine
             'type' => $o->type,
             'channel' => $o->channel,
             'customerName' => $o->customer_name,
+            'customerPhone' => $o->customer_phone,
             'tableNumber' => $o->table_number,
             'locationNote' => $o->location_note,
             'notes' => $o->notes,

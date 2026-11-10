@@ -190,7 +190,7 @@ class OrderEngineTest extends LiveTestCase
         $this->assertSame(['cash', 'pending', 77000, null, null], [$payments[0]->method, $payments[0]->status, (int) $payments[0]->amount, $payments[0]->paid_at, $payments[0]->cash_session_id]);
         $this->assertSame(1, $this->ctx()->countAudit($f['A']['id'], 'order.created', $row->id));
         $log = DB::table('audit_logs')->where('entity_id', $row->id)->where('action', 'order.created')->first();
-        $this->assertEquals(['channel' => 'qr_table', 'type' => 'takeaway', 'total' => 77000, 'items' => 3, 'paymentMethod' => 'cash'], json_decode($log->after, true));
+        $this->assertEquals(['channel' => 'qr_table', 'type' => 'takeaway', 'total' => 77000, 'deliveryFee' => 0, 'items' => 3, 'paymentMethod' => 'cash'], json_decode($log->after, true));
         $this->assertStringNotContainsString($created['accessToken'], (string) $log->after);
     }
 
@@ -255,8 +255,8 @@ class OrderEngineTest extends LiveTestCase
         $this->expectAccess('invalid', fn () => $this->guest($this->checkout(['type' => 'delivery', 'deliveryAddress' => 'Jl. Merdeka No. 10, Bandung'])), '/Nomor HP wajib/');
         $this->expectAccess('invalid', fn () => $this->guest($this->checkout(['customerName' => ''])), '/Nama pemesan/');
         $this->expectAccess('invalid', fn () => $this->guest($this->checkout(['customerPhone' => '12345'])), '/Nomor HP tidak valid/');
-        // QRIS belum ada gateway: ditolak, tidak ada jalur menandai lunas.
-        $this->expectAccess('invalid', fn () => $this->guest($this->checkout(['paymentMethod' => 'qris'])), '/online belum tersedia/');
+        // QRIS hanya bila outlet sudah mengunggah QRIS statisnya (dikonfirmasi kasir); di sini belum ada → ditolak.
+        $this->expectAccess('invalid', fn () => $this->guest($this->checkout(['paymentMethod' => 'qris'])), '/^QRIS belum tersedia di outlet ini\. Silakan pilih tunai\.$/');
 
         $delivery = $this->guest($this->checkout(['type' => 'delivery', 'customerPhone' => '+62 812-3456-7890', 'deliveryAddress' => 'Jl. Merdeka No. 10, Bandung', 'tableNumber' => 'T9', 'locationNote' => 'teras']));
         $row = $this->orderRow($delivery['orderId']);

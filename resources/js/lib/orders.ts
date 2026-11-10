@@ -92,6 +92,8 @@ export type OrderLine = {
 
 /** Detail order untuk staf (OrderEngine::detail). */
 export type StaffOrder = {
+  subtotal?: number;
+  deliveryFee?: number;
   id: string;
   reference: string;
   orderNumber: string | null;

@@ -28,6 +28,15 @@ class OrderActionController
         return back();
     }
 
+    /** QRIS statis outlet: kasir menekan setelah dana terlihat masuk di aplikasi bank/QRIS. */
+    public function confirmQris(Request $request, string $order): RedirectResponse
+    {
+        $paid = $this->workflow->confirmQris($request->user(), ['orderId' => $order], AuditContext::fromRequest($request));
+        Inertia::flash('success', $paid['alreadyPaid'] ? "Sudah lunas sebelumnya ({$paid['orderNumber']})." : "Pembayaran QRIS dikonfirmasi. Nomor antrean {$paid['orderNumber']}.");
+
+        return back();
+    }
+
     public function cancel(Request $request, string $order): RedirectResponse
     {
         $result = $this->workflow->cancel($request->user(), ['orderId' => $order, 'reason' => $request->input('reason')], AuditContext::fromRequest($request));

@@ -46,6 +46,15 @@ class OutletController
         return back();
     }
 
+    /** Biaya antar ke meja + QRIS statis outlet (multipart: foto QRIS opsional). */
+    public function updateOrdering(Request $request, string $outlet): RedirectResponse
+    {
+        $result = $this->outlets->updateOrdering($request->user(), $outlet, [...$request->only(['deliveryFee']), 'removeQris' => $request->boolean('removeQris')], $request->file('qris'), AuditContext::fromRequest($request));
+        Inertia::flash('success', 'Pengaturan pesanan meja disimpan'.($result['qris'] ? '; QRIS aktif untuk pelanggan.' : '; QRIS belum diunggah.'));
+
+        return back();
+    }
+
     public function storeTables(Request $request, string $outlet): RedirectResponse
     {
         $result = $this->outlets->addTables($request->user(), $outlet, $request->input('numbers'), AuditContext::fromRequest($request));

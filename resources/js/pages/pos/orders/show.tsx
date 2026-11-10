@@ -1,5 +1,9 @@
-import { Head, Link } from "@inertiajs/react";
-import { ArrowLeftIcon } from "lucide-react";
+import { Head, Link, router } from "@inertiajs/react";
+import { ArrowLeftIcon, QrCodeIcon } from "lucide-react";
+import { useState } from "react";
+
+import { ConfirmAction } from "@/components/confirm-action";
+import { Button } from "@/components/ui/button";
 
 import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderActions, type OrderActionFlags } from "@/components/orders/order-actions";
@@ -8,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaPage } from "@/layouts/area-layout";
 import { areaBase, type Area } from "@/lib/area";
 import { formatRupiah } from "@/lib/format";
+import { whatsappReadyLink } from "@/lib/whatsapp";
 import { CHANNEL_LABELS, ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
 
 const HISTORY_LABELS: Record<string, string> = {
@@ -93,6 +98,9 @@ export default function PosOrderPage({
                     Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
                   </p>
                 ) : null}
+                {unpaid && flags.canConfirmCash && order.payments.some((p) => p.method === "qris" && p.status === "pending") ? (
+                  <ConfirmQris orderId={order.id} total={order.total} area={area} />
+                ) : null}
                 <OrderActions area={area} order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
               </CardContent>
             </Card>
@@ -110,8 +118,9 @@ export default function PosOrderPage({
                   <dd>{CHANNEL_LABELS[order.channel]}</dd>
                   <dt className="text-muted-foreground">Tipe</dt>
                   <dd>
-                    {ORDER_TYPE_LABELS[order.type]}
+                    {order.channel === "qr_table" && order.type === "dine_in" ? "Antar ke meja" : ORDER_TYPE_LABELS[order.type]}
                     {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
+                    {order.deliveryFee ? ` · biaya antar ${formatRupiah(order.deliveryFee)}` : ""}
                   </dd>
                   {order.locationNote ? (
                     <>
@@ -123,6 +132,14 @@ export default function PosOrderPage({
                   <dd className="break-words">
                     {order.customerName ?? "—"}
                     {order.customerPhone ? ` · ${order.customerPhone}` : ""}
+                    {(() => {
+                      const href = order.status === "ready" ? whatsappReadyLink(order.customerPhone, { orderNumber: order.orderNumber, customerName: order.customerName, deskDelivery: order.channel === "qr_table" && order.type === "dine_in" }) : null;
+                      return href ? (
+                        <a href={href} target="_blank" rel="noopener" className="ml-2 font-medium text-success-strong underline-offset-4 hover:underline">
+                          Kabari via WhatsApp
+                        </a>
+                      ) : null;
+                    })()}
                   </dd>
                   {order.deliveryAddress ? (
                     <>
@@ -191,5 +208,29 @@ export default function PosOrderPage({
           </div>
         </div>
     </AreaPage>
+  );
+}
+
+/** QRIS statis outlet: konfirmasi setelah dana terlihat masuk di aplikasi bank/QRIS Sudaya. */
+function ConfirmQris({ orderId, total, area }: { orderId: string; total: number; area: Area }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-brand/40 bg-brand-soft p-3">
+      <p className="text-xs">Pelanggan memilih QRIS. Cek dana {formatRupiah(total)} sudah masuk di aplikasi QRIS/bank Sudaya sebelum konfirmasi.</p>
+      <ConfirmAction
+        trigger={
+          <Button disabled={pending} className="w-full">
+            <QrCodeIcon /> Konfirmasi QRIS diterima
+          </Button>
+        }
+        title="Dana QRIS sudah masuk?"
+        description={`Pastikan ${formatRupiah(total)} sudah tercatat di aplikasi QRIS/bank Sudaya. Pesanan lalu dikirim ke barista.`}
+        confirmLabel="Ya, dana sudah masuk"
+        destructive={false}
+        onConfirm={() =>
+          router.post(`${areaBase(area)}/orders/${orderId}/confirm-qris`, {}, { preserveScroll: true, onStart: () => setPending(true), onFinish: () => setPending(false) })
+        }
+      />
+    </div>
   );
 }

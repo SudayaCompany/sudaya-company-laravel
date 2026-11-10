@@ -192,6 +192,8 @@ export function QuantityStepper({
   );
 }
 
+const QUICK_NOTES = ["Less sugar", "No sugar", "Less ice", "Tanpa es", "Extra panas", "Tanpa sedotan"];
+
 export function ItemNotesField({
   value,
   onChange,
@@ -215,6 +217,31 @@ export function ItemNotesField({
         placeholder="mis. es sedikit, tanpa sedotan"
         onChange={(e) => onChange(e.target.value)}
       />
+      {/* Permintaan yang paling sering: satu ketuk menambah ke catatan (tetap bisa diketik bebas). */}
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Catatan cepat">
+        {QUICK_NOTES.map((note) => {
+          const active = value.toLowerCase().split(",").map((v) => v.trim()).includes(note.toLowerCase());
+          return (
+            <button
+              key={note}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => {
+                const parts = value.split(",").map((v) => v.trim()).filter(Boolean);
+                const next = active ? parts.filter((v) => v.toLowerCase() !== note.toLowerCase()) : [...parts, note];
+                onChange(next.join(", ").slice(0, MAX_ITEM_NOTES));
+              }}
+              className={cn(
+                "min-h-9 rounded-full border px-3 text-xs transition-colors pointer-coarse:min-h-11 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50",
+                active ? "border-espresso bg-espresso text-white" : "hover:border-foreground",
+              )}
+            >
+              {note}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   type OrderType,
 } from "@/lib/orders";
 import { cn } from "@/lib/utils";
+import { whatsappReadyLink } from "@/lib/whatsapp";
 
 type KdsOrder = {
   id: string;
@@ -26,6 +27,7 @@ type KdsOrder = {
   type: OrderType;
   channel: OrderChannel;
   customerName: string | null;
+  customerPhone?: string | null;
   tableNumber: string | null;
   locationNote: string | null;
   notes: string | null;
@@ -230,11 +232,14 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
           <p className="font-mono text-4xl leading-none font-black">{order.orderNumber}</p>
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
             <span className="rounded-md bg-secondary px-1.5 py-0.5 text-xs font-semibold">{CHANNEL_LABELS[order.channel]}</span>
-            <span className="font-medium">{ORDER_TYPE_LABELS[order.type]}</span>
+            <span className={order.channel === "qr_table" && order.type === "dine_in" ? "rounded-md bg-brand px-1.5 py-0.5 text-xs font-bold text-brand-foreground" : "font-medium"}>
+              {order.channel === "qr_table" && order.type === "dine_in" ? "ANTAR KE MEJA" : ORDER_TYPE_LABELS[order.type]}
+            </span>
             {order.tableNumber ? <span className="font-semibold">· Meja {order.tableNumber}</span> : null}
           </p>
           <p className="text-sm break-words text-muted-foreground">{order.customerName ?? NO_NAME_LABEL}</p>
           {order.locationNote ? <p className="text-sm text-muted-foreground">{order.locationNote}</p> : null}
+          {order.status === "ready" ? <WhatsAppReady order={order} /> : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span
@@ -315,5 +320,21 @@ function CompletedStrip({ orders, active }: { orders: KdsOrder[]; active: boolea
         </div>
       )}
     </section>
+  );
+}
+
+/** Pesanan siap: kabari pelanggan lewat WhatsApp staf (bila pelanggan mengisi nomor HP). */
+function WhatsAppReady({ order }: { order: { orderNumber: string | null; customerName: string | null; customerPhone?: string | null; channel: string; type: string } }) {
+  const href = whatsappReadyLink(order.customerPhone, { orderNumber: order.orderNumber, customerName: order.customerName, deskDelivery: order.channel === "qr_table" && order.type === "dine_in" });
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener"
+      className="mt-1 inline-flex min-h-9 items-center gap-1 rounded-md bg-success/15 px-2 text-xs font-semibold text-success-strong pointer-coarse:min-h-11"
+    >
+      Kabari via WhatsApp
+    </a>
   );
 }

@@ -78,6 +78,7 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::get('/pos/orders/{order}', [PosOrderController::class, 'show']);
         Route::get('/pos/orders/{order}/receipt', [PosOrderController::class, 'receipt']);
         Route::post('/pos/orders/{order}/pay', [OrderActionController::class, 'pay']);
+        Route::post('/pos/orders/{order}/confirm-qris', [OrderActionController::class, 'confirmQris']);
         Route::post('/pos/orders/{order}/cancel', [OrderActionController::class, 'cancel']);
         Route::post('/pos/orders/{order}/refund', [OrderActionController::class, 'refund']);
         Route::post('/pos/approvals/{approval}/decide', [OrderActionController::class, 'decide']);
@@ -176,6 +177,7 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::get('/outlets/{outlet}', [OutletController::class, 'edit']);
             Route::get('/outlets/{outlet}/qr', [OutletController::class, 'qr']);
             Route::put('/outlets/{outlet}', [OutletController::class, 'update']);
+            Route::post('/outlets/{outlet}/ordering', [OutletController::class, 'updateOrdering']);
             Route::post('/outlets/{outlet}/tables', [OutletController::class, 'storeTables']);
             Route::patch('/outlet-tables/{table}', [OutletController::class, 'updateTable']);
 

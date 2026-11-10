@@ -71,6 +71,12 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
           </div>
         ))}
         <hr className="my-2 border-dashed border-black" />
+        {order.deliveryFee ? (
+          <div className="flex justify-between">
+            <span>Biaya antar ke meja</span>
+            <span>{formatRupiah(order.deliveryFee)}</span>
+          </div>
+        ) : null}
         <div className="flex justify-between text-sm font-bold">
           <span>TOTAL</span>
           <span>{formatRupiah(order.total)}</span>

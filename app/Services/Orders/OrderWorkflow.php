@@ -46,7 +46,32 @@ final class OrderWorkflow
         $order = $this->loadForStaff($actor, $orderId);
         $this->assertAt($actor, 'payment.confirm_cash', $order->outlet_id);
 
-        $result = DB::transaction(function () use ($actor, $order, $tendered, $context) {
+        return $this->settle($actor, $order, 'cash', $tendered, $context);
+    }
+
+    /**
+     * Kasir mengonfirmasi pembayaran lewat QRIS statis milik outlet setelah mengecek dana masuk
+     * di aplikasi bank/QRIS (konfirmasi manual; belum ada payment gateway, EXT-001). Tanpa sesi
+     * kas dan kembalian; nomor antrean, potong stok, dan audit sama dengan tunai. Idempotent.
+     *
+     * @return array{orderNumber: ?string, change: ?int, alreadyPaid: bool}
+     */
+    public function confirmQris(User $actor, array $raw, AuditContext $context): array
+    {
+        $orderId = CatalogInput::uuid($raw['orderId'] ?? null);
+        $order = $this->loadForStaff($actor, $orderId);
+        $this->assertAt($actor, 'payment.confirm_cash', $order->outlet_id);
+        if (DB::table('outlets')->where('id', $order->outlet_id)->value('qris_image_path') === null) {
+            throw new AccessException('invalid', 'QRIS belum diatur untuk outlet ini.');
+        }
+
+        return $this->settle($actor, $order, 'qris', null, $context);
+    }
+
+    /** Pelunasan bersama tunai/QRIS: kunci order, nomor antrean, potong stok, audit. */
+    private function settle(User $actor, object $order, string $method, ?int $tendered, AuditContext $context): array
+    {
+        $result = DB::transaction(function () use ($actor, $order, $method, $tendered, $context) {
             // Kunci baris order: pembayaran bersamaan untuk order yang sama antre di sini.
             $locked = DB::selectOne('select *, (expires_at is not null and expires_at <= now()) as is_expired from orders where id = ? for update', [$order->id]);
             if ($locked->payment_status === 'paid') {
@@ -62,11 +87,14 @@ final class OrderWorkflow
                 throw new AccessException('conflict', $locked->payment_status === 'expired' ? self::EXPIRED_MESSAGE : 'Pesanan ini tidak sedang menunggu pembayaran.');
             }
             $total = (int) $locked->total;
-            if ($tendered < $total) {
-                throw new AccessException('invalid', 'Uang diterima kurang dari total '.Money::rupiah($total).'.');
+            $cashSession = null;
+            if ($method === 'cash') {
+                if ($tendered < $total) {
+                    throw new AccessException('invalid', 'Uang diterima kurang dari total '.Money::rupiah($total).'.');
+                }
+                // Uang tunai hanya diterima saat laci terbuka; tutup sesi menunggu kunci ini.
+                $cashSession = CashSessions::lockOpen($locked->outlet_id, 'share');
             }
-            // Uang tunai hanya diterima saat laci terbuka; tutup sesi menunggu kunci ini.
-            $cashSession = CashSessions::lockOpen($locked->outlet_id, 'share');
 
             // Potong stok produk jadi lebih dulu (keputusan owner 9 November 2026, PRD §21–22):
             // stok kurang → seluruh pembayaran dibatalkan (rollback), uang tidak dianggap diterima.
@@ -85,7 +113,7 @@ final class OrderWorkflow
             );
             $queueNumber = (int) $counter->last_number;
             $orderNumber = OrderFlow::orderNumber($outlet->order_number_prefix, $queueNumber);
-            $change = $tendered - $total;
+            $change = $method === 'cash' ? $tendered - $total : null;
             // Diambil SETELAH lock counter: urutan paid_at sama dengan urutan nomor antrean.
             $paidAt = DB::selectOne('select clock_timestamp() as t')->t;
 
@@ -93,10 +121,10 @@ final class OrderWorkflow
                 ->where('order_id', $locked->id)
                 ->where('status', 'pending')
                 ->update([
-                    'method' => 'cash',
+                    'method' => $method,
                     'status' => 'paid',
-                    'cash_session_id' => $cashSession->id,
-                    'tendered_amount' => $tendered,
+                    'cash_session_id' => $cashSession?->id,
+                    'tendered_amount' => $method === 'cash' ? $tendered : null,
                     'change_amount' => $change,
                     'paid_at' => $paidAt,
                     'confirmed_by' => $actor->id,
@@ -108,11 +136,11 @@ final class OrderWorkflow
                     'brand_id' => $locked->brand_id,
                     'outlet_id' => $locked->outlet_id,
                     'order_id' => $locked->id,
-                    'method' => 'cash',
+                    'method' => $method,
                     'status' => 'paid',
                     'amount' => $total,
-                    'cash_session_id' => $cashSession->id,
-                    'tendered_amount' => $tendered,
+                    'cash_session_id' => $cashSession?->id,
+                    'tendered_amount' => $method === 'cash' ? $tendered : null,
                     'change_amount' => $change,
                     'paid_at' => $paidAt,
                     'confirmed_by' => $actor->id,
@@ -131,7 +159,9 @@ final class OrderWorkflow
             ]);
 
             $base = $this->auditBase($locked, $actor);
-            $this->audit->record([...$base, 'action' => 'payment.confirmed', 'after' => ['method' => 'cash', 'amount' => $total, 'tendered' => $tendered, 'change' => $change]], $context);
+            $this->audit->record([...$base, 'action' => 'payment.confirmed', 'after' => $method === 'cash'
+                ? ['method' => 'cash', 'amount' => $total, 'tendered' => $tendered, 'change' => $change]
+                : ['method' => $method, 'amount' => $total, 'manualConfirmation' => true]], $context);
             $this->audit->record([...$base, 'action' => 'order.queued', 'before' => ['status' => $locked->status], 'after' => ['status' => 'queued', 'orderNumber' => $orderNumber, 'businessDate' => $counter->business_date]], $context);
             if ($sales !== []) {
                 $this->audit->record([...$base, 'action' => 'inventory.sale_posted', 'after' => ['orderNumber' => $orderNumber, 'items' => self::stockLines($sales)]], $context);

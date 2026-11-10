@@ -63,6 +63,17 @@ final class CheckoutInput
         $locationNote = self::optionalText($raw['locationNote'] ?? null, 100, 'Lokasi/keterangan');
         $deliveryAddress = self::optionalText($raw['deliveryAddress'] ?? null, 300, 'Alamat');
         $notes = self::optionalText($raw['notes'] ?? null, 300, 'Catatan pesanan');
+        // Menu di luar daftar: dicatat jelas untuk barista; harganya dikonfirmasi staf.
+        $customRequest = self::optionalText($raw['customRequest'] ?? null, 200, 'Permintaan di luar menu');
+        if ($customRequest !== null) {
+            $notes = trim(($notes === null ? '' : $notes."\n").'Permintaan di luar menu: '.$customRequest);
+        }
+        // Meja kantor (QR meja): lantai & bagian disimpan sebagai keterangan lokasi untuk barista.
+        $floor = self::optionalText($raw['floor'] ?? null, 20, 'Lantai');
+        $department = self::optionalText($raw['department'] ?? null, 60, 'Bagian');
+        if ($floor !== null || $department !== null) {
+            $locationNote = mb_substr(implode(' · ', array_filter([$floor === null ? null : "Lantai {$floor}", $department])), 0, 100);
+        }
         $paymentMethod = $raw['paymentMethod'] ?? null;
         if (! in_array($paymentMethod, ['cash', 'qris'], true)) {
             self::fail('Pilih metode pembayaran.');
@@ -103,6 +114,8 @@ final class CheckoutInput
             'notes' => $notes,
             'paymentMethod' => $paymentMethod,
             'lines' => $lines,
+            'floor' => $floor,
+            'department' => $department,
         ];
     }
 

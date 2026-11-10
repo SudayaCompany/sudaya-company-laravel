@@ -40,7 +40,7 @@ export type StorefrontProduct = PricingProduct & {
 };
 
 export type Storefront = {
-  outlet: { id: string; code: string; name: string };
+  outlet: { id: string; code: string; name: string; deliveryFee?: number; qrisAvailable?: boolean };
   brand: { id: string; name: string };
   categories: { id: string; name: string; slug: string }[];
   products: StorefrontProduct[];
@@ -54,6 +54,9 @@ type CartContextValue = {
   channel: PublicChannel;
   mode: StorefrontMode;
   table: string | null;
+  /** Biaya antar ke meja (QR meja, diantar); dihitung ulang server. */
+  deliveryFee: number;
+  qrisAvailable: boolean;
   lines: CartLine[];
   quote: CartQuote | null;
   add: (line: CartLine) => void;
@@ -78,12 +81,16 @@ function CartProvider({
   channel,
   mode,
   table,
+  deliveryFee,
+  qrisAvailable,
   children,
 }: {
   outlet: string;
   channel: PublicChannel;
   mode: StorefrontMode;
   table: string | null;
+  deliveryFee: number;
+  qrisAvailable: boolean;
   children: React.ReactNode;
 }) {
   const { lines, save } = useCartLines(mode === "kiosk" ? `kiosk:${outlet}` : outlet);
@@ -107,6 +114,8 @@ function CartProvider({
       channel,
       mode,
       table,
+      deliveryFee,
+      qrisAvailable,
       lines,
       quote: lines.length === 0 ? null : quote?.for === linesKey ? quote.value : null,
       add: (line) => {
@@ -124,7 +133,7 @@ function CartProvider({
       remove: (index) => save(lines.filter((_, i) => i !== index)),
       clear: () => save([]),
     }),
-    [outlet, channel, mode, table, lines, linesKey, quote, save],
+    [outlet, channel, mode, table, deliveryFee, qrisAvailable, lines, linesKey, quote, save],
   );
 
   return <CartContext value={value}>{children}</CartContext>;
@@ -156,7 +165,14 @@ export function StorefrontView({
   const gridClass = cn("grid", kiosk ? "grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4" : "grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4");
 
   return (
-    <CartProvider outlet={storefront.outlet.code} channel={channel} mode={mode} table={table}>
+    <CartProvider
+      outlet={storefront.outlet.code}
+      channel={channel}
+      mode={mode}
+      table={table}
+      deliveryFee={storefront.outlet.deliveryFee ?? 0}
+      qrisAvailable={storefront.outlet.qrisAvailable ?? false}
+    >
       <Head title={kiosk ? "Kiosk" : "Menu"} />
       <div className="flex min-h-svh flex-col bg-background">
         <header className="relative isolate overflow-hidden bg-espresso text-white">
@@ -339,7 +355,11 @@ function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; l
         {product.imageUrl ? (
           <img src={product.imageUrl} alt="" loading="lazy" className={cn("size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]", soldOut && "grayscale")} />
         ) : (
-          <CoffeeIcon className="absolute inset-0 m-auto size-10 text-muted-foreground/40" aria-hidden />
+          // Placeholder jelas selama foto asli belum ada (bukan foto palsu).
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-cream to-brand-soft text-espresso/50" aria-hidden>
+            <CoffeeIcon className="size-10" />
+            <span className="text-[11px] font-medium tracking-wide uppercase">Foto menyusul</span>
+          </span>
         )}
         {soldOut ? (
           <span className="absolute inset-0 flex items-center justify-center bg-black/45">
@@ -595,13 +615,22 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
   const [submitting, startSubmit] = useTransition();
   // Satu key per percobaan checkout: klik ganda atau retry menghasilkan order yang sama.
   const idempotencyKey = useRef<string | null>(null);
-  const types: OrderType[] = kiosk ? ["dine_in", "takeaway"] : ["dine_in", "takeaway", "delivery"];
-  const total = cart.quote?.ok ? cart.quote.total : null;
+  // QR meja kantor: antar ke meja (kena biaya antar) atau ambil sendiri di counter.
+  const desk = cart.channel === "qr_table";
+  const types: OrderType[] = kiosk || desk ? ["dine_in", "takeaway"] : ["dine_in", "takeaway", "delivery"];
+  const typeLabel = (t: OrderType) => (desk ? (t === "dine_in" ? "Antar ke meja" : "Ambil di counter") : ORDER_TYPE_LABELS[t]);
+  const fee = desk && type === "dine_in" ? cart.deliveryFee : 0;
+  const [payment, setPayment] = useState<"cash" | "qris">("cash");
+  const total = cart.quote?.ok ? cart.quote.total + fee : null;
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const text = (name: string) => String(form.get(name) ?? "").trim() || undefined;
+    if (desk && type === "dine_in" && (!text("floor") || !text("department") || (text("customerName") ?? "").length < 2)) {
+      setError("Isi nama, lantai, dan bagian agar barista bisa mengantar ke meja Anda.");
+      return;
+    }
     idempotencyKey.current ??= crypto.randomUUID();
     setError(null);
     startSubmit(async () => {
@@ -614,10 +643,13 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           customerName: text("customerName"),
           customerPhone: text("customerPhone"),
           tableNumber: type === "dine_in" ? text("tableNumber") : undefined,
-          locationNote: type === "dine_in" ? text("locationNote") : undefined,
+          locationNote: type === "dine_in" && !desk ? text("locationNote") : undefined,
+          floor: type === "dine_in" && desk ? text("floor") : undefined,
+          department: type === "dine_in" && desk ? text("department") : undefined,
           deliveryAddress: type === "delivery" ? text("deliveryAddress") : undefined,
           notes: text("notes"),
-          paymentMethod: "cash",
+          customRequest: text("customRequest"),
+          paymentMethod: payment,
           lines: cart.lines.map((l) => ({ productId: l.productId, modifierIds: l.modifierIds, quantity: l.quantity, notes: l.notes ?? undefined })),
         },
       });
@@ -645,7 +677,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           </Button>
           <SheetTitle className={kiosk ? "text-2xl" : undefined}>Checkout</SheetTitle>
         </div>
-        <SheetDescription>Isi data pemesan. Pembayaran dikonfirmasi kasir.</SheetDescription>
+        <SheetDescription>{desk ? "Isi nama, lantai, dan bagian agar barista bisa mengantar ke meja Anda." : "Isi data pemesan. Pembayaran dikonfirmasi kasir."}</SheetDescription>
       </SheetHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -659,12 +691,13 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 aria-pressed={type === t}
                 onClick={() => setType(t)}
                 className={cn(
-                  "rounded-xl border px-3 text-sm font-medium transition-colors",
+                  "min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors",
                   kiosk ? "py-4 text-lg" : "py-2.5",
                   type === t ? "border-espresso bg-espresso text-white" : "hover:border-foreground",
                 )}
               >
-                {ORDER_TYPE_LABELS[t]}
+                {typeLabel(t)}
+                {desk && t === "dine_in" && cart.deliveryFee > 0 ? <span className="block text-xs font-normal opacity-80">+{formatRupiah(cart.deliveryFee)}</span> : null}
               </button>
             ))}
           </div>
@@ -685,12 +718,25 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 placeholder="mis. T03"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="locationNote">
-                Lokasi/keterangan <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
-              </Label>
-              <Input id="locationNote" name="locationNote" maxLength={100} className={fieldClass} placeholder="mis. teras, dekat jendela" />
-            </div>
+            {desk ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="floor">Lantai</Label>
+                  <Input id="floor" name="floor" required maxLength={20} className={fieldClass} placeholder="mis. 3" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="department">Bagian / divisi</Label>
+                  <Input id="department" name="department" required maxLength={60} className={fieldClass} placeholder="mis. Keuangan" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="locationNote">
+                  Lokasi/keterangan <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+                </Label>
+                <Input id="locationNote" name="locationNote" maxLength={100} className={fieldClass} placeholder="mis. teras, dekat jendela" />
+              </div>
+            )}
           </>
         ) : null}
 
@@ -724,19 +770,53 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           <Textarea id="notes" name="notes" maxLength={300} rows={2} />
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="customRequest">
+            Pesan menu di luar daftar <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+          </Label>
+          <Textarea id="customRequest" name="customRequest" maxLength={200} rows={2} placeholder="mis. Matcha latte oat milk 1 gelas" />
+          <p className="text-xs text-muted-foreground">Dibuat bila bahannya ada; harga dikonfirmasi barista/kasir.</p>
+        </div>
+
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium">Pembayaran</legend>
-          {PAYMENT_OPTIONS.map((option) => (
-            <label
-              key={option.method}
-              className={cn("flex items-center gap-3 rounded-xl border p-3 text-sm", option.available ? "cursor-pointer has-checked:border-espresso" : "cursor-not-allowed opacity-50")}
-            >
-              <input type="radio" name="paymentMethod" value={option.method} defaultChecked={option.method === "cash"} disabled={!option.available} className="accent-espresso" />
-              <span className="flex-1 font-medium">{option.label}</span>
-              <span className="text-xs text-muted-foreground">{option.note}</span>
-            </label>
-          ))}
+          {PAYMENT_OPTIONS.map((option) => {
+            // QRIS statis milik outlet aktif bila admin sudah mengunggah gambarnya; dikonfirmasi kasir.
+            const available = option.method === "qris" ? cart.qrisAvailable && !kiosk : option.available;
+            const note = option.method === "qris" ? (available ? "Scan QRIS Sudaya, dikonfirmasi kasir" : option.note) : desk ? "Bayar di kasir / saat diantar" : option.note;
+            return (
+              <label
+                key={option.method}
+                className={cn("flex min-h-11 items-center gap-3 rounded-xl border p-3 text-sm", available ? "cursor-pointer has-checked:border-espresso" : "cursor-not-allowed opacity-50")}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={option.method}
+                  checked={payment === option.method}
+                  onChange={() => setPayment(option.method)}
+                  disabled={!available}
+                  className="accent-espresso"
+                />
+                <span className="flex-1 font-medium">{option.label}</span>
+                <span className="text-xs text-muted-foreground">{note}</span>
+              </label>
+            );
+          })}
         </fieldset>
+
+        {fee > 0 && cart.quote?.ok ? (
+          <dl className="flex flex-col gap-1 rounded-xl bg-muted/60 p-3 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="tabular-nums">{formatRupiah(cart.quote.total)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Biaya antar ke meja</dt>
+              <dd className="tabular-nums">{formatRupiah(fee)}</dd>
+            </div>
+          </dl>
+        ) : null}
 
         {error ? (
           <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">

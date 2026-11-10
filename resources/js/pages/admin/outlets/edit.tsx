@@ -1,12 +1,13 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { Loader2Icon, PlusIcon, PrinterIcon, SaveIcon, TableIcon } from "lucide-react";
-import { useState } from "react";
+import { ImageUpIcon, Loader2Icon, PlusIcon, PrinterIcon, QrCodeIcon, SaveIcon, TableIcon, Trash2Icon } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { ConfirmAction } from "@/components/confirm-action";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MoneyInput } from "@/components/money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +23,8 @@ type Outlet = {
   orderNumberPrefix: string;
   pendingPaymentTtlMinutes: number;
   isActive: boolean;
+  deliveryFee?: number;
+  qrisImageUrl?: string | null;
 };
 type Table = { id: string; number: string; isActive: boolean };
 
@@ -37,6 +40,7 @@ export default function OutletEdit({ outlet, tables }: { outlet: Outlet; tables:
       <Head title={`Outlet ${outlet.name}`} />
       <PageHeader title={outlet.name} description={`Kode ${outlet.code} (tercetak di QR, tidak bisa diubah).`} />
       <SettingsForm key={JSON.stringify(outlet)} outlet={outlet} />
+      <DeskOrdering key={`${outlet.deliveryFee}-${outlet.qrisImageUrl}`} outlet={outlet} />
       <Tables outlet={outlet} tables={tables} />
     </AdminLayout>
   );
@@ -208,5 +212,84 @@ function TableRow({ table, outletCode }: { table: Table; outletCode: string }) {
         onConfirm={() => setActive(false)}
       />
     </li>
+  );
+}
+
+/** Pesanan meja kantor: biaya antar per pesanan + QRIS statis outlet (dikonfirmasi manual kasir). */
+function DeskOrdering({ outlet }: { outlet: Outlet }) {
+  const { pending, options } = useMutation();
+  const [fee, setFee] = useState(String(outlet.deliveryFee ?? 0));
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const save = (removeQris = false) =>
+    router.post(`/admin/outlets/${outlet.id}/ordering`, { deliveryFee: fee, removeQris, ...(file ? { qris: file } : {}) }, { ...options, forceFormData: true });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Pesanan meja kantor</CardTitle>
+        <CardDescription>
+          Pelanggan scan QR di meja → isi nama, lantai, bagian → pilih Antar ke meja (kena biaya antar) atau Ambil di counter → bayar tunai di kasir atau QRIS.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <div className="flex max-w-xs flex-col gap-1.5">
+          <Label htmlFor="delivery-fee">Biaya antar ke meja (per pesanan)</Label>
+          <MoneyInput id="delivery-fee" value={fee} onValueChange={setFee} placeholder="0" />
+          <p className="text-xs text-muted-foreground">Isi 0 bila gratis. Dihitung otomatis di server dan tampil di struk.</p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label>QRIS outlet (statis)</Label>
+          <p className="text-xs text-muted-foreground">
+            Unggah foto/gambar QRIS resmi Sudaya (dari bank/penyedia QRIS). Pelanggan yang memilih QRIS melihat gambar ini beserta nominal; kasir menekan "Konfirmasi QRIS
+            diterima" setelah dana terlihat masuk. Tanpa gambar, pilihan QRIS tidak muncul.
+          </p>
+          <input
+            ref={input}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => {
+              const picked = e.target.files?.[0] ?? null;
+              setFile(picked);
+              setPreview(picked ? URL.createObjectURL(picked) : null);
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            {preview || outlet.qrisImageUrl ? (
+              <img src={preview ?? outlet.qrisImageUrl ?? undefined} alt="QRIS outlet" className="size-32 rounded-lg border bg-white object-contain p-1" />
+            ) : (
+              <div className="flex size-32 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs text-muted-foreground">
+                <QrCodeIcon className="size-6" aria-hidden /> Belum ada QRIS
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <Button type="button" variant="outline" onClick={() => input.current?.click()}>
+                <ImageUpIcon /> {outlet.qrisImageUrl ? "Ganti gambar QRIS" : "Pilih gambar QRIS"}
+              </Button>
+              {outlet.qrisImageUrl && !file ? (
+                <ConfirmAction
+                  trigger={
+                    <Button type="button" variant="ghost">
+                      <Trash2Icon /> Hapus QRIS
+                    </Button>
+                  }
+                  title="Hapus QRIS outlet?"
+                  description="Pilihan bayar QRIS hilang dari halaman pesanan pelanggan sampai gambar baru diunggah."
+                  confirmLabel="Hapus QRIS"
+                  onConfirm={() => save(true)}
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <Button className="w-fit" onClick={() => save()} disabled={pending}>
+          {pending ? <Loader2Icon className="animate-spin" /> : <SaveIcon />} Simpan pengaturan pesanan meja
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
