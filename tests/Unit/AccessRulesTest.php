@@ -154,9 +154,15 @@ class AccessRulesTest extends TestCase
 
     public function test_prefix_terpanjang_menang_dan_tidak_salah_cocok(): void
     {
+        // Role khusus dengan inventory.issue saja: stok keluar boleh, stok masuk (prefix lebih panjang) tidak.
+        $issuer = [new AccessGrant((string) Str::uuid(), (string) Str::uuid(), 'custom', 'Pencatat waste', self::OUTLET_A, ['inventory.issue'])];
+        $this->assertTrue(RouteAccess::canAccess($issuer, '/admin/inventory/stock-out'));
+        $this->assertFalse(RouteAccess::canAccess($issuer, '/admin/inventory/stock-in'));
+        // Barista (keputusan owner 11 November 2026): tanpa stok & pengeluaran.
         $barista = [self::grant('barista', self::OUTLET_A)];
-        $this->assertTrue(RouteAccess::canAccess($barista, '/admin/inventory/stock-out'));
-        $this->assertFalse(RouteAccess::canAccess($barista, '/admin/inventory/stock-in'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/admin/inventory/stock-out'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/admin/expenses'));
+        $this->assertTrue(RouteAccess::canAccess($barista, '/pos/orders'));
         // "/adminx" bukan bagian dari "/admin".
         $this->assertSame(null, RouteAccess::requiredFor('/adminx'));
     }

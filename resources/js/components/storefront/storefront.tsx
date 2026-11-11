@@ -40,7 +40,7 @@ export type StorefrontProduct = PricingProduct & {
 };
 
 export type Storefront = {
-  outlet: { id: string; code: string; name: string; deliveryFee?: number; qrisAvailable?: boolean };
+  outlet: { id: string; code: string; name: string; qrisAvailable?: boolean };
   brand: { id: string; name: string };
   categories: { id: string; name: string; slug: string }[];
   products: StorefrontProduct[];
@@ -54,8 +54,6 @@ type CartContextValue = {
   channel: PublicChannel;
   mode: StorefrontMode;
   table: string | null;
-  /** Biaya antar ke meja (QR meja, diantar); dihitung ulang server. */
-  deliveryFee: number;
   qrisAvailable: boolean;
   lines: CartLine[];
   quote: CartQuote | null;
@@ -81,7 +79,6 @@ function CartProvider({
   channel,
   mode,
   table,
-  deliveryFee,
   qrisAvailable,
   children,
 }: {
@@ -89,7 +86,6 @@ function CartProvider({
   channel: PublicChannel;
   mode: StorefrontMode;
   table: string | null;
-  deliveryFee: number;
   qrisAvailable: boolean;
   children: React.ReactNode;
 }) {
@@ -114,7 +110,6 @@ function CartProvider({
       channel,
       mode,
       table,
-      deliveryFee,
       qrisAvailable,
       lines,
       quote: lines.length === 0 ? null : quote?.for === linesKey ? quote.value : null,
@@ -133,7 +128,7 @@ function CartProvider({
       remove: (index) => save(lines.filter((_, i) => i !== index)),
       clear: () => save([]),
     }),
-    [outlet, channel, mode, table, deliveryFee, qrisAvailable, lines, linesKey, quote, save],
+    [outlet, channel, mode, table, qrisAvailable, lines, linesKey, quote, save],
   );
 
   return <CartContext value={value}>{children}</CartContext>;
@@ -170,7 +165,6 @@ export function StorefrontView({
       channel={channel}
       mode={mode}
       table={table}
-      deliveryFee={storefront.outlet.deliveryFee ?? 0}
       qrisAvailable={storefront.outlet.qrisAvailable ?? false}
     >
       <Head title={kiosk ? "Kiosk" : "Menu"} />
@@ -615,13 +609,12 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
   const [submitting, startSubmit] = useTransition();
   // Satu key per percobaan checkout: klik ganda atau retry menghasilkan order yang sama.
   const idempotencyKey = useRef<string | null>(null);
-  // QR meja kantor: antar ke meja (kena biaya antar) atau ambil sendiri di counter.
+  // QR meja kantor: antar ke meja (gratis; tunai dibayar ke barista saat diantar) atau ambil sendiri di counter.
   const desk = cart.channel === "qr_table";
   const types: OrderType[] = kiosk || desk ? ["dine_in", "takeaway"] : ["dine_in", "takeaway", "delivery"];
   const typeLabel = (t: OrderType) => (desk ? (t === "dine_in" ? "Antar ke meja" : "Ambil di counter") : ORDER_TYPE_LABELS[t]);
-  const fee = desk && type === "dine_in" ? cart.deliveryFee : 0;
   const [payment, setPayment] = useState<"cash" | "qris">("cash");
-  const total = cart.quote?.ok ? cart.quote.total + fee : null;
+  const total = cart.quote?.ok ? cart.quote.total : null;
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -697,7 +690,6 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 )}
               >
                 {typeLabel(t)}
-                {desk && t === "dine_in" && cart.deliveryFee > 0 ? <span className="block text-xs font-normal opacity-80">+{formatRupiah(cart.deliveryFee)}</span> : null}
               </button>
             ))}
           </div>
@@ -783,7 +775,16 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           {PAYMENT_OPTIONS.map((option) => {
             // QRIS statis milik outlet aktif bila admin sudah mengunggah gambarnya; dikonfirmasi kasir.
             const available = option.method === "qris" ? cart.qrisAvailable && !kiosk : option.available;
-            const note = option.method === "qris" ? (available ? "Scan QRIS Sudaya, dikonfirmasi kasir" : option.note) : desk ? "Bayar di kasir / saat diantar" : option.note;
+            const note =
+              option.method === "qris"
+                ? available
+                  ? "Scan QRIS Sudaya, dikonfirmasi kasir"
+                  : option.note
+                : desk
+                  ? type === "dine_in"
+                    ? "Bayar ke barista saat diantar"
+                    : "Bayar di kasir"
+                  : option.note;
             return (
               <label
                 key={option.method}
@@ -805,18 +806,6 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           })}
         </fieldset>
 
-        {fee > 0 && cart.quote?.ok ? (
-          <dl className="flex flex-col gap-1 rounded-xl bg-muted/60 p-3 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd className="tabular-nums">{formatRupiah(cart.quote.total)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Biaya antar ke meja</dt>
-              <dd className="tabular-nums">{formatRupiah(fee)}</dd>
-            </div>
-          </dl>
-        ) : null}
 
         {error ? (
           <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">

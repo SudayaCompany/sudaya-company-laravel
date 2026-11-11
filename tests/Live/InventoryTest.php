@@ -162,7 +162,9 @@ class InventoryTest extends LiveTestCase
         $this->assertSame('3000.000', $this->item('BK-ARABIKA')->stock_qty);
 
         $photo = UploadedFile::fake()->createWithContent('bukti.jpg', "\xFF\xD8\xFF\xE0".str_repeat('x', 1024));
-        $out = $this->inv()->stockOut($this->actor('baristaA'), ['itemId' => $item->id, 'type' => 'waste', 'quantity' => '100', 'unit' => 'g', 'reason' => 'Tumpah', 'idempotencyKey' => (string) Str::uuid()], $photo, $this->audit());
+        // Barista tidak lagi mencatat stok (keputusan owner 11 November 2026).
+        $this->expectAccess('forbidden', fn () => $this->inv()->stockOut($this->actor('baristaA'), ['itemId' => $item->id, 'type' => 'waste', 'quantity' => '1', 'unit' => 'g', 'reason' => 'Tumpah', 'idempotencyKey' => (string) Str::uuid()], null, $this->audit()));
+        $out = $this->inv()->stockOut($this->actor('adminA'), ['itemId' => $item->id, 'type' => 'waste', 'quantity' => '100', 'unit' => 'g', 'reason' => 'Tumpah', 'idempotencyKey' => (string) Str::uuid()], $photo, $this->audit());
         $this->assertSame('2.900 g', $out['balance']);
         $waste = DB::table('inventory_transactions')->where('item_id', $item->id)->where('type', 'waste')->first();
         $this->assertSame(['-100.000', 'Tumpah'], [$waste->quantity, $waste->reason]);

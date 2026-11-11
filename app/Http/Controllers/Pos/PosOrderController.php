@@ -55,6 +55,7 @@ class PosOrderController
                 'canDecide' => ($user->can('approval.approve', $scope) || $user->can('approval.reject', $scope))
                     && ($detail['pendingApproval']['requestedBy'] ?? null) !== $user->id,
                 'canRefund' => $cashier && $user->can('payment.refund', $scope),
+                'canOpenCash' => $cashier && $user->can('cash.open', $scope),
             ],
             'cashSessionOpen' => CashSessions::hasOpen($detail['outletId']),
             'topic' => OrderEngine::outletTopic($detail['outletId']),

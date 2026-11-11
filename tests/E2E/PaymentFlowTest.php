@@ -3,6 +3,7 @@
 namespace Tests\E2E;
 
 use App\Services\Audit\AuditContext;
+use App\Services\Cash\CashSessions;
 use App\Services\Catalog\CatalogAdmin;
 use App\Services\Catalog\MenuImageStorage;
 use Illuminate\Support\Facades\DB;
@@ -131,9 +132,10 @@ class PaymentFlowTest extends ServerTestCase
         $flash = $this->act($cashier, "/pos/orders/{$unpaidId}/pay", ['tenderedAmount' => 25_000], "/pos/orders/{$unpaidId}");
         $this->assertStringStartsWith('Sudah lunas sebelumnya', $flash['success'] ?? '');
 
-        // QR meja: guest memesan, kasir menerima uang, guest melihat nomor antrean.
+        // QR meja, ambil di counter: guest memesan, kasir menerima uang, guest melihat nomor antrean.
+        // (Antar ke meja + tunai kini bayar saat diantar ke barista, lihat DeskFlowTest.)
         $guest = $this->browser();
-        $placed = json_decode((string) $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => $this->checkout(['type' => 'dine_in', 'tableNumber' => 'T7'])])->getBody(), true);
+        $placed = json_decode((string) $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => $this->checkout(['type' => 'takeaway'])])->getBody(), true);
         $this->ctx()->trackRateLimitKey('checkout:outlet:'.$this->f('A')['outletCode']);
         $qrId = $placed['orderId'];
         $this->assertSame('pending_payment', $this->props($guest, "/order/status/{$qrId}")['order']['status']);
@@ -148,7 +150,8 @@ class PaymentFlowTest extends ServerTestCase
         $kds = $this->props($barista, '/kds');
         $this->assertSame([true, false], [$kds['canUpdate'], $kds['canOverride']]);
         $this->assertSame([$posOrder['orderId'], $unpaidId, $qrId], array_column($kds['orders'], 'id'));
-        $this->assertSame(['T7'], array_values(array_filter(array_column($kds['orders'], 'tableNumber'))));
+        $qrCard = collect($kds['orders'])->firstWhere('id', $qrId);
+        $this->assertSame(['qr_table', 'takeaway', 'paid'], [$qrCard['channel'], $qrCard['type'], $qrCard['paymentStatus']]);
         foreach ([['queued', 'preparing'], ['preparing', 'ready'], ['ready', 'completed']] as [$from, $to]) {
             $flash = $this->act($barista, "/kds/orders/{$qrId}/status", ['from' => $from, 'to' => $to], '/kds');
             $this->assertArrayNotHasKey('error', $flash, json_encode($flash));
@@ -212,9 +215,17 @@ class PaymentFlowTest extends ServerTestCase
         $outletId = $this->f('A')['outletId'];
         $cashier = $this->login($this->f('cashier'));
         $order = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout()]);
+        $baristaOrder = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout()]);
 
         $barista = $this->login($this->f('barista'));
-        $this->assertSame('Anda tidak memiliki izin untuk tindakan ini.', $this->act($barista, "/pos/orders/{$order['orderId']}/pay", ['tenderedAmount' => 25_000])['error'] ?? null);
+        // Sejak 11 November 2026 Barista boleh menerima pembayaran (bayar saat diantar); laci kas tetap wajib terbuka.
+        $drawerOpen = CashSessions::hasOpen($outletId);
+        $paid = $this->act($barista, "/pos/orders/{$baristaOrder['orderId']}/pay", ['tenderedAmount' => 25_000]);
+        if ($drawerOpen) {
+            $this->assertStringStartsWith('Pembayaran dikonfirmasi', $paid['success'] ?? '', json_encode($paid));
+        } else {
+            $this->assertSame(CashSessions::NO_SESSION_MESSAGE, $paid['error'] ?? null);
+        }
         $this->assertSame('Anda tidak memiliki izin untuk tindakan ini.', $this->act($barista, '/pos/cash/open', ['outletId' => $outletId, 'openingAmount' => 0])['error'] ?? null);
         $this->assertSame(403, $barista->get('/pos/cash')->getStatusCode());
         $this->assertSame(403, $cashier->get('/kds')->getStatusCode());

@@ -16,6 +16,7 @@ type GuestOrder = {
   orderNumber: string | null;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  channel: string;
   type: OrderType;
   tableNumber: string | null;
   customerName: string | null;
@@ -27,7 +28,7 @@ type GuestOrder = {
   timezone: string;
   paymentMethod: string | null;
   subtotal?: number;
-  deliveryFee?: number;
+  payOnDelivery?: boolean;
   locationNote?: string | null;
   qrisImageUrl?: string | null;
   lines: OrderLine[];
@@ -76,6 +77,8 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
   const connection = useRealtimeRefresh(finished ? null : order.topic, ["order"], 15_000);
   const ready = order.status === "ready";
   const deskDelivery = order.type === "dine_in" && !!order.tableNumber;
+  // Bayar saat diantar: pesanan sudah dibuat barista, uang tunai diberikan saat diantar.
+  const payLater = !!order.payOnDelivery && order.paymentStatus === "pending" && !cancelled;
   useReadyAlert(order.status, deskDelivery);
 
   return (
@@ -83,7 +86,10 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
       {ready ? (
         <div role="status" className="flex flex-col gap-1 rounded-3xl bg-success p-5 text-success-foreground" data-testid="ready-banner">
           <p className="text-xl font-bold">Pesanan Anda sudah siap!</p>
-          <p className="text-sm">{deskDelivery ? "Barista sedang mengantar ke meja Anda." : "Silakan ambil di counter."}</p>
+          <p className="text-sm">
+            {deskDelivery ? "Barista sedang mengantar ke meja Anda." : "Silakan ambil di counter."}
+            {payLater ? ` Siapkan uang tunai ${formatRupiah(order.total)}.` : ""}
+          </p>
         </div>
       ) : null}
       {!finished ? <NotifyToggle /> : null}
@@ -155,7 +161,16 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
             })}
           </ol>
         )}
-        {order.status === "ready" ? <p className="rounded-2xl bg-brand px-4 py-3 text-center text-base font-semibold text-brand-foreground">Pesanan siap — silakan ambil di counter.</p> : null}
+        {payLater ? (
+          <p className="rounded-2xl bg-white/10 px-4 py-3 text-sm" data-testid="pay-on-delivery">
+            Bayar tunai <span className="font-semibold">{formatRupiah(order.total)}</span> ke barista saat pesanan diantar ke meja Anda.
+          </p>
+        ) : null}
+        {order.status === "ready" ? (
+          <p className="rounded-2xl bg-brand px-4 py-3 text-center text-base font-semibold text-brand-foreground">
+            {deskDelivery ? "Pesanan siap — barista sedang mengantar ke meja Anda." : "Pesanan siap — silakan ambil di counter."}
+          </p>
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-3 rounded-3xl border p-5 text-sm">
@@ -166,7 +181,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
           <dd>{order.customerName ?? "—"}</dd>
           <dt className="text-muted-foreground">Tipe</dt>
           <dd>
-            {ORDER_TYPE_LABELS[order.type]}
+            {order.channel === "qr_table" && order.type === "dine_in" ? "Antar ke meja" : ORDER_TYPE_LABELS[order.type]}
             {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
           </dd>
           <dt className="text-muted-foreground">Outlet</dt>
@@ -175,7 +190,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
           <dd>{timeFormat.format(new Date(order.createdAt))}</dd>
           <dt className="text-muted-foreground">Pembayaran</dt>
           <dd>
-            {order.paymentMethod === "cash" ? "Tunai" : (order.paymentMethod ?? "—")} · {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+            {order.paymentMethod === "cash" ? "Tunai" : (order.paymentMethod ?? "—")} · {payLater ? "Bayar saat diantar" : PAYMENT_STATUS_LABELS[order.paymentStatus]}
           </dd>
         </dl>
 
@@ -194,12 +209,6 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
             </li>
           ))}
         </ul>
-        {order.deliveryFee ? (
-          <div className="flex justify-between border-t pt-3 text-muted-foreground">
-            <span>Biaya antar ke meja{order.locationNote ? ` · ${order.locationNote}` : ""}</span>
-            <span className="tabular-nums">{formatRupiah(order.deliveryFee)}</span>
-          </div>
-        ) : null}
         <div className="flex justify-between border-t pt-3 text-base font-semibold">
           <span>Total</span>
           <span className="tabular-nums">{formatRupiah(order.total)}</span>

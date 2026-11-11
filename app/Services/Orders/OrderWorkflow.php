@@ -77,6 +77,9 @@ final class OrderWorkflow
             if ($locked->payment_status === 'paid') {
                 return ['orderNumber' => $locked->order_number, 'change' => null, 'alreadyPaid' => true];
             }
+            if ($locked->pay_on_delivery) {
+                return $this->settleOnDelivery($actor, $locked, $method, $tendered, $context);
+            }
             if ($locked->status === 'pending_payment' && $locked->is_expired) {
                 // Commit pembatalan otomatis (fungsi yang sama dengan pg_cron), lalu tolak.
                 DB::select('select public.expire_pending_orders(1, ?::uuid)', [$locked->id]);
@@ -87,74 +90,26 @@ final class OrderWorkflow
                 throw new AccessException('conflict', $locked->payment_status === 'expired' ? self::EXPIRED_MESSAGE : 'Pesanan ini tidak sedang menunggu pembayaran.');
             }
             $total = (int) $locked->total;
-            $cashSession = null;
-            if ($method === 'cash') {
-                if ($tendered < $total) {
-                    throw new AccessException('invalid', 'Uang diterima kurang dari total '.Money::rupiah($total).'.');
-                }
-                // Uang tunai hanya diterima saat laci terbuka; tutup sesi menunggu kunci ini.
-                $cashSession = CashSessions::lockOpen($locked->outlet_id, 'share');
-            }
+            $cashSession = $this->cashSessionFor($method, $tendered, $total, $locked->outlet_id);
 
             // Potong stok produk jadi lebih dulu (keputusan owner 9 November 2026, PRD §21–22):
             // stok kurang → seluruh pembayaran dibatalkan (rollback), uang tidak dianggap diterima.
             // Bahan resep/BOM ikut dipotong tanpa pernah menolak pembayaran (kekurangan dicatat).
             $sales = InventoryLedger::postSale($locked->id, $locked->outlet_id, $actor->id);
 
-            $outlet = DB::table('outlets')->where('id', $locked->outlet_id)->first(['id', 'timezone', 'order_number_prefix']);
-            // Counter harian per outlet. Upsert mengunci baris counter sehingga transaksi
-            // bersamaan mendapat nomor berurutan dan tidak pernah sama.
-            $counter = DB::selectOne(
-                'insert into order_number_counters (outlet_id, business_date, last_number)
-                 values (?, (clock_timestamp() at time zone ?)::date, 1)
-                 on conflict (outlet_id, business_date) do update set last_number = order_number_counters.last_number + 1
-                 returning business_date, last_number',
-                [$outlet->id, $outlet->timezone],
-            );
-            $queueNumber = (int) $counter->last_number;
-            $orderNumber = OrderFlow::orderNumber($outlet->order_number_prefix, $queueNumber);
+            $queue = self::nextQueueNumber($locked->outlet_id);
             $change = $method === 'cash' ? $tendered - $total : null;
             // Diambil SETELAH lock counter: urutan paid_at sama dengan urutan nomor antrean.
             $paidAt = DB::selectOne('select clock_timestamp() as t')->t;
-
-            $updated = DB::table('payments')
-                ->where('order_id', $locked->id)
-                ->where('status', 'pending')
-                ->update([
-                    'method' => $method,
-                    'status' => 'paid',
-                    'cash_session_id' => $cashSession?->id,
-                    'tendered_amount' => $method === 'cash' ? $tendered : null,
-                    'change_amount' => $change,
-                    'paid_at' => $paidAt,
-                    'confirmed_by' => $actor->id,
-                    'updated_at' => DB::raw('now()'),
-                ]);
-            if ($updated === 0) {
-                DB::table('payments')->insert([
-                    'company_id' => $locked->company_id,
-                    'brand_id' => $locked->brand_id,
-                    'outlet_id' => $locked->outlet_id,
-                    'order_id' => $locked->id,
-                    'method' => $method,
-                    'status' => 'paid',
-                    'amount' => $total,
-                    'cash_session_id' => $cashSession?->id,
-                    'tendered_amount' => $method === 'cash' ? $tendered : null,
-                    'change_amount' => $change,
-                    'paid_at' => $paidAt,
-                    'confirmed_by' => $actor->id,
-                    'created_by' => $actor->id,
-                ]);
-            }
+            $this->recordPayment($locked, $actor, $method, $total, $cashSession, $tendered, $change, $paidAt);
 
             DB::table('orders')->where('id', $locked->id)->update([
                 'status' => 'queued',
                 'payment_status' => 'paid',
                 'paid_at' => $paidAt,
-                'business_date' => $counter->business_date,
-                'queue_number' => $queueNumber,
-                'order_number' => $orderNumber,
+                'business_date' => $queue['businessDate'],
+                'queue_number' => $queue['queueNumber'],
+                'order_number' => $queue['orderNumber'],
                 'updated_at' => DB::raw('now()'),
             ]);
 
@@ -162,13 +117,13 @@ final class OrderWorkflow
             $this->audit->record([...$base, 'action' => 'payment.confirmed', 'after' => $method === 'cash'
                 ? ['method' => 'cash', 'amount' => $total, 'tendered' => $tendered, 'change' => $change]
                 : ['method' => $method, 'amount' => $total, 'manualConfirmation' => true]], $context);
-            $this->audit->record([...$base, 'action' => 'order.queued', 'before' => ['status' => $locked->status], 'after' => ['status' => 'queued', 'orderNumber' => $orderNumber, 'businessDate' => $counter->business_date]], $context);
+            $this->audit->record([...$base, 'action' => 'order.queued', 'before' => ['status' => $locked->status], 'after' => ['status' => 'queued', 'orderNumber' => $queue['orderNumber'], 'businessDate' => $queue['businessDate']]], $context);
             if ($sales !== []) {
-                $this->audit->record([...$base, 'action' => 'inventory.sale_posted', 'after' => ['orderNumber' => $orderNumber, 'items' => self::stockLines($sales)]], $context);
+                $this->audit->record([...$base, 'action' => 'inventory.sale_posted', 'after' => ['orderNumber' => $queue['orderNumber'], 'items' => self::stockLines($sales)]], $context);
             }
             OrderEngine::notify(self::topics($locked));
 
-            return ['orderNumber' => $orderNumber, 'change' => $change, 'alreadyPaid' => false];
+            return ['orderNumber' => $queue['orderNumber'], 'change' => $change, 'alreadyPaid' => false];
         });
 
         if ($result === 'expired') {
@@ -176,6 +131,109 @@ final class OrderWorkflow
         }
 
         return $result;
+    }
+
+    /**
+     * Bayar saat diantar (keputusan owner 11 November 2026): pesanan sudah di antrean sejak dibuat
+     * (stok sudah dipotong, nomor antrean sudah ada), jadi di sini hanya uang yang dicatat. Status
+     * produksi tidak diubah. Dipanggil di dalam transaksi settle() dengan baris order terkunci.
+     *
+     * @return array{orderNumber: ?string, change: ?int, alreadyPaid: bool}
+     */
+    private function settleOnDelivery(User $actor, object $locked, string $method, ?int $tendered, AuditContext $context): array
+    {
+        if ($locked->payment_status !== 'pending' || ! in_array($locked->status, OrderFlow::ACTIVE_QUEUE, true)) {
+            throw new AccessException('conflict', 'Pesanan ini tidak sedang menunggu pembayaran.');
+        }
+        $total = (int) $locked->total;
+        $cashSession = $this->cashSessionFor($method, $tendered, $total, $locked->outlet_id);
+        $change = $method === 'cash' ? $tendered - $total : null;
+        $paidAt = DB::selectOne('select clock_timestamp() as t')->t;
+        $this->recordPayment($locked, $actor, $method, $total, $cashSession, $tendered, $change, $paidAt);
+        DB::table('orders')->where('id', $locked->id)->update([
+            'payment_status' => 'paid',
+            'paid_at' => $paidAt,
+            'updated_at' => DB::raw('now()'),
+        ]);
+        $this->audit->record([...$this->auditBase($locked, $actor), 'action' => 'payment.confirmed', 'after' => $method === 'cash'
+            ? ['method' => 'cash', 'amount' => $total, 'tendered' => $tendered, 'change' => $change, 'payOnDelivery' => true]
+            : ['method' => $method, 'amount' => $total, 'manualConfirmation' => true, 'payOnDelivery' => true]], $context);
+        OrderEngine::notify(self::topics($locked));
+
+        return ['orderNumber' => $locked->order_number, 'change' => $change, 'alreadyPaid' => false];
+    }
+
+    /** Tunai hanya diterima saat laci outlet terbuka; tutup sesi menunggu kunci ini. QRIS tanpa laci. */
+    private function cashSessionFor(string $method, ?int $tendered, int $total, string $outletId): ?object
+    {
+        if ($method !== 'cash') {
+            return null;
+        }
+        if ($tendered < $total) {
+            throw new AccessException('invalid', 'Uang diterima kurang dari total '.Money::rupiah($total).'.');
+        }
+
+        return CashSessions::lockOpen($outletId, 'share');
+    }
+
+    private function recordPayment(object $locked, User $actor, string $method, int $total, ?object $cashSession, ?int $tendered, ?int $change, mixed $paidAt): void
+    {
+        $updated = DB::table('payments')
+            ->where('order_id', $locked->id)
+            ->where('status', 'pending')
+            ->update([
+                'method' => $method,
+                'status' => 'paid',
+                'cash_session_id' => $cashSession?->id,
+                'tendered_amount' => $method === 'cash' ? $tendered : null,
+                'change_amount' => $change,
+                'paid_at' => $paidAt,
+                'confirmed_by' => $actor->id,
+                'updated_at' => DB::raw('now()'),
+            ]);
+        if ($updated === 0) {
+            DB::table('payments')->insert([
+                'company_id' => $locked->company_id,
+                'brand_id' => $locked->brand_id,
+                'outlet_id' => $locked->outlet_id,
+                'order_id' => $locked->id,
+                'method' => $method,
+                'status' => 'paid',
+                'amount' => $total,
+                'cash_session_id' => $cashSession?->id,
+                'tendered_amount' => $method === 'cash' ? $tendered : null,
+                'change_amount' => $change,
+                'paid_at' => $paidAt,
+                'confirmed_by' => $actor->id,
+                'created_by' => $actor->id,
+            ]);
+        }
+    }
+
+    /**
+     * Nomor antrean harian per outlet. Upsert mengunci baris counter sehingga transaksi bersamaan
+     * mendapat nomor berurutan dan tidak pernah sama. Dipakai saat bayar, atau saat pesanan
+     * bayar-saat-diantar dibuat.
+     *
+     * @return array{businessDate: string, queueNumber: int, orderNumber: string}
+     */
+    public static function nextQueueNumber(string $outletId): array
+    {
+        $outlet = DB::table('outlets')->where('id', $outletId)->first(['id', 'timezone', 'order_number_prefix']);
+        $counter = DB::selectOne(
+            'insert into order_number_counters (outlet_id, business_date, last_number)
+             values (?, (clock_timestamp() at time zone ?)::date, 1)
+             on conflict (outlet_id, business_date) do update set last_number = order_number_counters.last_number + 1
+             returning business_date, last_number',
+            [$outlet->id, $outlet->timezone],
+        );
+        $queueNumber = (int) $counter->last_number;
+
+        return [
+            'businessDate' => (string) $counter->business_date,
+            'queueNumber' => $queueNumber,
+            'orderNumber' => OrderFlow::orderNumber($outlet->order_number_prefix, $queueNumber),
+        ];
     }
 
     // --- Status produksi (KDS) ------------------------------------------------------------
@@ -204,8 +262,13 @@ final class OrderWorkflow
             if ($locked->status !== $from) {
                 throw new AccessException('conflict', 'Status pesanan sudah berubah. Tampilan dimuat ulang.');
             }
-            if ($locked->payment_status !== 'paid') {
+            // Bayar saat diantar: boleh dibuat sebelum lunas, tetapi tidak boleh ditutup sebelum uang diterima.
+            $payLater = (bool) $locked->pay_on_delivery && $locked->payment_status === 'pending';
+            if ($locked->payment_status !== 'paid' && ! $payLater) {
                 throw new AccessException('conflict', 'Pesanan belum dibayar.');
+            }
+            if ($payLater && $to === 'completed') {
+                throw new AccessException('conflict', 'Terima pembayaran dulu sebelum menandai pesanan selesai.');
             }
 
             $set = ['status' => $to, 'updated_at' => DB::raw('now()')];
@@ -252,6 +315,10 @@ final class OrderWorkflow
             $base = $this->auditBase($locked, $actor);
 
             if ($locked->payment_status !== 'paid') {
+                // Bayar saat diantar: stok sudah dipotong saat masuk antrean, jadi dikembalikan.
+                $reversed = $locked->pay_on_delivery
+                    ? InventoryLedger::reverseSale($locked->id, $actor->id, 'Pembatalan pesanan '.($locked->order_number ?? OrderEngine::reference($locked->id)))
+                    : [];
                 DB::table('orders')->where('id', $locked->id)->update([
                     'status' => 'cancelled',
                     'payment_status' => 'expired',
@@ -261,6 +328,9 @@ final class OrderWorkflow
                 ]);
                 DB::table('payments')->where('order_id', $locked->id)->where('status', 'pending')->update(['status' => 'expired', 'updated_at' => DB::raw('now()')]);
                 $this->audit->record([...$base, 'action' => 'order.cancelled', 'before' => ['status' => $locked->status], 'after' => ['status' => 'cancelled', 'paid' => false], 'reason' => $reason], $context);
+                if ($reversed !== []) {
+                    $this->audit->record([...$base, 'action' => 'inventory.sale_reversed', 'after' => ['items' => self::stockLines($reversed)]], $context);
+                }
                 OrderEngine::notify(self::topics($locked));
 
                 return ['result' => 'cancelled'];
@@ -417,7 +487,7 @@ final class OrderWorkflow
     // --- Bantuan ------------------------------------------------------------------------
 
     /** Ringkasan movement stok untuk log aktivitas: nama, jumlah, saldo sesudah, kekurangan bahan resep. */
-    private static function stockLines(array $posted): array
+    public static function stockLines(array $posted): array
     {
         return array_map(fn (array $m) => [
             'item' => $m['name'], 'quantity' => Qty::toDb($m['after'] - $m['before']), 'stockAfter' => Qty::toDb($m['after']), 'unit' => $m['unit'],

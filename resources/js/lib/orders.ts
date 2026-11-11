@@ -93,7 +93,8 @@ export type OrderLine = {
 /** Detail order untuk staf (OrderEngine::detail). */
 export type StaffOrder = {
   subtotal?: number;
-  deliveryFee?: number;
+  /** Bayar saat diantar (QR meja diantar, tunai): masuk antrean sebelum lunas. */
+  payOnDelivery?: boolean;
   id: string;
   reference: string;
   orderNumber: string | null;

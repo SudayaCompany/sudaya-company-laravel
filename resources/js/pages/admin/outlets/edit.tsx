@@ -7,7 +7,6 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MoneyInput } from "@/components/money-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -23,7 +22,6 @@ type Outlet = {
   orderNumberPrefix: string;
   pendingPaymentTtlMinutes: number;
   isActive: boolean;
-  deliveryFee?: number;
   qrisImageUrl?: string | null;
 };
 type Table = { id: string; number: string; isActive: boolean };
@@ -40,7 +38,7 @@ export default function OutletEdit({ outlet, tables }: { outlet: Outlet; tables:
       <Head title={`Outlet ${outlet.name}`} />
       <PageHeader title={outlet.name} description={`Kode ${outlet.code} (tercetak di QR, tidak bisa diubah).`} />
       <SettingsForm key={JSON.stringify(outlet)} outlet={outlet} />
-      <DeskOrdering key={`${outlet.deliveryFee}-${outlet.qrisImageUrl}`} outlet={outlet} />
+      <QrisSettings key={outlet.qrisImageUrl ?? 'none'} outlet={outlet} />
       <Tables outlet={outlet} tables={tables} />
     </AdminLayout>
   );
@@ -215,34 +213,28 @@ function TableRow({ table, outletCode }: { table: Table; outletCode: string }) {
   );
 }
 
-/** Pesanan meja kantor: biaya antar per pesanan + QRIS statis outlet (dikonfirmasi manual kasir). */
-function DeskOrdering({ outlet }: { outlet: Outlet }) {
+/** QRIS statis outlet (dikonfirmasi manual kasir/barista). Biaya antar dihapus 11 November 2026. */
+function QrisSettings({ outlet }: { outlet: Outlet }) {
   const { pending, options } = useMutation();
-  const [fee, setFee] = useState(String(outlet.deliveryFee ?? 0));
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const save = (removeQris = false) =>
-    router.post(`/admin/outlets/${outlet.id}/ordering`, { deliveryFee: fee, removeQris, ...(file ? { qris: file } : {}) }, { ...options, forceFormData: true });
+    router.post(`/admin/outlets/${outlet.id}/ordering`, { removeQris, ...(file ? { qris: file } : {}) }, { ...options, forceFormData: true });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pesanan meja kantor</CardTitle>
+        <CardTitle>Pembayaran QRIS</CardTitle>
         <CardDescription>
-          Pelanggan scan QR di meja → isi nama, lantai, bagian → pilih Antar ke meja (kena biaya antar) atau Ambil di counter → bayar tunai di kasir atau QRIS.
+          Pelanggan scan QR di meja → isi nama, lantai, bagian → pilih Antar ke meja (gratis, bayar tunai ke barista saat diantar) atau Ambil di counter → atau bayar QRIS.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <div className="flex max-w-xs flex-col gap-1.5">
-          <Label htmlFor="delivery-fee">Biaya antar ke meja (per pesanan)</Label>
-          <MoneyInput id="delivery-fee" value={fee} onValueChange={setFee} placeholder="0" />
-          <p className="text-xs text-muted-foreground">Isi 0 bila gratis. Dihitung otomatis di server dan tampil di struk.</p>
-        </div>
         <div className="flex flex-col gap-2">
           <Label>QRIS outlet (statis)</Label>
           <p className="text-xs text-muted-foreground">
-            Unggah foto/gambar QRIS resmi Sudaya (dari bank/penyedia QRIS). Pelanggan yang memilih QRIS melihat gambar ini beserta nominal; kasir menekan "Konfirmasi QRIS
+            Unggah foto/gambar QRIS resmi Sudaya (dari bank/penyedia QRIS). Pelanggan yang memilih QRIS melihat gambar ini beserta nominal; kasir/barista menekan "Konfirmasi QRIS
             diterima" setelah dana terlihat masuk. Tanpa gambar, pilihan QRIS tidak muncul.
           </p>
           <input
@@ -287,7 +279,7 @@ function DeskOrdering({ outlet }: { outlet: Outlet }) {
           </div>
         </div>
         <Button className="w-fit" onClick={() => save()} disabled={pending}>
-          {pending ? <Loader2Icon className="animate-spin" /> : <SaveIcon />} Simpan pengaturan pesanan meja
+          {pending ? <Loader2Icon className="animate-spin" /> : <SaveIcon />} Simpan QRIS
         </Button>
       </CardContent>
     </Card>

@@ -78,7 +78,7 @@ class Phase2FlowTest extends ServerTestCase
         $image = $owner->get($expense['evidenceUrl']);
         $this->assertSame([200, 'image/jpeg'], [$image->getStatusCode(), $image->getHeaderLine('Content-Type')]);
         $this->assertStringContainsString('no-store', $image->getHeaderLine('Cache-Control'));
-        $this->assertSame(404, $this->login($this->f('barista'))->get($expense['evidenceUrl'])->getStatusCode(), 'staf lain tidak melihat nota');
+        $this->assertSame(403, $this->login($this->f('barista'))->get($expense['evidenceUrl'])->getStatusCode(), 'barista tanpa akses pengeluaran tidak melihat nota');
 
         $owner->get('/admin/approvals');
         $flash = $this->flash($owner, $owner->post("/admin/approvals/{$expense['id']}/decide", ['approve' => true]));
@@ -144,9 +144,8 @@ class Phase2FlowTest extends ServerTestCase
         $this->assertSame(1, collect($page['props']['products'])->firstWhere('name', 'Latte F2')['lines']);
 
         $barista = $this->login($this->f('barista'));
-        $barista->get("/admin/inventory/recipes/{$this->f('latte')}?outlet={$outletId}");
-        $flash = $this->flash($barista, $barista->post("/admin/inventory/recipes/{$this->f('latte')}", ['outletId' => $outletId, 'lines' => []]));
-        $this->assertNotEmpty($flash['error'] ?? null, 'barista tidak bisa mengubah resep');
+        $barista->get('/staff');
+        $this->assertSame(403, $barista->post("/admin/inventory/recipes/{$this->f('latte')}", ['outletId' => $outletId, 'lines' => []])->getStatusCode(), 'barista tidak bisa mengubah resep');
         $this->assertSame(1, DB::table('product_recipe_items')->where('product_id', $this->f('latte'))->count());
     }
 

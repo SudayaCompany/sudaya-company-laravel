@@ -14,7 +14,7 @@ import { amountFromDigits, shortRupiah, tenderSuggestions } from "@/lib/money";
 import type { StaffOrder } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
-export type OrderActionFlags = { canConfirmCash: boolean; canCancel: boolean; canDecide: boolean; canRefund: boolean };
+export type OrderActionFlags = { canConfirmCash: boolean; canCancel: boolean; canDecide: boolean; canRefund: boolean; canOpenCash?: boolean };
 
 /** Kirim aksi ke server; pesan sukses/error tampil lewat flash. */
 function useAction() {
@@ -44,7 +44,8 @@ export function OrderActions({
   cashSessionOpen: boolean;
 }) {
   const base = areaBase(area);
-  const unpaid = order.status === "pending_payment";
+  // Bayar saat diantar: pesanan sudah di antrean barista, uang diterima saat diantar.
+  const unpaid = order.status === "pending_payment" || (!!order.payOnDelivery && order.paymentStatus === "pending" && ["queued", "preparing", "ready"].includes(order.status));
   const terminal = ["completed", "cancelled", "refunded"].includes(order.status);
   const approval = order.pendingApproval;
   // Kembalian dihitung dari uang yang diketik kasir (tampilan saja; nilai sah dicatat server).
@@ -59,10 +60,16 @@ export function OrderActions({
         ) : (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             Sesi kas belum dibuka.{" "}
-            <Link href={`/pos/cash?outlet=${order.outletId}`} className="font-medium underline">
-              Buka sesi kas
-            </Link>{" "}
-            untuk menerima uang tunai.
+            {flags.canOpenCash === false ? (
+              "Minta Kasir atau Manager membuka sesi kas untuk menerima uang tunai."
+            ) : (
+              <>
+                <Link href={`/pos/cash?outlet=${order.outletId}`} className="font-medium underline">
+                  Buka sesi kas
+                </Link>{" "}
+                untuk menerima uang tunai.
+              </>
+            )}
           </p>
         )
       ) : null}
@@ -166,7 +173,9 @@ function PaidDialog({ order, change, onClose }: { order: StaffOrder; change: num
         <DialogHeader className="items-center text-center">
           <CheckCircle2Icon className="size-10 text-success" aria-hidden />
           <DialogTitle className="text-xl">Pembayaran berhasil</DialogTitle>
-          <DialogDescription>Pesanan masuk antrean barista.</DialogDescription>
+          <DialogDescription>
+            {order.payOnDelivery ? "Uang diterima. Tandai pesanan sudah diantar di layar barista." : "Pesanan masuk antrean barista."}
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-3 text-center">
           <div>
@@ -182,9 +191,16 @@ function PaidDialog({ order, change, onClose }: { order: StaffOrder; change: num
           <a href={`/pos/orders/${order.id}/receipt?print=1`} target="_blank" rel="noopener" className={buttonVariants({ variant: "outline", size: "lg", className: "w-full" })}>
             <PrinterIcon /> Cetak struk
           </a>
-          <Button size="xl" className="w-full" onClick={onClose}>
-            Selesai
-          </Button>
+          {order.payOnDelivery ? (
+            // Barista menerima uang di meja: kembali ke layar barista untuk menandai sudah diantar.
+            <Link href={`/kds?outlet=${order.outletId}`} className={buttonVariants({ size: "xl", className: "w-full" })}>
+              Kembali ke layar barista
+            </Link>
+          ) : (
+            <Button size="xl" className="w-full" onClick={onClose}>
+              Selesai
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

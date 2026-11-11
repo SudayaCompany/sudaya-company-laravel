@@ -23,6 +23,8 @@ class KdsController
             'orders' => $orders->kdsBoard($request->user(), $outlet),
             'canUpdate' => $request->user()->can('order.update_status', $scope),
             'canOverride' => $request->user()->can('kds.manage', $scope),
+            // Bayar saat diantar: barista menerima uang di meja lalu menandai lunas.
+            'canTakePayment' => $request->user()->can('payment.confirm_cash', $scope),
             'topic' => OrderEngine::outletTopic($outlet['id']),
         ]);
     }

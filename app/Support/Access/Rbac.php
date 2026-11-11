@@ -155,16 +155,18 @@ final class Rbac
             'customer.view',
             'report.inventory',
         ],
-        // Void hanya pengajuan (eksekusi lewat approval Manager); override antrean tidak boleh.
+        // Absen + semua urusan pesanan (keputusan owner 11 November 2026): termasuk menerima uang
+        // bayar-saat-diantar di meja. Stok & pengeluaran hanya Admin/Manager. Void pesanan lunas
+        // hanya pengajuan (eksekusi lewat approval Manager); override antrean tidak boleh.
         'barista' => [
             'attendance.checkin',
             'attendance.checkout',
-            'inventory.view',
-            'inventory.issue',
             'order.view',
             'order.create',
             'order.update_status',
             'order.void',
+            'payment.view',
+            'payment.confirm_cash',
             'kds.view',
         ],
         // POS, pembayaran cash, sesi kas.

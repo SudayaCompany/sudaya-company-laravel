@@ -67,14 +67,14 @@ class InventoryFlowTest extends ServerTestCase
         $this->assertSame('Stok masuk tercatat. Stok sekarang 7.000 ml.', $flash['success'] ?? null);
         $this->assertSame('18.0000', $this->item()->purchase_price, 'Rp18.000/l = Rp18/ml');
 
-        // Barista mencatat waste dengan foto: tersimpan di bucket privat asli.
-        $barista = $this->login($this->f('barista'));
+        // Manager mencatat waste dengan foto: tersimpan di bucket privat asli (Barista tanpa akses stok sejak 11 November 2026).
+        $barista = $this->login($this->f('manager'));
         $out = Browser::page($barista->get('/admin/inventory/stock-out'));
         $this->assertSame('admin/inventory/stock-out', $out['component']);
         $photo = base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=');
         $flash = $this->flash($barista, $barista->multipart('/admin/inventory/stock-out', ['itemId' => $item->id, 'type' => 'waste', 'quantity' => '250', 'unit' => 'ml', 'reason' => 'Tumpah saat steaming', 'idempotencyKey' => (string) Str::uuid()], ['photo' => ['name' => 'bukti.jpg', 'bytes' => $photo, 'type' => 'image/jpeg']]));
         $this->assertSame('Stok keluar tercatat. Stok sekarang 6.750 ml.', $flash['success'] ?? null);
-        $this->assertSame(403, $barista->get('/admin/inventory/stock-in')->getStatusCode(), 'barista tidak menerima barang');
+        $this->assertSame(403, $this->login($this->f('barista'))->get('/admin/inventory/stock-out')->getStatusCode(), 'barista tidak mencatat stok');
 
         $owner = $this->login($this->f('owner'));
         $history = Browser::page($owner->get("/admin/inventory/movements?item={$item->id}"));
@@ -127,11 +127,13 @@ class InventoryFlowTest extends ServerTestCase
         foreach (['/admin/inventory', '/admin/inventory/stock-in', '/admin/inventory/stock-out', '/admin/inventory/opname', '/admin/inventory/movements'] as $path) {
             $this->assertSame(403, $cashier->get($path)->getStatusCode(), $path);
         }
-        // Barista boleh melihat stok, tetapi membuat item (inventory.adjust) ditolak service.
+        // Barista (keputusan owner 11 November 2026): hanya absen + pesanan, tanpa akses stok sama sekali.
         $barista = $this->login($this->f('barista'));
-        $barista->get('/admin/inventory');
-        $flash = $this->flash($barista, $barista->post('/admin/inventory/items', ['outletId' => $this->f('A')['outletId'], 'sku' => 'X-BARISTA', 'name' => 'Item Barista', 'kind' => 'raw_material', 'unit' => 'g']));
-        $this->assertNotEmpty($flash['error'] ?? null);
+        foreach (['/admin/inventory', '/admin/inventory/stock-out', '/admin/inventory/movements'] as $path) {
+            $this->assertSame(403, $barista->get($path)->getStatusCode(), $path);
+        }
+        $barista->get('/staff');
+        $this->assertSame(403, $barista->post('/admin/inventory/items', ['outletId' => $this->f('A')['outletId'], 'sku' => 'X-BARISTA', 'name' => 'Item Barista', 'kind' => 'raw_material', 'unit' => 'g'])->getStatusCode());
         $this->assertSame(0, DB::table('inventory_items')->where('sku', 'X-BARISTA')->count());
         foreach (['/admin/inventory', '/admin/inventory/opname'] as $path) {
             $guest = $this->browser()->get($path);

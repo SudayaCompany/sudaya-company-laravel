@@ -206,7 +206,9 @@ class PurchasingExpenseTest extends LiveTestCase
 
         $photo = UploadedFile::fake()->createWithContent('nota.jpg', "\xFF\xD8\xFF\xE0".str_repeat('n', 2048));
         $byCashier = $x->create($this->actor('cashierA'), $base, $photo, $this->audit());
-        $byBarista = $x->create($this->actor('baristaA'), [...$base, 'category' => 'pembelian_kecil', 'amount' => '27500', 'description' => 'Es batu 2 kantong'], null, $this->audit());
+        // Barista tidak lagi mencatat pengeluaran (keputusan owner 11 November 2026); Admin boleh.
+        $this->expectAccess('forbidden', fn () => $x->create($this->actor('baristaA'), $base, null, $this->audit()));
+        $byAdmin = $x->create($this->actor('adminA'), [...$base, 'category' => 'pembelian_kecil', 'amount' => '27500', 'description' => 'Es batu 2 kantong'], null, $this->audit());
         $byManager = $x->create($this->actor('managerA'), [...$base, 'category' => 'maintenance', 'amount' => '150000', 'description' => 'Servis grinder'], null, $this->audit());
         $evidencePath = DB::table('expenses')->where('id', $byCashier['expenseId'])->value('evidence_path');
         $this->assertArrayHasKey($evidencePath, self::$stored);
@@ -223,8 +225,8 @@ class PurchasingExpenseTest extends LiveTestCase
         $this->expectAccess('forbidden', fn () => $x->pending($this->actor('cashierA'), $this->outlet()));
         $x->decide($this->actor('managerA'), ['approvalId' => $byCashier['approvalId'], 'approve' => true], $this->audit());
         $x->decide($this->actor('ownerA'), ['approvalId' => $byManager['approvalId'], 'approve' => true], $this->audit());
-        $x->decide($this->actor('ownerA'), ['approvalId' => $byBarista['approvalId'], 'approve' => false, 'note' => 'Pakai kas kecil'], $this->audit());
-        $this->expectAccess('conflict', fn () => $x->cancel($this->actor('baristaA'), $byBarista['expenseId'], $this->audit()));
+        $x->decide($this->actor('ownerA'), ['approvalId' => $byAdmin['approvalId'], 'approve' => false, 'note' => 'Pakai kas kecil'], $this->audit());
+        $this->expectAccess('conflict', fn () => $x->cancel($this->actor('adminA'), $byAdmin['expenseId'], $this->audit()));
 
         $owner = $x->list($this->actor('ownerA'), $this->outlet(), null);
         $this->assertSame(['approved' => 155_000, 'pending' => 0, 'count' => 3], $owner['totals']);
@@ -234,13 +236,13 @@ class PurchasingExpenseTest extends LiveTestCase
         // Bukti: pemohon & peninjau boleh, staf lain dan tenant lain tidak.
         $this->assertStringStartsWith("\xFF\xD8\xFF", $x->evidence($this->actor('ownerA'), $byCashier['expenseId'])['bytes']);
         $this->assertSame('image/jpeg', $x->evidence($this->actor('cashierA'), $byCashier['expenseId'])['contentType']);
-        $this->expectAccess('not_found', fn () => $x->evidence($this->actor('baristaA'), $byCashier['expenseId']));
+        $this->expectAccess('not_found', fn () => $x->evidence($this->actor('adminA'), $byCashier['expenseId']));
         $this->expectAccess('not_found', fn () => $x->evidence($this->actor('superB'), $byCashier['expenseId']));
         $this->expectAccess('not_found', fn () => $x->decide($this->actor('superB'), ['approvalId' => $byCashier['approvalId'], 'approve' => true], $this->audit()));
 
         // Batalkan milik sendiri yang masih menunggu.
         $later = $x->create($this->actor('cashierA'), [...$base, 'amount' => '3000', 'description' => 'Parkir kedua'], null, $this->audit());
-        $this->expectAccess('not_found', fn () => $x->cancel($this->actor('baristaA'), $later['expenseId'], $this->audit()));
+        $this->expectAccess('not_found', fn () => $x->cancel($this->actor('adminA'), $later['expenseId'], $this->audit()));
         $x->cancel($this->actor('cashierA'), $later['expenseId'], $this->audit());
         $this->assertSame('cancelled', DB::table('approvals')->where('id', $later['approvalId'])->value('status'));
         $this->assertSame(1, $this->ctx()->countAudit(static::$fixture['A']['id'], 'expense.cancelled', $later['expenseId']));

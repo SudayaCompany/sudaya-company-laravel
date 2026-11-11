@@ -1,9 +1,9 @@
-import { Head, router } from "@inertiajs/react";
-import { CheckCheckIcon, ChefHatIcon, InboxIcon, Loader2Icon, MaximizeIcon, MinimizeIcon, PlayIcon, TriangleAlertIcon, Undo2Icon, WifiOffIcon } from "lucide-react";
+import { Head, Link, router } from "@inertiajs/react";
+import { BanknoteIcon, CheckCheckIcon, ChefHatIcon, InboxIcon, Loader2Icon, MaximizeIcon, MinimizeIcon, PlayIcon, TriangleAlertIcon, Undo2Icon, WifiOffIcon } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { ConnectionBadge, useOnline } from "@/components/orders/live-refresh";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { PosLayout } from "@/layouts/pos-layout";
@@ -17,6 +17,7 @@ import {
   type OrderStatus,
   type OrderType,
 } from "@/lib/orders";
+import { formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { whatsappReadyLink } from "@/lib/whatsapp";
 
@@ -31,7 +32,12 @@ type KdsOrder = {
   tableNumber: string | null;
   locationNote: string | null;
   notes: string | null;
+  paymentStatus: string;
+  /** Bayar saat diantar: masuk antrean sebelum lunas, uang diterima barista di meja. */
+  payOnDelivery: boolean;
+  total: number;
   paidAt: string | null;
+  queuedAt: string | null;
   preparingAt: string | null;
   readyAt: string | null;
   completedAt: string | null;
@@ -44,6 +50,7 @@ type Props = {
   orders: KdsOrder[];
   canUpdate: boolean;
   canOverride: boolean;
+  canTakePayment: boolean;
   topic: string;
 };
 
@@ -89,7 +96,7 @@ function subscribeFullscreen(callback: () => void) {
 }
 
 /** Barista Display. Hanya order lunas yang tampil; urutan FIFO berdasarkan waktu bayar. */
-export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverride, topic }: Props) {
+export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverride, canTakePayment, topic }: Props) {
   const now = useNow();
   // Polling cadangan lebih cepat di KDS: antrean berubah terus saat jam ramai.
   const realtime = useRealtimeRefresh(topic, ["orders"], 5_000);
@@ -110,7 +117,7 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="font-semibold">{outlet.name}</span>
-            <span className="text-muted-foreground">Urut sesuai waktu bayar</span>
+            <span className="text-muted-foreground">Urut sesuai waktu masuk antrean</span>
             {late ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-destructive px-2.5 py-0.5 text-xs font-semibold text-white">
                 <TriangleAlertIcon className="size-3.5" aria-hidden /> {late} terlambat
@@ -196,7 +203,7 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
                     Kosong
                   </p>
                 ) : (
-                  items.map((order) => <OrderCard key={order.id} order={order} now={now} canUpdate={canUpdate} canOverride={canOverride} />)
+                  items.map((order) => <OrderCard key={order.id} order={order} now={now} canUpdate={canUpdate} canOverride={canOverride} canTakePayment={canTakePayment} />)
                 )}
               </section>
             );
@@ -209,12 +216,29 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
   );
 }
 
-function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; now: number; canUpdate: boolean; canOverride: boolean }) {
+function OrderCard({
+  order,
+  now,
+  canUpdate,
+  canOverride,
+  canTakePayment,
+}: {
+  order: KdsOrder;
+  now: number;
+  canUpdate: boolean;
+  canOverride: boolean;
+  canTakePayment: boolean;
+}) {
   const [pending, setPending] = useState(false);
-  const wait = elapsed(order.paidAt, now);
+  const wait = elapsed(order.queuedAt ?? order.paidAt, now);
+  const desk = order.channel === "qr_table" && order.type === "dine_in";
+  // Bayar saat diantar dan uang belum diterima: tidak bisa ditutup sebelum dibayar.
+  const unpaid = order.payOnDelivery && order.paymentStatus === "pending";
   const stageStart = order.status === "preparing" ? order.preparingAt : order.status === "ready" ? order.readyAt : null;
   const stage = elapsed(stageStart, now);
-  const next = NEXT[order.status];
+  const step = NEXT[order.status];
+  const next = step && step.to === "completed" && desk ? { ...step, label: "Sudah diantar" } : step;
+  const blockedByPayment = unpaid && next?.to === "completed";
   const back = BACK[order.status];
   const isLate = wait.minutes >= LATE_MINUTES;
   const isWarn = !isLate && wait.minutes >= WARN_MINUTES;
@@ -239,6 +263,13 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
           </p>
           <p className="text-sm break-words text-muted-foreground">{order.customerName ?? NO_NAME_LABEL}</p>
           {order.locationNote ? <p className="text-sm text-muted-foreground">{order.locationNote}</p> : null}
+          {unpaid ? (
+            <p className="mt-1 inline-flex rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-warning-foreground" data-testid="kds-unpaid">
+              BELUM BAYAR · {formatRupiah(order.total)} · tunai saat diantar
+            </p>
+          ) : order.payOnDelivery ? (
+            <p className="mt-1 inline-flex rounded-md bg-success px-1.5 py-0.5 text-xs font-bold text-success-foreground">LUNAS</p>
+          ) : null}
           {order.status === "ready" ? <WhatsAppReady order={order} /> : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -247,7 +278,7 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
               "rounded-lg px-2 py-1 font-mono text-xl font-bold tabular-nums",
               isLate ? "bg-destructive text-white" : isWarn ? "bg-warning text-warning-foreground" : "bg-muted",
             )}
-            aria-label={`Menunggu sejak dibayar ${wait.text}`}
+            aria-label={`Menunggu sejak masuk antrean ${wait.text}`}
           >
             {wait.text}
           </span>
@@ -285,11 +316,26 @@ function OrderCard({ order, now, canUpdate, canOverride }: { order: KdsOrder; no
               <Undo2Icon />
             </Button>
           ) : null}
-          <Button variant={next.variant} size="xl" className="flex-1" disabled={pending} onClick={() => move(next.to)}>
-            {pending ? <Loader2Icon className="animate-spin" /> : next.icon}
-            {next.label}
-          </Button>
+          {blockedByPayment ? null : (
+            <Button variant={next.variant} size="xl" className="flex-1" disabled={pending} onClick={() => move(next.to)}>
+              {pending ? <Loader2Icon className="animate-spin" /> : next.icon}
+              {next.label}
+            </Button>
+          )}
         </div>
+      ) : null}
+      {unpaid ? (
+        canTakePayment ? (
+          // Form uang diterima + kembalian memakai halaman detail pesanan (sama dengan kasir).
+          <Link
+            href={`/pos/orders/${order.id}`}
+            className={cn(buttonVariants({ variant: blockedByPayment ? "success" : "outline", size: "xl" }), "w-full")}
+          >
+            <BanknoteIcon /> Terima pembayaran · {formatRupiah(order.total)}
+          </Link>
+        ) : (
+          <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-strong">Uang diterima kasir sebelum pesanan ditutup.</p>
+        )
       ) : null}
     </article>
   );

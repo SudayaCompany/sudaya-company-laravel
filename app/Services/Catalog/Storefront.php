@@ -77,7 +77,7 @@ final class Storefront
             ->join('brands', 'brands.id', '=', 'outlets.brand_id')
             ->where('outlets.code', strtoupper($outletCode))
             ->where('outlets.is_active', true)
-            ->first(['outlets.id', 'outlets.code', 'outlets.name', 'outlets.delivery_fee', 'outlets.qris_image_path', 'brands.id as brand_id', 'brands.name as brand_name']);
+            ->first(['outlets.id', 'outlets.code', 'outlets.name', 'outlets.qris_image_path', 'brands.id as brand_id', 'brands.name as brand_name']);
         if ($outlet === null) {
             return null;
         }
@@ -130,7 +130,7 @@ final class Storefront
             ->get(['id', 'group_id', 'name', 'price_delta', 'is_default']);
 
         return [
-            'outlet' => ['id' => $outlet->id, 'code' => $outlet->code, 'name' => $outlet->name, 'deliveryFee' => (int) $outlet->delivery_fee, 'qrisAvailable' => $outlet->qris_image_path !== null],
+            'outlet' => ['id' => $outlet->id, 'code' => $outlet->code, 'name' => $outlet->name, 'qrisAvailable' => $outlet->qris_image_path !== null],
             'brand' => ['id' => $outlet->brand_id, 'name' => $outlet->brand_name],
             'categories' => $categories,
             'products' => $products->map(function ($p) use ($groupLinks, $options, $withStock) {

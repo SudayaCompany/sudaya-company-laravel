@@ -190,7 +190,7 @@ class OrderEngineTest extends LiveTestCase
         $this->assertSame(['cash', 'pending', 77000, null, null], [$payments[0]->method, $payments[0]->status, (int) $payments[0]->amount, $payments[0]->paid_at, $payments[0]->cash_session_id]);
         $this->assertSame(1, $this->ctx()->countAudit($f['A']['id'], 'order.created', $row->id));
         $log = DB::table('audit_logs')->where('entity_id', $row->id)->where('action', 'order.created')->first();
-        $this->assertEquals(['channel' => 'qr_table', 'type' => 'takeaway', 'total' => 77000, 'deliveryFee' => 0, 'items' => 3, 'paymentMethod' => 'cash'], json_decode($log->after, true));
+        $this->assertEquals(['channel' => 'qr_table', 'type' => 'takeaway', 'total' => 77000, 'payOnDelivery' => false, 'items' => 3, 'paymentMethod' => 'cash'], json_decode($log->after, true));
         $this->assertStringNotContainsString($created['accessToken'], (string) $log->after);
     }
 

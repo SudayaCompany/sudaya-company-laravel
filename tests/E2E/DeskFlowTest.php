@@ -3,6 +3,7 @@
 namespace Tests\E2E;
 
 use App\Services\Audit\AuditContext;
+use App\Services\Cash\CashSessions;
 use App\Services\Catalog\CatalogAdmin;
 use App\Services\Catalog\MenuImageStorage;
 use App\Services\Orders\CheckoutLimits;
@@ -15,9 +16,10 @@ use Psr\Http\Message\ResponseInterface;
 use Tests\Live\LiveContext;
 
 /**
- * Pesanan meja kantor lewat HTTP sungguhan: admin mengatur biaya antar + mengunggah QRIS
- * (bucket publik asli) → pelanggan pesan dari QR meja (nama, lantai, bagian, catatan, request
- * di luar menu, QRIS) → kasir konfirmasi QRIS → masuk layar barista dengan nomor HP untuk WA.
+ * Pesanan meja kantor lewat HTTP sungguhan: admin mengunggah QRIS (biaya antar dihapus 11 November
+ * 2026) → pelanggan pesan dari QR meja (nama, lantai, bagian, catatan, request di luar menu):
+ * QRIS dikonfirmasi barista/kasir; antar ke meja + tunai langsung masuk layar barista dan barista
+ * menerima uang di meja (bayar saat diantar).
  */
 class DeskFlowTest extends ServerTestCase
 {
@@ -41,6 +43,8 @@ class DeskFlowTest extends ServerTestCase
         $cat = $catalog->createCategory($admin, $A['brandId'], ['name' => 'Coffee'], $audit)['id'];
         $latte = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Latte Kantor', 'categoryId' => $cat, 'basePrice' => '24000', 'isActive' => true, 'modifierGroupIds' => []], null, $audit)['id'];
         DB::table('outlet_tables')->insert(['company_id' => $A['id'], 'outlet_id' => $A['outletId'], 'number' => 'L2-07']);
+        // Laci kas outlet terbuka: uang tunai yang diterima barista dicatat di sini.
+        app(CashSessions::class)->open($ctx->load($users['cashier']['id']), ['outletId' => $A['outletId'], 'openingAmount' => 100_000], $audit);
 
         return ['A' => $A, ...$users, 'latte' => $latte];
     }
@@ -72,62 +76,106 @@ class DeskFlowTest extends ServerTestCase
         }
     }
 
-    public function test_admin_atur_biaya_antar_dan_qris(): void
+    private function checkout(Browser $guest, array $overrides): array
     {
-        $outletId = $this->f('A')['outletId'];
-        $admin = $this->login($this->f('admin'));
-        $page = Browser::page($admin->get("/admin/outlets/{$outletId}"));
-        $this->assertSame([0, null], [$page['props']['outlet']['deliveryFee'], $page['props']['outlet']['qrisImageUrl']]);
-
-        $png = "\x89PNG\r\n\x1a\n".str_repeat('q', 256);
-        $flash = $this->flash($admin, $admin->multipart("/admin/outlets/{$outletId}/ordering", ['deliveryFee' => '4000', 'removeQris' => '0'], ['qris' => ['name' => 'qris.png', 'bytes' => $png, 'type' => 'image/png']]));
-        $this->assertSame('Pengaturan pesanan meja disimpan; QRIS aktif untuk pelanggan.', $flash['success'] ?? null);
-        $page = Browser::page($admin->get("/admin/outlets/{$outletId}"));
-        $this->assertSame(4000, $page['props']['outlet']['deliveryFee']);
-        $this->assertNotNull($page['props']['outlet']['qrisImageUrl']);
-        $this->assertSame(403, $this->login($this->f('cashier'))->get("/admin/outlets/{$outletId}")->getStatusCode());
-    }
-
-    public function test_pesan_dari_meja_kantor_bayar_qris_lalu_ke_barista(): void
-    {
-        $code = $this->f('A')['outletCode'];
-        $guest = $this->browser();
-        $menu = Browser::page($guest->get("/order?outlet={$code}&table=L2-07"));
-        $this->assertSame([4000, true], [$menu['props']['storefront']['outlet']['deliveryFee'], $menu['props']['storefront']['outlet']['qrisAvailable']]);
-
-        $response = $guest->json('/order/checkout', ['outlet' => $code, 'channel' => 'qr_table', 'checkout' => [
+        $response = $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => [
             'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => 'L2-07', 'customerName' => 'Sari',
             'customerPhone' => '081298765432', 'floor' => '2', 'department' => 'HRD', 'paymentMethod' => 'qris',
             'customRequest' => 'Teh tarik 1 gelas',
             'lines' => [['productId' => $this->f('latte'), 'modifierIds' => [], 'quantity' => 2, 'notes' => 'Less sugar, Less ice']],
+            ...$overrides,
         ]]);
         $this->trackLimits($guest);
         $body = json_decode((string) $response->getBody(), true) ?? [];
-        $this->assertSame([true, 52_000], [$body['ok'] ?? null, $body['total'] ?? null], (string) $response->getBody());
+        $this->assertSame([true, 48_000], [$body['ok'] ?? null, $body['total'] ?? null], (string) $response->getBody());
 
+        return $body;
+    }
+
+    public function test_admin_unggah_qris_tanpa_biaya_antar(): void
+    {
+        $outletId = $this->f('A')['outletId'];
+        $admin = $this->login($this->f('admin'));
+        $page = Browser::page($admin->get("/admin/outlets/{$outletId}"));
+        $this->assertNull($page['props']['outlet']['qrisImageUrl']);
+        $this->assertArrayNotHasKey('deliveryFee', $page['props']['outlet']);
+
+        // Payload persis seperti browser (FormData: boolean menjadi "0").
+        $png = "\x89PNG\r\n\x1a\n".str_repeat('q', 256);
+        $flash = $this->flash($admin, $admin->multipart("/admin/outlets/{$outletId}/ordering", ['removeQris' => '0'], ['qris' => ['name' => 'qris.png', 'bytes' => $png, 'type' => 'image/png']]));
+        $this->assertSame('QRIS outlet disimpan; QRIS aktif untuk pelanggan.', $flash['success'] ?? null);
+        $this->assertNotNull(Browser::page($admin->get("/admin/outlets/{$outletId}"))['props']['outlet']['qrisImageUrl']);
+        $this->assertSame(403, $this->login($this->f('cashier'))->get("/admin/outlets/{$outletId}")->getStatusCode());
+    }
+
+    public function test_pesan_qris_dari_meja_dikonfirmasi_barista(): void
+    {
+        $guest = $this->browser();
+        $menu = Browser::page($guest->get("/order?outlet={$this->f('A')['outletCode']}&table=L2-07"));
+        $this->assertTrue($menu['props']['storefront']['outlet']['qrisAvailable']);
+        $this->assertArrayNotHasKey('deliveryFee', $menu['props']['storefront']['outlet']);
+
+        $body = $this->checkout($guest, []);
         $status = Browser::page($guest->get("/order/status/{$body['orderId']}"))['props']['order'];
-        $this->assertSame(['qris', 4000, 'Lantai 2 · HRD', 52_000], [$status['paymentMethod'], $status['deliveryFee'], $status['locationNote'], $status['total']]);
+        $this->assertSame(['qris', false, 'Lantai 2 · HRD', 48_000, 'pending_payment'], [$status['paymentMethod'], $status['payOnDelivery'], $status['locationNote'], $status['total'], $status['status']]);
         $this->assertNotNull($status['qrisImageUrl']);
         $this->assertStringContainsString('Permintaan di luar menu: Teh tarik 1 gelas', (string) DB::table('orders')->where('id', $body['orderId'])->value('notes'));
 
-        $cashier = $this->login($this->f('cashier'));
-        $detail = Browser::page($cashier->get("/pos/orders/{$body['orderId']}"))['props']['order'];
-        $this->assertSame([4000, 48_000, 'qris'], [$detail['deliveryFee'], $detail['subtotal'], $detail['payments'][0]['method']]);
-        // Barista tidak punya izin konfirmasi pembayaran: ditolak service (flash error), pesanan tetap belum lunas.
+        // Barista (sejak 11 November 2026) boleh menandai QRIS diterima setelah cek dana.
         $barista = $this->login($this->f('barista'));
-        $barista->get('/kds');
-        $this->assertNotEmpty($this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/confirm-qris"))['error'] ?? null);
-        $this->assertSame('pending', DB::table('orders')->where('id', $body['orderId'])->value('payment_status'));
-        $cashier->get("/pos/orders/{$body['orderId']}");
-        $flash = $this->flash($cashier, $cashier->post("/pos/orders/{$body['orderId']}/confirm-qris"));
+        $barista->get("/pos/orders/{$body['orderId']}");
+        $flash = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/confirm-qris"));
         $this->assertStringStartsWith('Pembayaran QRIS dikonfirmasi. Nomor antrean', $flash['success'] ?? '');
 
         $kds = Browser::page($barista->get('/kds'));
         $card = collect($kds['props']['orders'])->firstWhere('id', $body['orderId']);
         $this->assertNotNull($card, 'pesanan lunas tampil di layar barista');
-        $this->assertSame(['qr_table', 'dine_in', 'L2-07', 'Lantai 2 · HRD', '081298765432'], [$card['channel'], $card['type'], $card['tableNumber'], $card['locationNote'], $card['customerPhone']]);
+        $this->assertSame(['qr_table', 'dine_in', 'L2-07', 'Lantai 2 · HRD', '081298765432', 'paid', false], [$card['channel'], $card['type'], $card['tableNumber'], $card['locationNote'], $card['customerPhone'], $card['paymentStatus'], $card['payOnDelivery']]);
+        $this->assertTrue($kds['props']['canTakePayment']);
 
         $after = Browser::page($guest->get("/order/status/{$body['orderId']}"))['props']['order'];
         $this->assertSame(['queued', null], [$after['status'], $after['qrisImageUrl']]);
+    }
+
+    public function test_antar_ke_meja_tunai_dibayar_ke_barista_saat_diantar(): void
+    {
+        $guest = $this->browser();
+        $guest->get("/order?outlet={$this->f('A')['outletCode']}&table=L2-07");
+        $body = $this->checkout($guest, ['paymentMethod' => 'cash', 'customRequest' => null]);
+
+        $status = Browser::page($guest->get("/order/status/{$body['orderId']}"))['props']['order'];
+        $this->assertSame(['queued', 'pending', true], [$status['status'], $status['paymentStatus'], $status['payOnDelivery']]);
+        $this->assertNotNull($status['orderNumber'], 'nomor antrean langsung terbit');
+
+        $barista = $this->login($this->f('barista'));
+        $kds = Browser::page($barista->get('/kds'));
+        $card = collect($kds['props']['orders'])->firstWhere('id', $body['orderId']);
+        $this->assertSame(['queued', 'pending', true, 48_000], [$card['status'], $card['paymentStatus'], $card['payOnDelivery'], $card['total']]);
+
+        foreach ([['queued', 'preparing'], ['preparing', 'ready']] as [$from, $to]) {
+            $barista->get('/kds');
+            $this->flash($barista, $barista->post("/kds/orders/{$body['orderId']}/status", ['from' => $from, 'to' => $to]));
+        }
+        $barista->get('/kds');
+        $blocked = $this->flash($barista, $barista->post("/kds/orders/{$body['orderId']}/status", ['from' => 'ready', 'to' => 'completed']));
+        $this->assertStringContainsString('Terima pembayaran dulu', $blocked['error'] ?? '');
+
+        // Detail pesanan untuk barista menampilkan form terima tunai.
+        $detail = Browser::page($barista->get("/pos/orders/{$body['orderId']}"));
+        $this->assertTrue($detail['props']['flags']['canConfirmCash']);
+        $this->assertFalse($detail['props']['flags']['canOpenCash']);
+        $this->assertTrue($detail['props']['order']['payOnDelivery']);
+        $flash = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/pay", ['tenderedAmount' => 50_000]));
+        $this->assertNotEmpty($flash['success'] ?? null, json_encode($flash));
+
+        $row = DB::table('orders')->where('id', $body['orderId'])->first(['status', 'payment_status']);
+        $this->assertSame(['ready', 'paid'], [$row->status, $row->payment_status]);
+        $payment = DB::table('payments')->where('order_id', $body['orderId'])->first(['method', 'status', 'tendered_amount', 'change_amount', 'cash_session_id']);
+        $this->assertSame(['cash', 'paid', 50_000, 2_000], [$payment->method, $payment->status, (int) $payment->tendered_amount, (int) $payment->change_amount]);
+        $this->assertNotNull($payment->cash_session_id);
+
+        $barista->get('/kds');
+        $this->flash($barista, $barista->post("/kds/orders/{$body['orderId']}/status", ['from' => 'ready', 'to' => 'completed']));
+        $this->assertSame('completed', DB::table('orders')->where('id', $body['orderId'])->value('status'));
     }
 }

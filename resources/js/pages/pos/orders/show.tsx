@@ -49,7 +49,8 @@ export default function PosOrderPage({
   topic: string;
 }) {
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "medium", timeZone: order.outlet.timezone });
-  const unpaid = order.status === "pending_payment";
+  // Bayar saat diantar: sudah di antrean barista tetapi uang belum diterima.
+  const unpaid = order.status === "pending_payment" || (!!order.payOnDelivery && order.paymentStatus === "pending" && ["queued", "preparing", "ready"].includes(order.status));
 
   return (
     <AreaPage area={area} outletId={order.outletId} className="max-w-5xl">
@@ -120,7 +121,7 @@ export default function PosOrderPage({
                   <dd>
                     {order.channel === "qr_table" && order.type === "dine_in" ? "Antar ke meja" : ORDER_TYPE_LABELS[order.type]}
                     {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
-                    {order.deliveryFee ? ` · biaya antar ${formatRupiah(order.deliveryFee)}` : ""}
+                    {order.payOnDelivery ? " · bayar tunai saat diantar" : ""}
                   </dd>
                   {order.locationNote ? (
                     <>

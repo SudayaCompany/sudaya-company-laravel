@@ -64,12 +64,13 @@ class RbacTest extends TestCase
         $this->assertFalse(self::roleHas('manager', 'audit.view'));
     }
 
-    public function test_barista_tanpa_kas_approval_dan_admin(): void
+    /** Keputusan owner 11 November 2026: Barista = absen + semua urusan pesanan (termasuk terima bayar saat diantar). */
+    public function test_barista_absen_dan_pesanan_termasuk_terima_bayar_tanpa_stok_kas_approval(): void
     {
-        foreach (['attendance.checkin', 'order.create', 'kds.view', 'inventory.view'] as $permission) {
+        foreach (['attendance.checkin', 'order.create', 'order.update_status', 'kds.view', 'payment.confirm_cash'] as $permission) {
             $this->assertTrue(self::roleHas('barista', $permission));
         }
-        foreach (['dashboard.view', 'payment.confirm_cash', 'cash.open', 'kds.manage', 'approval.approve', 'inventory.adjust'] as $permission) {
+        foreach (['dashboard.view', 'cash.open', 'cash.close', 'kds.manage', 'approval.approve', 'payment.refund', 'inventory.view', 'inventory.issue', 'inventory.adjust'] as $permission) {
             $this->assertFalse(self::roleHas('barista', $permission));
         }
     }
@@ -90,6 +91,15 @@ class RbacTest extends TestCase
         }
     }
 
+    /**
+     * Penyimpangan default role dari baseline Next.js yang sudah diputuskan owner. Selain ini katalog
+     * PHP harus sama persis dengan baseline agar data role di DB tetap berlaku.
+     */
+    private const DECIDED_DEVIATIONS = [
+        // 11 November 2026: Barista hanya absen + pesanan; terima uang bayar-saat-diantar di meja.
+        'barista' => ['remove' => ['inventory.view', 'inventory.issue'], 'add' => ['payment.view', 'payment.confirm_cash']],
+    ];
+
     /** Katalog PHP harus sama persis dengan baseline Next.js agar data role di DB tetap berlaku. */
     public function test_sama_dengan_katalog_nextjs(): void
     {
@@ -105,7 +115,13 @@ class RbacTest extends TestCase
         foreach (Rbac::DEFAULT_ROLE_PERMISSIONS as $role => $permissions) {
             preg_match('/\n  '.$role.': \[(.*?)\]/s', $defaults[1], $list);
             preg_match_all('/"([a-z_]+\.[a-z_]+)"/', $list[1], $codes);
-            $this->assertSame($codes[1], $permissions, $role);
+            $expected = $codes[1];
+            if (isset(self::DECIDED_DEVIATIONS[$role])) {
+                $expected = array_values(array_diff($expected, self::DECIDED_DEVIATIONS[$role]['remove']));
+                $expected = array_values(array_intersect(Rbac::codes(), [...$expected, ...self::DECIDED_DEVIATIONS[$role]['add']]));
+                $permissions = array_values(array_intersect(Rbac::codes(), $permissions));
+            }
+            $this->assertSame($expected, $permissions, $role);
         }
     }
 }

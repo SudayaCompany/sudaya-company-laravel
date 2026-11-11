@@ -10,6 +10,7 @@ use App\Services\Auth\AccessLoader;
 use App\Services\Catalog\CatalogInput;
 use App\Services\Catalog\MenuImages;
 use App\Services\Catalog\Storefront;
+use App\Services\Inventory\InventoryLedger;
 use App\Services\Outlets\OutletSettings;
 use App\Support\Access\AccessScope;
 use App\Support\Orders\OrderFlow;
@@ -35,7 +36,7 @@ final class OrderEngine
 
     public const ORDER_PAGE_SIZE = 25;
 
-    private const OUTLET_COLUMNS = ['id', 'code', 'name', 'company_id', 'brand_id', 'timezone', 'order_number_prefix', 'pending_payment_ttl_minutes', 'is_active', 'delivery_fee', 'qris_image_path'];
+    private const OUTLET_COLUMNS = ['id', 'code', 'name', 'company_id', 'brand_id', 'timezone', 'order_number_prefix', 'pending_payment_ttl_minutes', 'is_active', 'qris_image_path'];
 
     public function __construct(
         private AuditLogger $audit,
@@ -127,19 +128,20 @@ final class OrderEngine
             }
         }
         $subtotal = $quote['total'];
-        // Biaya antar ke meja (diatur admin per outlet, dihitung server): hanya pesanan QR meja yang diantar.
-        $deliveryFee = $channel === 'qr_table' && $input['type'] === 'dine_in' ? (int) $row->delivery_fee : 0;
-        $total = $subtotal + $deliveryFee;
+        $total = $subtotal;
+        // Bayar saat diantar (keputusan owner 11 November 2026): pesanan QR meja yang diantar dan dibayar
+        // tunai langsung masuk antrean barista; barista menerima uang di meja lalu menandai lunas.
+        $payOnDelivery = $channel === 'qr_table' && $input['type'] === 'dine_in' && $input['paymentMethod'] === 'cash';
         $token = $isPos ? null : GuestTokens::create();
         $requestHash = CheckoutInput::requestHash($input);
 
-        return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $deliveryFee, $total, $token, $requestHash, $context) {
+        return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $total, $payOnDelivery, $token, $requestHash, $context) {
             $inserted = DB::selectOne(
                 'insert into orders (company_id, brand_id, outlet_id, channel, type, status, payment_status,
                     idempotency_key, request_hash, customer_name, customer_phone, table_number, location_note,
-                    delivery_address, notes, subtotal, discount_total, total, delivery_fee, access_token_hash, expires_at, created_by)
-                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
-                    now() + make_interval(mins => ?::int), ?)
+                    delivery_address, notes, subtotal, discount_total, total, pay_on_delivery, access_token_hash, expires_at, created_by)
+                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?::boolean, ?,
+                    case when ?::boolean then null else now() + make_interval(mins => ?::int) end, ?)
                  on conflict (outlet_id, idempotency_key) do nothing
                  returning id',
                 [
@@ -148,8 +150,8 @@ final class OrderEngine
                     $input['type'] === 'dine_in' ? $input['tableNumber'] : null,
                     $input['type'] === 'dine_in' ? $input['locationNote'] : null,
                     $input['type'] === 'delivery' ? $input['deliveryAddress'] : null,
-                    $input['notes'], $subtotal, $total, $deliveryFee, $token['hash'] ?? null,
-                    $row->pending_payment_ttl_minutes, $actor?->id,
+                    $input['notes'], $subtotal, $total, $payOnDelivery, $token['hash'] ?? null,
+                    $payOnDelivery, $row->pending_payment_ttl_minutes, $actor?->id,
                 ],
             );
 
@@ -239,15 +241,48 @@ final class OrderEngine
                     'channel' => $channel,
                     'type' => $input['type'],
                     'total' => $total,
-                    'deliveryFee' => $deliveryFee,
+                    'payOnDelivery' => $payOnDelivery,
                     'items' => array_sum(array_column($quote['lines'], 'quantity')),
                     'paymentMethod' => $input['paymentMethod'],
                 ],
             ], $context);
+            if ($payOnDelivery) {
+                $this->enqueueForDelivery($orderId, $row, $actor, $context);
+            }
             self::notify([self::outletTopic($row->id)]);
 
             return ['orderId' => $orderId, 'reference' => self::reference($orderId), 'total' => $total, 'replayed' => false, 'accessToken' => $token['token'] ?? null];
         });
+    }
+
+    /**
+     * Bayar saat diantar: pesanan langsung masuk antrean barista sebelum dibayar. Stok produk jadi
+     * dipotong sekarang (stok kurang → seluruh checkout dibatalkan, sama seperti saat bayar) dan
+     * nomor antrean dibagikan. Uang dicatat kemudian oleh barista/kasir lewat OrderWorkflow.
+     */
+    private function enqueueForDelivery(string $orderId, object $outlet, ?User $actor, AuditContext $context): void
+    {
+        $sales = InventoryLedger::postSale($orderId, $outlet->id, $actor?->id);
+        $queue = OrderWorkflow::nextQueueNumber($outlet->id);
+        DB::table('orders')->where('id', $orderId)->update([
+            'status' => 'queued',
+            'business_date' => $queue['businessDate'],
+            'queue_number' => $queue['queueNumber'],
+            'order_number' => $queue['orderNumber'],
+            'updated_at' => DB::raw('now()'),
+        ]);
+        $base = [
+            'company_id' => $outlet->company_id,
+            'brand_id' => $outlet->brand_id,
+            'outlet_id' => $outlet->id,
+            'actor_id' => $actor?->id,
+            'entity_type' => 'order',
+            'entity_id' => $orderId,
+        ];
+        $this->audit->record([...$base, 'action' => 'order.queued', 'before' => ['status' => 'pending_payment'], 'after' => ['status' => 'queued', 'orderNumber' => $queue['orderNumber'], 'businessDate' => $queue['businessDate'], 'payOnDelivery' => true]], $context);
+        if ($sales !== []) {
+            $this->audit->record([...$base, 'action' => 'inventory.sale_posted', 'after' => ['orderNumber' => $queue['orderNumber'], 'items' => OrderWorkflow::stockLines($sales)]], $context);
+        }
     }
 
     // --- Query staf ----------------------------------------------------------------
@@ -297,8 +332,7 @@ final class OrderEngine
             'customerPhone' => $order->customer_phone,
             'locationNote' => $order->location_note,
             'deliveryAddress' => $order->delivery_address,
-            'subtotal' => (int) $order->subtotal,
-            'deliveryFee' => (int) $order->delivery_fee,
+            'payOnDelivery' => (bool) $order->pay_on_delivery,
             'cancelReason' => $order->cancel_reason,
             'expiresAt' => $this->iso($order->expires_at),
             'outlet' => ['id' => $outlet->id, 'name' => $outlet->name, 'timezone' => $outlet->timezone],
@@ -451,8 +485,7 @@ final class OrderEngine
             'outletCode' => $order->outlet_code,
             'timezone' => $order->timezone,
             'paymentMethod' => $method,
-            'subtotal' => (int) $order->subtotal,
-            'deliveryFee' => (int) $order->delivery_fee,
+            'payOnDelivery' => (bool) $order->pay_on_delivery,
             'locationNote' => $order->location_note,
             // QRIS statis outlet ditampilkan selama pesanan QRIS menunggu dibayar.
             'qrisImageUrl' => $method === 'qris' && $order->payment_status === 'pending' ? MenuImages::url($order->qris_image_path) : null,
@@ -465,21 +498,23 @@ final class OrderEngine
     // --- KDS -------------------------------------------------------------------------
 
     /**
-     * Papan KDS (PRD §38): order lunas yang belum selesai, urut FIFO waktu bayar,
-     * ditambah 12 order yang selesai dalam 3 jam terakhir. Order belum dibayar tidak tampil.
+     * Papan KDS (PRD §38): order lunas yang belum selesai, urut FIFO waktu masuk antrean,
+     * ditambah 12 order yang selesai dalam 3 jam terakhir. Order belum dibayar tidak tampil,
+     * kecuali pesanan bayar-saat-diantar (masuk antrean sejak dibuat, ditandai belum bayar).
      */
     public function kdsBoard(User $actor, array $outlet): array
     {
         if (! $actor->can('kds.view', AccessScope::outlet($outlet['id']))) {
             throw AccessException::forbidden();
         }
-        $columns = ['id', 'order_number', 'queue_number', 'status', 'type', 'channel', 'customer_name', 'customer_phone', 'table_number', 'location_note', 'notes', 'paid_at', 'preparing_at', 'ready_at', 'completed_at'];
+        $columns = ['id', 'order_number', 'queue_number', 'status', 'payment_status', 'pay_on_delivery', 'total', 'type', 'channel', 'customer_name', 'customer_phone', 'table_number', 'location_note', 'notes', 'paid_at', 'created_at', 'preparing_at', 'ready_at', 'completed_at'];
         $active = DB::table('orders')
             ->where('outlet_id', $outlet['id'])
             ->where('company_id', $actor->company_id)
-            ->where('payment_status', 'paid')
+            ->where(fn ($q) => $q->where('payment_status', 'paid')
+                ->orWhere(fn ($q) => $q->where('pay_on_delivery', true)->where('payment_status', 'pending')))
             ->whereIn('status', OrderFlow::ACTIVE_QUEUE)
-            ->orderBy('paid_at')->orderBy('queue_number')
+            ->orderByRaw('case when pay_on_delivery then created_at else paid_at end')->orderBy('queue_number')
             ->get($columns);
         $completed = DB::table('orders')
             ->where('outlet_id', $outlet['id'])
@@ -504,7 +539,12 @@ final class OrderEngine
             'tableNumber' => $o->table_number,
             'locationNote' => $o->location_note,
             'notes' => $o->notes,
+            'paymentStatus' => $o->payment_status,
+            'payOnDelivery' => (bool) $o->pay_on_delivery,
+            'total' => (int) $o->total,
             'paidAt' => $this->iso($o->paid_at),
+            // Waktu masuk antrean: saat dibayar, atau saat dibuat untuk pesanan bayar-saat-diantar.
+            'queuedAt' => $this->iso($o->pay_on_delivery ? $o->created_at : $o->paid_at),
             'preparingAt' => $this->iso($o->preparing_at),
             'readyAt' => $this->iso($o->ready_at),
             'completedAt' => $this->iso($o->completed_at),

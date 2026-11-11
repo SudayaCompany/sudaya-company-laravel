@@ -249,7 +249,8 @@ class PaymentFlowTest extends LiveTestCase
     {
         $this->freshSession();
         $created = $this->order();
-        $this->expectAccess('forbidden', fn () => $this->pay($created['orderId'], 100_000, 'baristaA'));
+        // Barista boleh menerima pembayaran sejak 11 November 2026 (bayar saat diantar, lihat DeskOrderTest);
+        // role tanpa payment.confirm_cash tetap ditolak.
         $this->expectAccess('forbidden', fn () => $this->pay($created['orderId'], 100_000, 'ownerA'));
         $this->expectAccess('not_found', fn () => $this->pay($created['orderId'], 100_000, 'superB'));
         $this->expectAccess('invalid', fn () => $this->flow()->confirmCash($this->actor('cashierA'), ['orderId' => 'bukan-uuid', 'tenderedAmount' => 1], $this->audit()));
@@ -472,8 +473,9 @@ class PaymentFlowTest extends LiveTestCase
     public function test_status_pelanggan_mengikuti_pembayaran_dan_kds(): void
     {
         $this->freshSession();
+        // Antar ke meja + tunai kini bayar saat diantar (DeskOrderTest); alur bayar-dulu diuji dengan ambil di counter.
         $guest = app(OrderEngine::class)->create('qr_table', ['code' => static::$fixture['A']['outletCode']], null, [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => 'T5', 'customerName' => 'Tamu', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Tamu', 'paymentMethod' => 'cash',
             'lines' => [['productId' => static::$fixture['tea'], 'modifierIds' => [], 'quantity' => 1]],
         ], $this->audit());
         $view = fn () => app(OrderEngine::class)->guestOrder($guest['orderId'], $guest['accessToken']);

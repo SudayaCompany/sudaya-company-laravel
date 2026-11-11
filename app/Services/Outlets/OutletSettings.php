@@ -11,7 +11,6 @@ use App\Services\Catalog\MenuImages;
 use App\Services\Catalog\MenuImageStorage;
 use App\Services\Catalog\Storefront;
 use App\Support\Access\AccessScope;
-use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -56,7 +55,6 @@ final class OutletSettings
                 'orderNumberPrefix' => $outlet->order_number_prefix,
                 'pendingPaymentTtlMinutes' => (int) $outlet->pending_payment_ttl_minutes,
                 'isActive' => (bool) $outlet->is_active,
-                'deliveryFee' => (int) $outlet->delivery_fee,
                 'qrisImageUrl' => MenuImages::url($outlet->qris_image_path),
             ],
             'tables' => DB::table('outlet_tables')
@@ -189,17 +187,15 @@ final class OutletSettings
     }
 
     /**
-     * Pesanan meja kantor (permintaan owner 10 November 2026): biaya antar ke meja per pesanan
-     * (Rp0–1.000.000; 0 = gratis) dan gambar QRIS statis milik outlet (publik, dipindai
-     * pelanggan; pembayaran dikonfirmasi manual kasir). Gambar lama dihapus setelah diganti.
+     * Gambar QRIS statis milik outlet (publik, dipindai pelanggan; pembayaran dikonfirmasi manual
+     * kasir/barista). Gambar lama dihapus setelah diganti. Biaya antar ke meja dihapus atas
+     * keputusan owner 11 November 2026 (kolom lama tetap ada, selalu 0).
      *
-     * @return array{deliveryFee: int, qris: bool}
+     * @return array{qris: bool}
      */
     public function updateOrdering(User $actor, mixed $outletId, array $raw, mixed $qris, AuditContext $context): array
     {
         $outlet = $this->load($actor, $outletId);
-        $feeRaw = $raw['deliveryFee'] ?? '';
-        $fee = $feeRaw === '' || $feeRaw === null ? 0 : Money::amount($feeRaw, 'Biaya antar', max: 1_000_000);
         $image = MenuImages::read($qris);
         $remove = CatalogInput::boolean($raw['removeQris'] ?? false);
         $newPath = $image === null ? null : MenuImages::path($actor->company_id, $outlet->brand_id, $image['ext']);
@@ -209,13 +205,13 @@ final class OutletSettings
         $oldPath = $outlet->qris_image_path;
         $path = $newPath ?? ($remove ? null : $oldPath);
         try {
-            DB::transaction(function () use ($actor, $outlet, $fee, $path, $oldPath, $context) {
-                DB::table('outlets')->where('id', $outlet->id)->update(['delivery_fee' => $fee, 'qris_image_path' => $path, 'updated_at' => DB::raw('now()')]);
+            DB::transaction(function () use ($actor, $outlet, $path, $oldPath, $context) {
+                DB::table('outlets')->where('id', $outlet->id)->update(['qris_image_path' => $path, 'updated_at' => DB::raw('now()')]);
                 $this->audit->record([
                     'company_id' => $outlet->company_id, 'brand_id' => $outlet->brand_id, 'outlet_id' => $outlet->id, 'actor_id' => $actor->id,
                     'action' => 'outlet.ordering_updated', 'entity_type' => 'outlet', 'entity_id' => $outlet->id,
-                    'before' => ['deliveryFee' => (int) $outlet->delivery_fee, 'qris' => $oldPath !== null],
-                    'after' => ['deliveryFee' => $fee, 'qris' => $path !== null, 'qrisReplaced' => $path !== $oldPath],
+                    'before' => ['qris' => $oldPath !== null],
+                    'after' => ['qris' => $path !== null, 'qrisReplaced' => $path !== $oldPath],
                 ], $context);
             });
         } catch (Throwable $error) {
@@ -228,7 +224,7 @@ final class OutletSettings
             }
             throw $error;
         }
-        // Menu pelanggan di-cache: biaya antar & ketersediaan QRIS harus langsung terlihat.
+        // Menu pelanggan di-cache: ketersediaan QRIS harus langsung terlihat.
         $this->storefront->forgetOutlet($outlet->code, $outlet->brand_id);
         if ($oldPath !== null && $oldPath !== $path) {
             try {
@@ -238,7 +234,7 @@ final class OutletSettings
             }
         }
 
-        return ['deliveryFee' => $fee, 'qris' => $path !== null];
+        return ['qris' => $path !== null];
     }
 
     private function load(User $actor, mixed $outletId): object
