@@ -5,7 +5,7 @@
 // (berisi data login, pesanan, absen). Hanya halaman offline yang disimpan. Semua request
 // selain navigasi halaman tidak disentuh sama sekali.
 // Naikkan VERSION setiap kali offline.html diubah.
-const VERSION = "sudaya-app-v1";
+const VERSION = "sudaya-app-v2";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL];
 

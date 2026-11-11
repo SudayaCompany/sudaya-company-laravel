@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#0a0a0a">
+        <meta name="theme-color" content="#0b2b16">
         @if (\App\Support\StaffApp::offeredOn(request()->path()))
             {{-- Aplikasi staf (PWA): bisa dipasang di HP; halaman pelanggan tidak menawarkan pemasangan. --}}
             <link rel="manifest" href="/manifest.webmanifest">

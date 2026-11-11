@@ -21,6 +21,11 @@
   --color-espresso-foreground: var(--espresso-foreground);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  /* Hijau daun dari logo Sudaya (uap kopi). */
+  --color-leaf: var(--leaf);
+  --color-leaf-foreground: var(--leaf-foreground);
+  --color-leaf-strong: var(--leaf-strong);
+  --color-leaf-soft: var(--leaf-soft);
   --color-success-strong: var(--success-strong);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
@@ -79,40 +84,47 @@
   --card-foreground: oklch(0.17 0.01 55);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.17 0.01 55);
-  --primary: oklch(0.21 0.012 50);
-  --primary-foreground: oklch(0.985 0.004 75);
-  --secondary: oklch(0.965 0.006 75);
-  --secondary-foreground: oklch(0.21 0.012 50);
-  --muted: oklch(0.965 0.006 75);
-  --muted-foreground: oklch(0.5 0.012 60);
-  --accent: oklch(0.965 0.006 75);
-  --accent-foreground: oklch(0.21 0.012 50);
+  /* Tema oranye-hijau mengikuti logo (permintaan owner 11 November 2026): primary hijau tua. */
+  --primary: oklch(0.3 0.06 150);
+  --primary-foreground: oklch(0.985 0.004 115);
+  --secondary: oklch(0.965 0.012 120);
+  --secondary-foreground: oklch(0.3 0.06 150);
+  --muted: oklch(0.965 0.01 115);
+  --muted-foreground: oklch(0.48 0.02 140);
+  --accent: oklch(0.955 0.03 125);
+  --accent-foreground: oklch(0.3 0.06 150);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.915 0.008 75);
-  --input: oklch(0.915 0.008 75);
-  --ring: oklch(0.7 0.01 60);
-  --chart-1: oklch(0.7 0.18 50);
-  --chart-2: oklch(0.52 0.13 155);
+  --border: oklch(0.915 0.012 115);
+  --input: oklch(0.915 0.012 115);
+  --ring: oklch(0.674 0.179 45.3);
+  --chart-1: oklch(0.674 0.179 45.3);
+  --chart-2: oklch(0.6 0.15 128);
   --chart-3: oklch(0.5 0.13 240);
-  --chart-4: oklch(0.21 0.012 50);
+  --chart-4: oklch(0.3 0.06 150);
   --chart-5: oklch(0.8 0.08 75);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0.004 75);
   --sidebar-foreground: oklch(0.17 0.01 55);
-  --sidebar-primary: oklch(0.21 0.012 50);
+  --sidebar-primary: oklch(0.3 0.06 150);
   --sidebar-primary-foreground: oklch(0.985 0.004 75);
   --sidebar-accent: oklch(0.955 0.008 75);
-  --sidebar-accent-foreground: oklch(0.21 0.012 50);
+  --sidebar-accent-foreground: oklch(0.3 0.06 150);
   --sidebar-border: oklch(0.915 0.008 75);
   --sidebar-ring: oklch(0.7 0.01 60);
-  /* PRD §86 — primary hitam (espresso), background putih, accent orange, secondary hijau. */
-  --espresso: oklch(0.18 0.015 50);
-  --espresso-foreground: oklch(0.97 0.01 75);
+  /* PRD §86 — primary gelap, background putih, accent oranye, secondary hijau; warna diambil dari
+     logo (oranye #EC6A1F, hijau #95C22B). "espresso" kini hijau hutan tua untuk area gelap. */
+  --espresso: oklch(0.26 0.055 152);
+  --espresso-foreground: oklch(0.975 0.012 110);
   /* Oranye hanya sebagai isi/garis; teks oranye di latar terang memakai --brand-strong (≥ 4,5:1). */
-  --brand: oklch(0.7 0.18 50);
-  --brand-foreground: oklch(0.17 0.01 55);
+  --brand: oklch(0.674 0.179 45.3);
+  --brand-foreground: oklch(0.17 0.02 50);
   --brand-strong: oklch(0.53 0.155 45);
-  --brand-soft: oklch(0.95 0.04 60);
+  --brand-soft: oklch(0.955 0.035 60);
+  /* Hijau logo: isi/garis dengan teks gelap; teks hijau di latar terang memakai --leaf-strong. */
+  --leaf: oklch(0.755 0.177 125.5);
+  --leaf-foreground: oklch(0.22 0.05 140);
+  --leaf-strong: oklch(0.46 0.12 135);
+  --leaf-soft: oklch(0.965 0.045 120);
   --success: oklch(0.52 0.13 155);
   --success-foreground: oklch(0.985 0 0);
   /* Teks status di atas tint 10–15% (badge). */
@@ -125,8 +137,8 @@
   --warning-foreground: oklch(0.17 0.01 55);
   --warning-strong: oklch(0.5 0.11 70);
   /* Selang-seling seksi halaman customer; background utama tetap putih (PRD §86). */
-  --cream: oklch(0.975 0.012 75);
-  --cream-strong: oklch(0.94 0.02 75);
+  --cream: oklch(0.978 0.02 105);
+  --cream-strong: oklch(0.94 0.04 115);
 }
 
 .dark {

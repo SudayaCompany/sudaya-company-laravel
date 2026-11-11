@@ -1,9 +1,8 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Branding teks sementara. Logo resmi Sudaya Coffee belum ada di repo —
- * ganti komponen ini dengan <Image> dari asset resmi saat tersedia,
- * jangan menggambar ulang logo.
+ * Logo resmi Sudaya Coffee (diberikan owner 11 November 2026). `tone="light"` untuk latar gelap
+ * (tulisan putih). Tinggi mengikuti ukuran font dari className (mis. `text-lg`), lebar menyesuaikan.
  */
 export function Brand({
   className,
@@ -13,15 +12,14 @@ export function Brand({
   tone?: "dark" | "light";
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-baseline gap-1.5 font-display font-semibold tracking-tight",
-        tone === "light" ? "text-white" : "text-foreground",
-        className,
-      )}
-    >
-      Sudaya
-      <span className="text-brand">Coffee</span>
+    <span className={cn("inline-flex shrink-0 items-center", className)}>
+      <img
+        src={tone === "light" ? "/images/logo-sudaya-light.png" : "/images/logo-sudaya.png"}
+        alt="Sudaya Coffee"
+        width={463}
+        height={160}
+        className="h-[1.9em] w-auto"
+      />
     </span>
   );
 }

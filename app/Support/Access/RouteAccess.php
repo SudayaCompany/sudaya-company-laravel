@@ -14,6 +14,7 @@ final class RouteAccess
         '/admin/categories' => ['product.view'],
         '/admin/modifiers' => ['product.view'],
         '/admin/outlets' => ['settings.manage'],
+        '/admin/site' => ['settings.manage'],
         '/admin/outlet-tables' => ['settings.manage'],
         '/admin/orders' => ['order.view'],
         // Keputusan (setujui/tolak) diperiksa ulang per outlet di OrderWorkflow.

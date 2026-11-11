@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\PurchasingController;
 use App\Http\Controllers\Admin\RecipeController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\SiteContentController;
 use App\Http\Controllers\Admin\StockOpnameController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AppLinksController;
@@ -177,6 +178,9 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
 
             Route::get('/audit', AuditController::class);
 
+            // Konten halaman publik: tentang, program, pelatihan, sedekah, kontak (11 November 2026).
+            Route::get('/site', [SiteContentController::class, 'edit']);
+            Route::post('/site', [SiteContentController::class, 'update']);
             Route::get('/outlets', [OutletController::class, 'index']);
             Route::get('/outlets/{outlet}', [OutletController::class, 'edit']);
             Route::get('/outlets/{outlet}/qr', [OutletController::class, 'qr']);

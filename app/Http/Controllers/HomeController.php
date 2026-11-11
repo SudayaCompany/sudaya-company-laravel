@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Services\Catalog\Storefront;
+use App\Services\Site\SiteContent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Halaman depan Sudaya Coffee. Data menu dimuat sebagai deferred prop: halaman tampil
- * seketika, dan bila database tidak terjangkau halaman tetap tampil tanpa menu.
+ * Halaman depan Sudaya Coffee (publik). Data menu dan konten situs (tentang, program, pelatihan,
+ * sedekah, kontak) dimuat sebagai deferred prop: halaman tampil seketika, dan bila database tidak
+ * terjangkau halaman tetap tampil.
  */
 class HomeController
 {
@@ -23,7 +25,18 @@ class HomeController
 
         return Inertia::render('home', [
             'cafe' => Inertia::defer(fn () => $this->cafe($storefront, $code), rescue: true),
+            // Database tidak terjangkau: konten bawaan tetap tampil (tanpa kontak).
+            'site' => Inertia::defer(fn () => SiteContent::forPublic(rescue(fn () => $this->brandId($storefront, $code), null, false)), rescue: true),
         ]);
+    }
+
+    /** Brand outlet yang dibuka (atau outlet default); tanpa outlet aktif, brand pertama. */
+    private function brandId(Storefront $storefront, ?string $code): ?string
+    {
+        $code ??= $storefront->defaultOutletCode();
+        $menu = $code === null ? null : $storefront->cached($code);
+
+        return $menu['brand']['id'] ?? DB::table('brands')->orderBy('created_at')->value('id');
     }
 
     /** Data asli dari menu outlet `?outlet=`, atau outlet aktif tunggal (sama dengan QR tanpa ?outlet=). */
