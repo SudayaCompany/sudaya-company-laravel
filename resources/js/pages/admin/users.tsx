@@ -193,7 +193,11 @@ function InviteStaffForm({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="invite-role">Peran</Label>
-        <NativeSelect id="invite-role" name="roleId" required className="w-full">
+        {/* Tanpa pilihan bawaan: peran wajib dipilih sadar (bawaan lama = Super Admin, berisiko). */}
+        <NativeSelect id="invite-role" name="roleId" required defaultValue="" className="w-full">
+          <NativeSelectOption value="" disabled>
+            Pilih peran
+          </NativeSelectOption>
           {roles.map((role) => (
             <NativeSelectOption key={role.id} value={role.id}>
               {role.label}
@@ -248,13 +252,17 @@ function OneTimeLink({ title, url }: { title: string; url: string }) {
 }
 
 function RoleAssigner({ userId, roles, outlets }: { userId: string; roles: Option[]; outlets: Option[] }) {
-  const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
+  // Tanpa pilihan bawaan agar tidak tak sengaja memberi peran pertama (Super Admin).
+  const [roleId, setRoleId] = useState("");
   const [outletId, setOutletId] = useState(ALL_OUTLETS);
   const { pending, post } = usePost();
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <NativeSelect size="sm" aria-label="Role" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+        <NativeSelectOption value="" disabled>
+          Pilih peran
+        </NativeSelectOption>
         {roles.map((role) => (
           <NativeSelectOption key={role.id} value={role.id}>
             {role.label}

@@ -194,7 +194,8 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                   <TableHead className="text-right">Harga</TableHead>
                   <TableHead>Status</TableHead>
                   {outlet ? <TableHead>Tersedia</TableHead> : null}
-                  <TableHead className="text-right">Aksi</TableHead>
+                  {/* Kolom aksi menempel di kanan: Edit/Nonaktifkan/Hapus selalu terlihat walau tabel digeser. */}
+                  <TableHead className="sticky right-0 bg-card text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,11 +210,9 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <p className="font-medium">{product.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {product.sku ?? "—"} · {product.slug}
-                      </p>
+                    <TableCell className="max-w-72 min-w-44 whitespace-normal">
+                      <p className="leading-snug font-medium">{product.name}</p>
+                      {product.sku ? <p className="font-mono text-xs text-muted-foreground">{product.sku}</p> : null}
                     </TableCell>
                     <TableCell className="text-sm">{product.categoryName}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatRupiah(product.basePrice)}</TableCell>
@@ -221,7 +220,7 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                       <Badge variant={product.isActive ? "secondary" : "outline"}>{product.isActive ? "Aktif" : "Nonaktif"}</Badge>
                     </TableCell>
                     {outlet ? (
-                      <TableCell>
+                      <TableCell className="max-w-48 whitespace-normal">
                         <div className="flex flex-col items-start gap-1">
                           <AvailabilitySwitch
                             productId={product.id}
@@ -248,7 +247,7 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                         </div>
                       </TableCell>
                     ) : null}
-                    <TableCell>
+                    <TableCell className="sticky right-0 bg-card">
                       <RowActions product={product} canEdit={can.edit} canDelete={can.delete} />
                     </TableCell>
                   </TableRow>

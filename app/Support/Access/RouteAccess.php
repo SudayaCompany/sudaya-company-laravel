@@ -37,7 +37,6 @@ final class RouteAccess
         '/admin/outside-duty' => ['attendance.approve_outside_duty', 'attendance.view'],
         '/admin' => ['dashboard.view'],
         '/staff/attendance' => ['attendance.checkin'],
-        '/staff/face-enrollment' => ['attendance.checkin'],
         '/staff/outside-duty' => ['attendance.checkin'],
         '/staff' => Rbac::STAFF_APP_PERMISSIONS,
         '/pos' => ['order.create'],

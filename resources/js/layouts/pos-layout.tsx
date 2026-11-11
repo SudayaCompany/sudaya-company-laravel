@@ -8,9 +8,10 @@ import type { SharedProps } from "@/types";
 
 // Tampil bila user punya izinnya; setiap halaman tetap memeriksa izin di server.
 const NAV: { href: string; label: string; visible: (auth: NonNullable<SharedProps["auth"]>) => boolean }[] = [
-  { href: "/pos", label: "Kasir", visible: () => true },
-  { href: "/pos/orders", label: "Pesanan", visible: () => true },
-  { href: "/pos/cash", label: "Kas", visible: (auth) => auth.permissions.includes("cash.view") },
+  // Hanya menu yang boleh dibuka peran ini (Owner membuka KDS tanpa akses Kasir/Kas POS → tidak ada tautan 403).
+  { href: "/pos", label: "Kasir", visible: (auth) => auth.navigation.includes("/pos") },
+  { href: "/pos/orders", label: "Pesanan", visible: (auth) => auth.navigation.includes("/pos") },
+  { href: "/pos/cash", label: "Kas", visible: (auth) => auth.navigation.includes("/pos") && auth.permissions.includes("cash.view") },
   { href: "/kds", label: "Barista", visible: (auth) => auth.navigation.includes("/kds") },
   { href: "/staff/attendance", label: "Absen", visible: (auth) => auth.navigation.includes("/staff/attendance") },
   { href: "/staff", label: "Beranda", visible: (auth) => auth.navigation.includes("/staff") },
@@ -22,11 +23,13 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
   const pathname = url.split("?")[0];
   const auth = props.auth;
   const items = auth ? NAV.filter((item) => item.visible(auth)) : [];
+  // Logo kembali ke halaman yang memang boleh dibuka (Owner tidak punya akses Kasir).
+  const home = !auth || auth.navigation.includes("/pos") ? "/pos" : auth.navigation.includes("/admin") ? "/admin" : "/staff";
 
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-muted/30">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 bg-espresso px-3 text-espresso-foreground sm:gap-4 sm:px-4 print:hidden">
-        <Link href="/pos" className="flex min-h-9 shrink-0 items-center gap-2 pointer-coarse:min-h-11">
+        <Link href={home} className="flex min-h-9 shrink-0 items-center gap-2 pointer-coarse:min-h-11">
           <Brand tone="light" className="text-base" />
           <span className="hidden text-xs text-neutral-400 sm:inline">POS</span>
         </Link>

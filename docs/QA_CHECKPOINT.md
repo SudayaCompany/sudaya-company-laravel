@@ -450,3 +450,29 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 - Pesanan bayar-saat-diantar yang tidak dibayar harus dibatalkan barista (tidak kedaluwarsa otomatis) agar stok kembali.
 - Kontak footer, info pelatihan, dan tautan program petani kopi di Sahabat Berbagi diisi owner di **Admin → Konten situs** (tautan awal ke beranda sahabatberbagi.org karena halaman program petani kopi tidak ditemukan).
 - 22 menu asli menunggu harga dari owner; foto menu belum ada. File asli owner (logo, foto 21 MB, menu .docx) di root repo tidak di-commit.
+
+## Audit menu & tampilan per peran, CRUD menu, QRIS resmi (11 November 2026, sore)
+
+**Status: Development Verified.** Permintaan user: cek semua fitur di /login, /admin, dan /staff; hapus menu/tampilan yang salah atau tidak dipakai; pastikan menu bisa ditambah/diubah/dihapus admin termasuk deskripsinya.
+
+**Cara audit**: probe Chrome membuka setiap tautan menu yang terlihat di /staff, /admin, /pos, /kds untuk Super Admin, Owner, Kasir, dan Barista (fixture), plus /login (HP & desktop). Dicatat status HTTP, pengalihan, teks error/izin, error console/CSP, scroll horizontal, dan screenshot setiap halaman untuk ditinjau. Super Admin 33 halaman, Owner 22, Kasir 7, Barista 6 (masing-masing + beranda staf versi HP; di luar URL terlarang yang sengaja dibuka untuk memastikan 403), plus /login HP & desktop = 74 tampilan: semua 200, tanpa error console/CSP, tanpa scroll horizontal.
+
+| No | Temuan | Perbaikan |
+|---|---|---|
+| A1 | **Admin → Staf**: form *Undang staf* dan *Tambah peran* otomatis memilih **Super Admin** (satu klik ceroboh memberi akses penuh) | Peran wajib dipilih ("Pilih peran"); tombol nonaktif sebelum dipilih |
+| A2 | Owner membuka layar barista: tab **Kasir**, **Pesanan**, **Kas** dan logo POS mengarah ke halaman yang ditolak (403) | Tab hanya tampil bila perannya boleh membuka; logo kembali ke halaman yang diizinkan |
+| A3 | **Admin → Menu** di layar 1280 px: kolom aksi (Edit / Nonaktifkan / Hapus) terdorong keluar layar oleh nama panjang + slug teknis | Nama boleh terlipat, slug teknis tidak ditampilkan (SKU saja bila ada), kolom aksi menempel di kanan |
+| A4 | Halaman sisa migrasi "Modul belum tersedia" (`pages/pending.tsx`) tidak dipakai rute mana pun | Dihapus |
+| A5 | Aturan akses untuk `/staff/face-enrollment` padahal halamannya tidak ada | Dihapus |
+
+**CRUD menu** sudah ada di **Admin → Menu** dan diuji browser **13/13**: tambah menu (nama, kategori, harga, deskripsi, foto, varian), ubah deskripsi & harga → langsung tampil di menu pelanggan, nonaktifkan (hilang dari pelanggan) → aktifkan, hapus; dasbor admin termuat; tanpa error console/CSP.
+
+**QRIS resmi** "SUDAYA COFFE" (file dari owner) dipasang ke outlet SDY01 di dev lewat layanan pengaturan outlet (tercatat di log aktivitas); gambar publik terverifikasi (200, image/jpeg, 123.602 byte). File asli di root repo tidak di-commit.
+
+| Suite | Hasil |
+|---|---|
+| Unit/feature (SQLite) | **169/169 (721 assertion)** |
+| Browser audit per peran | 74 tampilan, 0 error di halaman yang boleh dibuka |
+| Browser CRUD menu + dasbor | **13/13** |
+
+Catatan untuk owner: halaman **Pelanggan** menampilkan poin & tier (Rp10.000 = 1 poin) dengan keterangan "Penukaran poin belum tersedia". Aturan poin belum diputuskan owner; bila tidak dipakai, bagian poin/tier bisa disembunyikan.
