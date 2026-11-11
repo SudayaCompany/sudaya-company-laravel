@@ -407,3 +407,46 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 - Absen tetap butuh internet (disengaja agar jam, lokasi, dan foto dicatat server). Tidak ada antrean absen offline.
 - Notifikasi push saat aplikasi tertutup (mis. pesanan baru untuk barista) butuh Web Push + kunci VAPID di server production; belum dibuat.
 - Ikon masih placeholder sampai logo resmi tersedia.
+
+## Bayar saat diantar, Barista absen + pesanan, halaman publik & konten situs, tema logo, menu asli (11 November 2026)
+
+**Status: Development Verified, menunggu review owner.** Keputusan/permintaan owner 11 November: Barista untuk absen (selfie) dan semua urusan pesanan; stok hanya Admin; tunai dibayar ke barista saat diantar dan barista yang menandai lunas; biaya antar dihapus; halaman publik tanpa login (tentang Sudaya, program pelatihan kopi & pemberdayaan petani kopi, info pelatihan, tautan sedekah Sahabat Berbagi, kontak di footer); warna oranye-hijau sesuai logo; logo, foto, dan file menu dari owner; akun staf dibuat sendiri lewat Admin → Staf (fitur undangan yang sudah ada).
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Bayar saat diantar | Antar ke meja + tunai: pesanan langsung masuk antrean (nomor antrean terbit, stok produk jadi dipotong saat masuk antrean — stok kurang menolak checkout, tidak pernah kedaluwarsa otomatis). Barista menerima uang di meja → **Terima pembayaran** (uang masuk sesi kas outlet, kembalian dihitung, tanpa potong stok kedua, status produksi tetap). Tidak bisa **Sudah diantar** sebelum lunas. Batal sebelum dibayar → stok kembali. QRIS & ambil di counter tetap bayar dulu. Migration aditif `2026_11_11_000001` (`orders.pay_on_delivery`, dijalankan di dev) | `OrderEngine::create/enqueueForDelivery`, `OrderWorkflow::{settle,settleOnDelivery,updateStatus,cancel,nextQueueNumber}`, `pages/kds/index.tsx`, `pages/order/status.tsx`, `components/orders/order-actions.tsx` |
+| Biaya antar dihapus | Checkout, status, struk, detail kasir, pengaturan outlet (kartu kini **Pembayaran QRIS**); kolom lama tetap ada dan selalu 0 | `OutletSettings::updateOrdering`, `Storefront`, `storefront.tsx`, `admin/outlets/edit.tsx` |
+| Izin Barista | Default role: +`payment.view`, +`payment.confirm_cash`, −`inventory.view`, −`inventory.issue`. Role Barista company `sudaya` di dev diubah lewat layanan Peran & izin (tercatat di log aktivitas). Test kesamaan katalog Next.js mencatat penyimpangan ini secara eksplisit | `Support/Access/Rbac.php`, `tests/Unit/RbacTest.php` |
+| Halaman publik & Konten situs | Tentang, 2 program (foto kegiatan, plat nomor disamarkan), info pelatihan, ajakan sedekah (tab baru, `rel=noopener`), footer kontak (tampil hanya bila diisi). **Admin → Konten situs** (`settings.manage`): validasi https, nomor WA → 62…, akun IG, email; maks 12 pelatihan; tercatat `site.content_updated`. Konten tetap tampil (teks bawaan) bila database tidak terjangkau. Migration aditif `2026_11_11_000002` (`brands.site_content`) | `Services/Site/SiteContent.php`, `Admin/SiteContentController`, `pages/admin/site.tsx`, `pages/home.tsx` |
+| Tema & logo | Token oranye `#EC6A1F`, hijau `#95C22B`, area gelap hijau tua; logo resmi menggantikan teks di seluruh aplikasi; ikon aplikasi, favicon, dan halaman offline dari simbol logo | `resources/css/app.css`, `components/brand.tsx`, `public/images/`, `public/icons/` |
+| Menu asli | `php artisan sudaya:menu-asli`: 22 menu dari file owner (5 kategori, pilihan Ice/Hot) masuk **nonaktif tanpa harga** (Rp0) dalam satu transaksi; dijalankan di dev. Harga diisi admin lalu diaktifkan | `Console/Commands/RealMenuCommand.php` |
+
+### Hasil QA (Supabase dev eu-west-1, `APP_ENV=local`)
+
+| Suite | Hasil | Exit | Catatan |
+|---|---|---|---|
+| Pint, TypeScript, build | lolos | 0 | |
+| Unit/feature (SQLite) | **169/169 (721 assertion)** | 0 | baru: `Unit\SiteContentTest` (normalisasi WA/IG/email, https wajib, batas), `Feature\PublicSiteTest` (halaman depan publik dengan konten bawaan tanpa kontak fiktif; Konten situs wajib login); `RbacTest`/`AccessRulesTest` disesuaikan |
+| Live `DeskOrderTest` (ditulis ulang) | **4/4 (59 assertion)** | 0 | QRIS tanpa biaya antar; bayar saat diantar end-to-end di layanan (antrean, stok, tidak kedaluwarsa, KDS, tidak bisa ditutup sebelum lunas, barista terima tunai ke laci, tanpa potong stok kedua, audit); batal mengembalikan stok; stok kurang menolak checkout; QRIS dikonfirmasi barista; ambil di counter tetap bayar dulu |
+| Live regresi | `OrderEngineTest` **19/19 (141)**, `PaymentFlowTest` **19/19 (226)**, `InventoryTest` **5/5 (86)**, `PurchasingExpenseTest` **4/4 (74)**, `RecipeTest` **3/3 (25)**, `SeedTest` **4/4 (15)** | 0 | Barista ditolak mencatat stok & pengeluaran; contoh pencatat dipindah ke Admin/Manager |
+| E2E (HTTP sungguhan) | `DeskFlowTest` **3/3 (36)**, `OrdersTest` **6/6 (96)**, `PaymentFlowTest` **5/5 (103)**, `InventoryFlowTest` **3/3 (52)**, `Phase2FlowTest` **4/4 (46)**, `OutletsTest` **2/2 (36)** | 0 | Barista 403 di stok/pengeluaran/resep; barista konfirmasi QRIS dan menerima tunai bayar-saat-diantar lewat HTTP |
+| Browser Chrome (HP 375 px, tablet, desktop) | **45/45** | 0 | admin unggah QRIS & isi Konten situs → halaman depan publik HP/desktop (semua bagian, logo, foto, pelatihan, tombol sedekah tab baru, kontak footer, warna oranye logo, tanpa scroll horizontal, tautan ≥ 44 px) → pelanggan pesan antar ke meja tunai (tanpa biaya antar, nomor antrean langsung) → barista BELUM BAYAR → buat → siap (belum bisa ditutup) → terima tunai (kembalian) → kembali ke layar barista → LUNAS → sudah diantar; tanpa error console/CSP |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D40 | Judul hero halaman depan memaksa "tumbuh bersama" satu baris → halaman HP 375 px bisa digeser ke samping | Bug UI (cek visual) | Judul boleh terlipat, kolom teks `min-w-0` |
+| D41 | Impor menu asli gagal: slug bentrok dengan menu contoh (mis. Americano) | Bug skrip (dev) | Transaksi tunggal (tidak ada data setengah jadi); slug bentrok diberi akhiran `-sudaya` |
+| D42 | Setelah barista menerima tunai, dialog menyebut "masuk antrean barista" dan tidak ada jalan kembali ke layar barista | Bug UX | Pesan khusus bayar-saat-diantar + tombol **Kembali ke layar barista** |
+| D43 | Test lama mengharapkan Barista ditolak menerima pembayaran dan QR meja tunai menunggu kasir | Ekspektasi lama | Disesuaikan ke keputusan owner; alur bayar-dulu diuji dengan ambil di counter; role tanpa izin tetap ditolak |
+| D44 | Sekali `POST /pos/orders` 500 di E2E: batas 30 detik PHP (latensi DB dev Eropa, tercatat di laravel.log) | Lingkungan | Diulang; pola sama dengan D39 |
+| D45 | Tautan footer "Menu" selebar 36 px (< 44 px) di HP dan desktop | Bug UI (uji browser) | Lebar minimum 44 px untuk semua tautan footer |
+| D46 | Layar barista masih menulis "Urut sesuai waktu bayar"; halaman status menulis "Makan di sini" untuk pesanan yang diantar | Bug teks (cek visual) | "Urut sesuai waktu masuk antrean"; status menampilkan "Antar ke meja" |
+
+### Risiko & keputusan berikutnya
+
+- Bayar saat diantar: uang tunai yang diterima barista tercatat di sesi kas outlet; laci harus dibuka Kasir/Manager dan uang diserahkan ke laci. Bila outlet sering tanpa kasir, pertimbangkan izin buka/tutup kas untuk Barista (keputusan owner).
+- Pesanan bayar-saat-diantar yang tidak dibayar harus dibatalkan barista (tidak kedaluwarsa otomatis) agar stok kembali.
+- Kontak footer, info pelatihan, dan tautan program petani kopi di Sahabat Berbagi diisi owner di **Admin → Konten situs** (tautan awal ke beranda sahabatberbagi.org karena halaman program petani kopi tidak ditemukan).
+- 22 menu asli menunggu harga dari owner; foto menu belum ada. File asli owner (logo, foto 21 MB, menu .docx) di root repo tidak di-commit.

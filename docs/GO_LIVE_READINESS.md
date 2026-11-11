@@ -11,9 +11,11 @@ Semua fitur MVP PRD, Fase 2 (supplier & purchase order, pengeluaran, resep/BOM, 
 | Butir | Status | Yang dibutuhkan |
 |---|---|---|
 | Hosting/VPS + domain HTTPS + Supabase production (Singapura) | BLOCKED | Owner membeli; lalu staging → UAT → production sesuai [LARAVEL_DEPLOYMENT_GUIDE.md](LARAVEL_DEPLOYMENT_GUIDE.md) |
+| Halaman depan publik: tentang, program pelatihan & pemberdayaan petani kopi, info pelatihan, sedekah Sahabat Berbagi, kontak; tema oranye-hijau + logo resmi | PASS (dev) | Owner mengisi kontak, info pelatihan, dan tautan program petani kopi di Admin → Konten situs |
+| Barista = absen + pesanan; antar ke meja + tunai dibayar ke barista saat diantar; biaya antar dihapus | PASS (dev) | Keputusan owner 11 November 2026; sesi kas outlet dibuka Kasir/Manager |
 | Aplikasi staf di HP (absen, kasir, barista, admin) | PASS (dev) | Dipasang dari Chrome Android / Safari iPhone setelah domain HTTPS aktif; file APK opsional lewat PWABuilder ([APLIKASI_HP.md](APLIKASI_HP.md)) |
 | QRIS | PASS (statis, konfirmasi kasir) | Owner mengunggah gambar QRIS asli di Admin → Outlet; QRIS otomatis butuh payment gateway |
-| Logo, foto menu, data menu asli | BLOCKED | Dari owner. Menu contoh dihapus dengan `php artisan sudaya:demo-menu --remove`; ikon aplikasi masih placeholder |
+| Logo, foto, data menu asli | Sebagian | Logo resmi & foto program terpasang (ikon aplikasi dari logo). 22 menu asli masuk **nonaktif tanpa harga** → owner isi harga & aktifkan di Admin → Menu; foto menu belum ada. Menu contoh dihapus dengan `php artisan sudaya:demo-menu --remove` |
 | Harga request di luar menu | BLOCKED | Keputusan aturan bayar: kasir mengisi harga sebelum pelanggan bayar, atau tagihan tambahan saat diantar |
 | Promo/voucher & penukaran poin | BLOCKED | Aturan bisnis tertulis (mengubah harga checkout) |
 | WhatsApp otomatis, notifikasi push saat aplikasi tertutup | BLOCKED | WhatsApp Business API (berbayar) / Web Push + kunci VAPID di server production. Saat ini: tombol WhatsApp + notifikasi di halaman |

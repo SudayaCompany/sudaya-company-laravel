@@ -29,7 +29,7 @@ Web Sudaya bisa dipasang sebagai **aplikasi di HP** tanpa Play Store. Setelah di
 - **Pembaruan otomatis.** Setiap web diperbarui, aplikasi ikut terbarui tanpa pasang ulang.
 - **HP/tablet bersama** (mis. tablet barista di outlet): ketuk **Keluar** di akhir shift agar akun berikutnya tidak memakai sesi orang lain.
 - **Aman.** Aplikasi tidak menyimpan halaman, data pesanan, atau foto di HP. Yang disimpan hanya halaman "tidak ada koneksi".
-- **Ikon sementara.** Huruf "S" dipakai sampai logo resmi tersedia. Untuk mengganti, timpa file di `public/icons/` dengan ukuran yang sama: `icon-192.png` (192×192), `icon-512.png` (512×512), `icon-maskable-512.png` (512×512, logo di tengah ±60% area), `apple-touch-icon.png` (180×180, tanpa transparan).
+- **Ikon aplikasi** memakai simbol cangkir dari logo resmi Sudaya (11 November 2026). Untuk mengganti, timpa file di `public/icons/` dengan ukuran yang sama: `icon-192.png` (192×192), `icon-512.png` (512×512), `icon-maskable-512.png` (512×512, logo di tengah ±60% area), `apple-touch-icon.png` (180×180, tanpa transparan).
 
 ## File APK (opsional, setelah domain production ada)
 

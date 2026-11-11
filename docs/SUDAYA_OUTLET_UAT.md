@@ -49,18 +49,23 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 41 | Bahan kurang tidak menghentikan penjualan | Kosongkan stok satu bahan resep → jual menu itu | Pembayaran tetap berhasil; stok bahan 0; kekurangan tercatat di Log aktivitas | | | Kasir + Owner |
 | 42 | Pengeluaran | Kasir/Barista → Catat pengeluaran (parkir + foto nota) → Manager/Owner setujui di Persetujuan | Status Disetujui; total per kategori di Pengeluaran; Laporan penjualan menampilkan omzet dikurangi pengeluaran | | | Kasir + Manager |
 | 43 | Data pelanggan | Pesan lewat QR meja 2× dengan nomor HP yang sama (bayar di kasir) → Owner → Pelanggan | Pelanggan tampil dengan 2 transaksi, total belanja, poin (Rp10.000 = 1), menu favorit; nomor disamarkan; pesanan dibatalkan tidak dihitung | | | Owner |
-| 44 | Pesan dari QR meja kantor, antar ke meja | Scan QR meja → pilih menu + catatan cepat (Less sugar/Less ice) → Antar ke meja → isi nama, lantai, bagian → tunai | Total = harga menu + biaya antar outlet; kartu barista bertanda ANTAR KE MEJA dengan meja, lantai, bagian, catatan | | | Manager (sebagai pelanggan) + Barista |
-| 45 | Ambil di counter tanpa biaya antar | Ulangi skenario 44 dengan Ambil di counter | Tidak ada biaya antar | | | Manager |
-| 46 | Bayar QRIS Sudaya | Admin unggah gambar QRIS di pengaturan outlet → pelanggan pilih QRIS → bayar → kasir cek dana masuk lalu Konfirmasi QRIS diterima | Halaman status menampilkan QRIS + nominal persis; setelah konfirmasi berubah ke nomor antrean; QRIS tidak menambah saldo laci | | | Kasir + Owner |
+| 44 | Pesan dari QR meja kantor, antar ke meja, bayar saat diantar | Scan QR meja → pilih menu + catatan cepat (Less sugar/Less ice) → Antar ke meja → isi nama, lantai, bagian → **Tunai** | Tanpa biaya antar; nomor antrean langsung muncul; kartu barista **ANTAR KE MEJA · BELUM BAYAR** dengan meja, lantai, bagian, catatan; barista **Terima pembayaran** saat diantar (kembalian benar, masuk sesi kas), baru bisa **Sudah diantar** | | | Manager (sebagai pelanggan) + Barista |
+| 45 | Ambil di counter | Ulangi skenario 44 dengan Ambil di counter + Tunai | Pesanan menunggu bayar di kasir; masuk layar barista setelah kasir konfirmasi | | | Manager |
+| 46 | Bayar QRIS Sudaya | Admin unggah gambar QRIS di pengaturan outlet → pelanggan pilih QRIS → bayar → kasir/barista cek dana masuk lalu Konfirmasi QRIS diterima | Halaman status menampilkan QRIS + nominal persis; setelah konfirmasi berubah ke nomor antrean; QRIS tidak menambah saldo laci | | | Kasir + Owner |
 | 47 | Request di luar menu | Isi "Pesan menu di luar daftar" saat checkout | Request tampil di catatan pesanan (kasir & barista) | | | Kasir + Barista |
 | 48 | Notifikasi pesanan siap | Pelanggan aktifkan notifikasi di halaman status (isi nomor WA saat checkout) → barista Tandai siap → Kabari via WhatsApp | Banner + bunyi/getar + notifikasi browser di HP pelanggan; WhatsApp staf terbuka dengan pesan siap kirim | | | Barista + pelanggan |
 | 49 | Pasang aplikasi di Android | Di HP Android buka web Sudaya di Chrome → **Pasang** (atau menu ⋮ → Instal aplikasi) → buka dari ikon **Sudaya** | Aplikasi terbuka layar penuh ke halaman sesuai peran; tekan lama ikon menampilkan **Absen**, **Barista**, **Kasir** | | | Barista |
 | 50 | Pasang aplikasi di iPhone | Di iPhone buka web di Safari → **Bagikan** → **Tambahkan ke Layar Utama** → buka dari ikon | Aplikasi terbuka layar penuh; login dan absen berfungsi | | | Kasir atau Manager |
 | 51 | Absen lewat aplikasi | Dari aplikasi: **Absen masuk** (izinkan kamera & lokasi) → **Absen pulang**; lalu matikan data seluler/Wi-Fi dan buka aplikasi | Absen tercatat dengan selfie & lokasi di rekap Owner; saat offline tampil "Tidak ada koneksi internet" dan tidak ada absen yang tersimpan diam-diam | | | Barista + Owner |
+| 52 | Batal sebelum dibayar (bayar saat diantar) | Buat pesanan seperti skenario 44 → barista **Batalkan** sebelum menerima uang | Pesanan batal; stok produk jadi kembali; tidak ada uang tercatat | | | Barista + Admin (cek stok) |
+| 53 | Izin Barista | Login Barista → buka Absen, layar barista, kasir/pesanan; coba buka menu Stok dan Pengeluaran | Absen & semua urusan pesanan bisa; Stok & Pengeluaran ditolak (403) | | | Barista |
+| 54 | Halaman depan publik | Buka alamat web tanpa login di HP | Logo Sudaya, tentang, program pelatihan kopi & pemberdayaan petani kopi, info pelatihan, tombol sedekah (membuka Sahabat Berbagi di tab baru), menu, lokasi, kontak footer; warna oranye-hijau | | | Owner |
+| 55 | Konten situs | **Admin → Konten situs** → ubah kontak & tambah info pelatihan → Simpan → buka halaman depan | Perubahan langsung tampil; kontak kosong tidak ditampilkan | | | Super Admin |
+| 56 | Menu asli | **Admin → Menu** → isi harga salah satu menu asli (SKU SDY-) → aktifkan → buka halaman pesan | Menu tampil dengan harga yang diisi; pilihan Ice/Hot muncul untuk menu ice-hot | | | Admin |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–51 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–56 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|
