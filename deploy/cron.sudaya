@@ -1,0 +1,6 @@
+# Sudaya Coffee: dipasang provision.sh ke /etc/cron.d/sudaya.
+# Satu baris cukup: scheduler Laravel menjalankan backup harian 02.30 WIB, hapus foto absen
+# > 90 hari 03.15 WIB, dan heartbeat yang dicek `sudaya:doctor`.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * sudaya cd /var/www/sudaya/current && php artisan schedule:run >> /dev/null 2>&1

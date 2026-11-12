@@ -15,6 +15,7 @@ use App\Services\Inventory\SupabaseEvidenceStorage;
 use App\Support\Access\AccessScope;
 use App\Support\Access\Rbac;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Auth::provider('staff', fn ($app, array $config) => new StaffUserProvider($app['hash'], $config['model']));
+
+        // Di production, migrate:fresh/refresh/reset/rollback dan db:wipe ditolak: semuanya
+        // menghapus tabel berisi data asli (docs/PANDUAN_SUPERADMIN.md §Jangan).
+        DB::prohibitDestructiveCommands($this->app->isProduction());
 
         foreach (Rbac::codes() as $permission) {
             Gate::define($permission, fn (User $user, ?AccessScope $scope = null) => $user->is_active

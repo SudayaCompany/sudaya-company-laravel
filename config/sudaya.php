@@ -5,8 +5,8 @@ return [
     // Kosong berarti IP client tidak diketahui, dan rate limit hanya per email.
     'trusted_ip_header' => env('TRUSTED_IP_HEADER'),
 
-    // Folder hasil backup harian database (deploy/backup-db.sh). Dipakai `sudaya:doctor`
-    // untuk memastikan backup terbaru belum lewat 26 jam. Kosong = backup belum diatur.
+    // Folder backup harian database (`php artisan sudaya:backup`, 02.30 WIB lewat scheduler).
+    // Dibaca `sudaya:doctor` (backup terbaru < 26 jam). Kosong = backup tidak dijadwalkan.
     'backup_dir' => env('BACKUP_DIR'),
 
     // Program pg_dump/pg_restore (versi mayor ≥ server Supabase, kini 17). Isi path lengkap

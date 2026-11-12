@@ -101,7 +101,7 @@ final class SystemHealth
                 $unwritable[] = $dir;
             }
         }
-        $this->add($g, 'Folder tulis', $unwritable === [] ? self::OK : self::FAIL, $unwritable === [] ? 'storage dan bootstrap/cache bisa ditulis' : 'tidak bisa ditulis: '.implode(', ', $unwritable), 'chown -R www-data storage bootstrap/cache');
+        $this->add($g, 'Folder tulis', $unwritable === [] ? self::OK : self::FAIL, $unwritable === [] ? 'storage dan bootstrap/cache bisa ditulis' : 'tidak bisa ditulis: '.implode(', ', $unwritable), 'Beri izin tulis ke user PHP-FPM; di VPS: sudo chown -R sudaya:sudaya /var/www/sudaya/shared/storage');
         $free = @disk_free_space(storage_path());
         $this->add($g, 'Ruang disk', $free === false ? self::WARN : ($free < 1024 ** 3 ? self::WARN : self::OK), $free === false ? 'tidak terbaca' : self::bytes((int) $free).' kosong', 'Hapus backup/log lama atau tambah disk');
         $revision = @file_get_contents(base_path('REVISION'));
@@ -266,18 +266,18 @@ final class SystemHealth
         $g = 'Operasional';
         $beat = @filemtime(storage_path(self::HEARTBEAT));
         $fresh = $beat !== false && time() - $beat < 15 * 60;
-        $this->add($g, 'Cron Laravel', $fresh ? self::OK : self::WARN, $fresh ? 'schedule:run berjalan' : ($beat === false ? 'belum pernah berjalan' : 'terakhir '.self::ago($beat)), 'Tambahkan cron: * * * * * cd /var/www/sudaya/current && php artisan schedule:run (tanpa ini foto absen > 90 hari tidak terhapus)');
+        $this->add($g, 'Cron Laravel', $fresh ? self::OK : self::WARN, $fresh ? 'schedule:run berjalan' : ($beat === false ? 'belum pernah berjalan' : 'terakhir '.self::ago($beat)), 'Pasang deploy/cron.sudaya ke /etc/cron.d/sudaya (schedule:run tiap menit); tanpa itu backup harian dan hapus foto absen > 90 hari tidak berjalan');
 
         $dir = (string) config('sudaya.backup_dir');
         if ($dir === '') {
-            $this->add($g, 'Backup database', self::WARN, 'belum diatur (BACKUP_DIR kosong)', 'Pasang deploy/backup-db.sh di cron harian, lalu isi BACKUP_DIR');
+            $this->add($g, 'Backup database', self::WARN, 'belum diatur (BACKUP_DIR kosong)', 'Isi BACKUP_DIR (VPS: /var/backups/sudaya); backup berjalan otomatis 02.30 WIB lewat scheduler');
         } else {
             $latest = 0;
             foreach (glob(rtrim($dir, '/\\').'/*.dump') ?: [] as $file) {
                 $latest = max($latest, (int) @filemtime($file));
             }
             $fresh = $latest > 0 && time() - $latest < 26 * 3600;
-            $this->add($g, 'Backup database', $fresh ? self::OK : self::WARN, $latest === 0 ? 'belum ada file backup' : 'terakhir '.self::ago($latest), 'Periksa cron backup dan log-nya (deploy/backup-db.sh)');
+            $this->add($g, 'Backup database', $fresh ? self::OK : self::WARN, $latest === 0 ? 'belum ada file backup' : 'terakhir '.self::ago($latest), 'Lihat storage/logs/backup.log, atau jalankan php artisan sudaya:backup');
         }
 
         $errors = $this->recentLogErrors();
