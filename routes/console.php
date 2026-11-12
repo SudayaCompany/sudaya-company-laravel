@@ -15,3 +15,9 @@ Schedule::command('sudaya:purge-attendance-photos')->timezone('Asia/Jakarta')->d
 
 // Tanda bahwa cron schedule:run benar-benar berjalan, dibaca `sudaya:doctor`.
 Schedule::call(fn () => touch(storage_path(SystemHealth::HEARTBEAT)))->name('sudaya-heartbeat')->everyFiveMinutes();
+
+// Backup harian database 02.30 WIB (pg_dump), hanya bila BACKUP_DIR diisi. Disimpan 14 hari.
+Schedule::command('sudaya:backup')->timezone('Asia/Jakarta')->dailyAt('02:30')
+    ->when(fn () => (string) config('sudaya.backup_dir') !== '')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/backup.log'));
