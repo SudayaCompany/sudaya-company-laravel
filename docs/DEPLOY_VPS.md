@@ -108,8 +108,9 @@ sudo sudaya-artisan sudaya:menu-asli
 1. **Outlet**: nama, alamat, koordinat & radius absen, daftar meja, gambar QRIS.
 2. **Menu**: isi harga menu bertanda **Belum diisi** (ikon pensil), foto, dan sesuaikan deskripsi bila perlu.
 3. **Konten situs**: kontak WhatsApp/Instagram/email, info pelatihan, tautan program Sahabat Berbagi.
-4. **Staf**: undang tiap karyawan dengan perannya; kirim tautan undangan lewat WhatsApp.
-5. Cetak QR meja (Admin → Outlet → Cetak QR).
+4. **Staf**: undang tiap karyawan dengan perannya; kirim tautan undangan lewat WhatsApp. Susunan akun awal (keputusan owner 12 November 2026): **Admin** untuk pilar, **Kasir** untuk HP/laptop milik Sudaya (pusat pesanan), dan **2 Barista** (absen saja). Barista mendaftarkan foto wajah saat pertama membuka absen.
+5. Daftarkan meja di **Admin → Outlet & meja**, lalu **Cetak QR meja** dan tempel stiker di tiap meja.
+6. Di HP/laptop kasir: login akun Kasir, pasang aplikasi Sudaya, buka **Pesanan masuk**, ketuk **aktifkan suara & notifikasi**, dan pasangkan printer struk Bluetooth ([PANDUAN_PENGGUNA.md](PANDUAN_PENGGUNA.md) §Kasir).
 
 ## 9. Cek kesehatan dan uji
 

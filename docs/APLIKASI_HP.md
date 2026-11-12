@@ -1,6 +1,14 @@
-# Aplikasi Sudaya di HP (absen, kasir, barista, admin)
+# Aplikasi Sudaya di HP (absen, kasir, admin)
 
 Web Sudaya bisa dipasang sebagai **aplikasi di HP** tanpa Play Store. Setelah dipasang, ikon **Sudaya** muncul di layar HP seperti aplikasi biasa. Aplikasi terbuka layar penuh tanpa bilah alamat browser dan langsung ke halaman sesuai peran (barista ke layar barista, kasir ke kasir, owner ke dasbor). Aplikasi ini untuk **staf**. Pelanggan tetap memesan lewat scan QR dan tidak ditawari pemasangan.
+
+**Siapa yang bisa memasang?** Semua akun staf: Super Admin, Admin, Kasir, dan Barista, di HP Android (Chrome) maupun iPhone (Safari). Pelanggan tidak perlu memasang apa pun: cukup pindai QR di meja. Pemasangan butuh alamat **https** (setelah VPS dan domain aktif). Setelah login, aplikasi otomatis membuka halaman sesuai peran:
+
+| Peran | Halaman awal aplikasi |
+|---|---|
+| Barista | **Absen** (pertama kali: daftar foto wajah) |
+| Kasir (HP/laptop Sudaya) | **Pesanan masuk** dengan alarm pesanan baru; biarkan layar ini terbuka, layar dijaga tetap menyala |
+| Admin / Super Admin | **Dasbor admin** |
 
 > Syarat: web sudah online di domain **HTTPS** (server/VPS production). Pemasangan aplikasi, kamera selfie, dan GPS untuk absen hanya berfungsi di HTTPS.
 
@@ -9,7 +17,7 @@ Web Sudaya bisa dipasang sebagai **aplikasi di HP** tanpa Play Store. Setelah di
 1. Buka Chrome, lalu ketik alamat web Sudaya, mis. `https://<domain>/login`.
 2. Ketuk **Pasang** di kartu "Pasang aplikasi Sudaya di HP". Bila kartunya tidak muncul, buka menu **⋮**, lalu pilih **Instal aplikasi** atau **Tambahkan ke layar utama**.
 3. Ketuk **Instal**. Ikon **Sudaya** masuk ke daftar aplikasi.
-4. **Tekan lama** ikon Sudaya untuk jalan pintas **Absen**, **Barista**, dan **Kasir**.
+4. **Tekan lama** ikon Sudaya untuk jalan pintas **Absen**, **Pesanan** (pesanan masuk), dan **Kasir**.
 
 ## Memasang di iPhone (Safari)
 
@@ -27,7 +35,7 @@ Web Sudaya bisa dipasang sebagai **aplikasi di HP** tanpa Play Store. Setelah di
 
 - **Butuh internet.** Bila koneksi putus, aplikasi menampilkan "Tidak ada koneksi internet" dengan tombol **Coba lagi**. Absen dan pesanan tidak disimpan offline supaya data tetap sah: jam, lokasi, dan foto dicatat server saat dikirim.
 - **Pembaruan otomatis.** Setiap web diperbarui, aplikasi ikut terbarui tanpa pasang ulang.
-- **HP/tablet bersama** (mis. tablet barista di outlet): ketuk **Keluar** di akhir shift agar akun berikutnya tidak memakai sesi orang lain.
+- **HP/tablet bersama** (mis. HP/laptop kasir milik Sudaya): ketuk **Keluar** di akhir shift agar akun berikutnya tidak memakai sesi orang lain.
 - **Aman.** Aplikasi tidak menyimpan halaman, data pesanan, atau foto di HP. Yang disimpan hanya halaman "tidak ada koneksi".
 - **Ikon aplikasi** memakai simbol cangkir dari logo resmi Sudaya (11 November 2026). Untuk mengganti, timpa file di `public/icons/` dengan ukuran yang sama: `icon-192.png` (192×192), `icon-512.png` (512×512), `icon-maskable-512.png` (512×512, logo di tengah ±60% area), `apple-touch-icon.png` (180×180, tanpa transparan).
 

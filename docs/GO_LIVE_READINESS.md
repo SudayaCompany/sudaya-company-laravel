@@ -1,6 +1,6 @@
 # Kesiapan go-live Sudaya Coffee (Laravel)
 
-Diperbarui 11 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 November tetap sebagai riwayat). Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
+Diperbarui 12 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 November tetap sebagai riwayat). Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
 
 **Kesimpulan:** belum siap production. Fitur transaksi tunai inti terbukti di lingkungan development (database dan Supabase dev). Hosting, database production, HTTPS, backup/restore, monitoring, data menu asli, perangkat outlet, dan UAT belum ada. Seluruh PASS di bawah adalah *Development Verified*, bukan bukti production.
 
@@ -17,6 +17,10 @@ Langkah dari server kosong sampai live: [DEPLOY_VPS.md](DEPLOY_VPS.md). Perawata
 | Perintah penghapus database di production | PASS | `migrate:fresh/rollback`, `db:wipe` ditolak |
 | Poin/tier di Admin → Pelanggan | Disembunyikan | Keputusan owner 12 November: sampai aturan poin diputuskan |
 | Menu asli tampil sebelum ada harga | PASS (dev) | Keputusan owner 12 November: 22 menu aktif dengan deskripsi (dibuat dari nama menu, bisa diubah admin), Americano Series (Original/Matcha/Sitrus), kategori urut file owner; tampil "Harga menyusul" dan **belum bisa dipesan** di semua kanal sampai admin mengisi harga; menu contoh dihapus. Live `PricePendingTest` 2/2, `RealMenuCommandTest` 1/1, browser 28/28 |
+| Satu pintu **/login** lalu sesuai peran; **Kasir** = pusat pesanan (alarm pesanan baru keras, terima → antar/siap → selesai, tunai/QRIS, menunggu bayar); **Barista** = absen saja | PASS (dev) | Keputusan owner 12 November sore (agar pesanan tidak dobel: diterima kasir dulu baru dibuat). Rincian & bukti test: [QA_CHECKPOINT.md](QA_CHECKPOINT.md) bagian 12 November sore |
+| Form pesan dari QR meja: nama, **department** (semua pesanan), lantai + bagian meja (antar), **WhatsApp opsional**; notif 1 ketukan saat diantar + "siapkan uang tunai"; ambil di counter = nama + department | PASS (dev) | Tanpa nomor WhatsApp pelanggan dikabari lewat halaman status (banner, bunyi, notifikasi web). WhatsApp otomatis penuh butuh WhatsApp Business API (berbayar) |
+| Absen dengan **foto wajah terdaftar** + cek admin | PASS (dev) | Daftar sekali dengan persetujuan; admin membandingkan selfie absen berdampingan dengan foto terdaftar; reset admin menghapus foto lama. Pencocokan wajah otomatis butuh penyedia biometrik |
+| Stiker QR meja + struk printer Bluetooth 58/80 mm | PASS (dev) | Admin → Outlet & meja → daftarkan meja → **Cetak QR meja**. Printer diuji dengan perangkat outlet saat UAT ([PANDUAN_PENGGUNA.md](PANDUAN_PENGGUNA.md) §6) |
 | VPS, domain, project Supabase production | BLOCKED | Owner membeli/membuat; lalu ikuti DEPLOY_VPS.md langkah 1–9 |
 | Uji di VPS dan Supabase sungguhan, UAT outlet | NOT TESTED | Setelah langkah di atas; skenario di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md) |
 
@@ -28,14 +32,14 @@ Semua fitur MVP PRD, Fase 2 (supplier & purchase order, pengeluaran, resep/BOM, 
 |---|---|---|
 | Hosting/VPS + domain HTTPS + Supabase production (Singapura) | BLOCKED | Owner membeli; lalu staging → UAT → production sesuai [LARAVEL_DEPLOYMENT_GUIDE.md](LARAVEL_DEPLOYMENT_GUIDE.md) |
 | Halaman depan publik: tentang, program pelatihan & pemberdayaan petani kopi, info pelatihan, sedekah Sahabat Berbagi, kontak; tema oranye-hijau + logo resmi | PASS (dev) | Owner mengisi kontak, info pelatihan, dan tautan program petani kopi di Admin → Konten situs |
-| Barista = absen + pesanan; antar ke meja + tunai dibayar ke barista saat diantar; biaya antar dihapus | PASS (dev) | Keputusan owner 11 November 2026; sesi kas outlet dibuka Kasir/Manager |
+| Barista = absen + pesanan; antar ke meja + tunai dibayar ke barista saat diantar; biaya antar dihapus | Diganti | Keputusan owner 11 November 2026, **diganti 12 November**: barista absen saja, pesanan & uang lewat akun Kasir |
 | Aplikasi staf di HP (absen, kasir, barista, admin) | PASS (dev) | Dipasang dari Chrome Android / Safari iPhone setelah domain HTTPS aktif; file APK opsional lewat PWABuilder ([APLIKASI_HP.md](APLIKASI_HP.md)) |
 | QRIS | PASS (statis, konfirmasi kasir) | Owner mengunggah gambar QRIS asli di Admin → Outlet; QRIS otomatis butuh payment gateway |
 | Logo, foto, data menu asli | Sebagian | Logo resmi & foto program terpasang (ikon aplikasi dari logo). 22 menu asli masuk **nonaktif tanpa harga** → owner isi harga & aktifkan di Admin → Menu; foto menu belum ada. Menu contoh dihapus dengan `php artisan sudaya:demo-menu --remove` |
 | Harga request di luar menu | BLOCKED | Keputusan aturan bayar: kasir mengisi harga sebelum pelanggan bayar, atau tagihan tambahan saat diantar |
 | Promo/voucher & penukaran poin | BLOCKED | Aturan bisnis tertulis (mengubah harga checkout) |
 | WhatsApp otomatis, notifikasi push saat aplikasi tertutup | BLOCKED | WhatsApp Business API (berbayar) / Web Push + kunci VAPID di server production. Saat ini: tombol WhatsApp + notifikasi di halaman |
-| Absen pengenalan wajah | BLOCKED | Penyedia biometrik; saat ini GPS + selfie |
+| Absen pengenalan wajah | BLOCKED | Penyedia biometrik untuk pencocokan otomatis; sejak 12 November: GPS + selfie + foto wajah terdaftar yang dicek admin |
 | UAT outlet (skenario 1–51) | NOT TESTED | Dijalankan Manager/Owner di staging ([SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md)) |
 
 ## Fitur
