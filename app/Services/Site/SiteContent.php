@@ -6,7 +6,9 @@ use App\Exceptions\AccessException;
 use App\Models\User;
 use App\Services\Audit\AuditContext;
 use App\Services\Audit\AuditLogger;
+use App\Services\Seed\InitialData;
 use App\Support\Access\AccessScope;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -35,7 +37,30 @@ final class SiteContent
         'trainings' => [],
     ];
 
+    /** Ringkasan "tentang" untuk meta deskripsi/pratinjau tautan; dibersihkan saat konten diubah. */
+    public const SUMMARY_CACHE_KEY = 'site:summary';
+
     public function __construct(private AuditLogger $audit) {}
+
+    /**
+     * Teks "tentang" brand utama untuk meta halaman publik. Di-cache 10 menit; bila database
+     * tidak terjangkau, teks bawaan dipakai agar halaman tetap tampil.
+     */
+    public static function summary(): string
+    {
+        try {
+            return (string) Cache::remember(self::SUMMARY_CACHE_KEY, 600, function () {
+                $raw = DB::table('brands')->join('companies', 'companies.id', '=', 'brands.company_id')
+                    ->where('companies.code', InitialData::TARGET['company']['code'])
+                    ->orderBy('brands.created_at')->value('brands.site_content');
+                $stored = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+
+                return (string) self::merge($stored)['about'];
+            });
+        } catch (Throwable) {
+            return self::DEFAULTS['about'];
+        }
+    }
 
     /** Konten untuk halaman publik (bawaan + isian admin) beserta tautan kontak siap pakai. */
     public static function forPublic(?string $brandId): array
@@ -102,6 +127,7 @@ final class SiteContent
                 'after' => ['changed' => $changed, 'trainings' => count($content['trainings'])],
             ], $context);
         });
+        Cache::forget(self::SUMMARY_CACHE_KEY);
 
         return $content;
     }

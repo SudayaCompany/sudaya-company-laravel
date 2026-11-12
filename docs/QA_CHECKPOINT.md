@@ -476,3 +476,51 @@ Tanpa migration baru (tabel `inventory_*`, `stock_opname*`, `outside_duty_reques
 | Browser CRUD menu + dasbor | **13/13** |
 
 Catatan untuk owner: halaman **Pelanggan** menampilkan poin & tier (Rp10.000 = 1 poin) dengan keterangan "Penukaran poin belum tersedia". Aturan poin belum diputuskan owner; bila tidak dipakai, bagian poin/tier bisa disembunyikan.
+
+## Siap serah terima VPS: instal database dari repo Laravel, paket deploy, backup/restore, doctor (12 November 2026)
+
+**Status: Development Verified** (Supabase Postgres lokal + server Ubuntu tiruan di Docker; belum di VPS/Supabase sungguhan). Permintaan user: "biar nanti pas udah beli VPS and domainnya udah selesai web nya bisa diserahkan, tinggal nanti maintenens aja". Keputusan owner 12 November: poin/tier di Admin → Pelanggan disembunyikan; uji lokal dengan Docker (image `supabase/postgres:17.11.0.019`, `ubuntu:24.04`) disetujui.
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Instal database dari nol | Schema dasar = salinan apa adanya 10 migration Drizzle (`database/schema/baseline`, isi dikunci sha256 di unit test). Migration `2026_11_01_000000` memasangnya dalam satu transaksi **hanya di database kosong**; database lengkap (dev) dilewati tanpa perubahan; schema setengah jadi dan project bukan Supabase (tanpa auth/realtime/pg_cron) ditolak sebelum ada perubahan; tabel `migrations` dikunci RLS lebih dulu. Di dev migration ini hanya tercatat (katalog dev 0 perbedaan sebelum/sesudah) | `Support/Database/BaselineSchema.php`, migration baseline |
+| Bucket Storage | `sudaya:storage-setup [--check]`: menu-images publik 2 MB, inventory-evidence & attendance-evidence privat 3 MB; bucket publik lain ditolak. Pengganti `npm run storage:setup` | `Services/Storage/StorageBuckets.php` |
+| Pemeriksaan kesehatan | `sudaya:doctor [--json]` hanya-baca: konfigurasi production, ekstensi PHP, folder tulis, disk, versi rilis, koneksi & latensi DB, schema/migration/RLS/policy, `realtime.send`, job pg_cron sukses 15 menit, data awal, Super Admin, menu aktif/contoh, DB_URL & SUPABASE_URL satu project, kunci JWT asimetris, bucket, cron Laravel (heartbeat 5 menit), backup < 26 jam, error log 24 jam | `Services/System/SystemHealth.php` |
+| Backup & restore | `sudaya:backup`: pg_dump custom public + auth (tanpa token sesi/refresh, catatan migration, log auth GoTrue), dicek `pg_restore --list`, izin 0600, rotasi 14 hari, terjadwal 02.30 WIB bila `BACKUP_DIR` diisi. `sudaya:restore`: hanya ke project baru tanpa data/akun; data-only satu transaksi dengan `session_replication_role = replica` | `Services/System/DatabaseBackup.php`, `DatabaseRestore.php` |
+| Paket deploy VPS | `deploy/`: provision Ubuntu 24.04/26.04, `sudaya-deploy` (rilis baru → build → penjaga migration → optimize → symlink atomik → cek `/up` + `/api/health` → kembali otomatis + buang rilis rusak), `sudaya-rollback`, `sudaya-artisan`, Nginx, PHP-FPM, php.ini, cron, template `.env` production | `deploy/**`, `docs/DEPLOY_VPS.md` |
+| Pengaman production | `migrate:fresh/refresh/reset/rollback` dan `db:wipe` ditolak bila `APP_ENV=production` | `Providers/AppServiceProvider.php` |
+| Pelanggan | Poin & tier disembunyikan; perhitungan server (`CustomerInsights`) tidak diubah | `pages/admin/customers/index.tsx` |
+| Persiapan domain publik | Meta deskripsi + Open Graph (judul, deskripsi dari "tentang" di Konten situs, foto program, URL lengkap) di HTML awal untuk `/` dan `/order`, agar pratinjau tautan WhatsApp/Instagram tampil tanpa JavaScript; halaman lain `noindex`; `robots.txt` dan `sitemap.xml` dinamis mengikuti domain (hanya outlet company Sudaya) | `Support/PublicMeta.php`, `Http/Controllers/SeoController.php`, `views/app.blade.php` |
+| Dokumen | Runbook VPS, panduan Super Admin (rutinitas harian/mingguan/bulanan, tugas umum, larangan), ringkasan go-live | `docs/DEPLOY_VPS.md`, `docs/PANDUAN_SUPERADMIN.md`, `docs/GO_LIVE_READINESS.md` |
+
+### Hasil QA
+
+| Suite | Hasil | Catatan |
+|---|---|---|
+| Pint, TypeScript, build | lolos | |
+| Unit/feature (SQLite) | **193/193 (898 assertion)** | baru: `BaselineSchemaTest` 4, `StorageBucketsTest` 4, `SystemHealthTest` 4, `DatabaseBackupTest` 5, `DatabaseRestoreTest` 3, `SeoTest` 4 |
+| Browser Chrome (HP 375 px & desktop) | **17/17** | Admin → Pelanggan dengan pesanan lunas ber-HP: tanpa poin/tier, transaksi/belanja/rata-rata/terakhir tampil, tanpa scroll horizontal; halaman depan og:title + og:image URL lengkap (gambar 200 image/jpeg), boleh diindeks; /login `noindex`; robots.txt & sitemap (hanya outlet Sudaya); tanpa error console/CSP |
+| Live (Supabase dev) | `BaselineSchemaTest` **2/2**, `SystemHealthTest` **1/1** | hanya-baca |
+| E2E regresi (HTTP sungguhan) | `RoutesTest` **18/18 (95)**, `Phase2FlowTest` **4/4 (46)** | route publik/staf, header keamanan & CSP, halaman Pelanggan dan batas akses setelah perubahan |
+| Instal dari nol, Supabase Postgres 17.11 lokal | **22/22** | ditolak: bukan Supabase, setengah jadi (tanpa perubahan, `migrations` ber-RLS); terpasang sebagai role `postgres` (seperti cloud); **katalog schema identik dengan dev**; migrate ulang & kondisi seperti dev tidak mengubah apa pun; seed idempoten (1/1/1/6/41); bootstrap Super Admin sekali; 22 menu asli; job pg_cron sukses |
+| Backup → restore (pg_dump/pg_restore/psql 17 asli) | **13/13** | backup 200 KB 48 tabel; restore ke project kosong kedua: jumlah baris semua tabel public+auth sama, job pg_cron & RLS ada, Super Admin kembali; restore ke database berisi data dan ke database live ditolak; token sesi tidak ikut |
+| Izin pg_dump di Supabase cloud (dev, schema saja) | lolos | role `postgres` membaca 27 tabel auth + 47 public |
+| Server tiruan Ubuntu 24.04 | provision lolos; deploy `--first` 38 dtk; HTTP **30/30**; deploy suite **26/26** + lanjutan; `sudaya:doctor` **36/36** | halaman publik/login/order 200; `.env`, `.git`, `composer.json`, `vendor`, `storage`, `deploy` 403/404; aset hash immutable + gzip; sw.js no-cache; manifest MIME; CSP/HSTS/XFO/nosniff/referrer; cookie sesi Secure + HttpOnly; X-Real-IP palsu tertimpa; deploy kedua tanpa downtime; `tests/`, `node_modules`, PHPUnit tidak ada di server; perintah perusak ditolak; migration baru menghentikan deploy tanpa mengubah apa pun lalu `--migrate` menjalankannya; rilis rusak → kembali otomatis + folder dibuang; `sudaya-rollback`; backup milik `sudaya` izin 600; skrip deploy di server ikut diperbarui |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D47 | Paket `php8.5-opcache` tidak ada (OPcache bawaan sejak PHP 8.5) → provision berhenti | Bug skrip (uji server tiruan) | Paket opcache hanya diminta bila tersedia; OPcache dicek aktif |
+| D48 | Folder perantara `storage/framework/cache`, `storage/app` dibuat root → tidak bisa ditulis user aplikasi | Bug skrip (doctor) | Seluruh `shared/storage` di-chown ke `sudaya`, mode 750 |
+| D49 | Rilis yang gagal cek kesehatan tertinggal di `releases/`, ikut jatah 5 rilis | Bug skrip (uji) | Rilis rusak dibuang setelah kembali otomatis |
+| D50 | Header `Cache-Control` aset ganda (`expires` + `add_header`) | Rapi-rapi (uji HTTP) | `expires` dihapus |
+| D51 | Restore data-only gagal urutan foreign key; pg_restore 17 butuh `--file=-` | Bug desain (uji restore) | `session_replication_role = replica` dalam satu transaksi; `--file=-` |
+| D52 | Petunjuk doctor menyebut `deploy/backup-db.sh` dan user `www-data` | Teks | Petunjuk sesuai `sudaya:backup` dan user `sudaya` |
+| D53 | Unit test rotasi backup kadang gagal `touch()` file `.txt` baru di Windows (dugaan pemindai file) | Lingkungan test | File pembanding memakai nama `.dump` berawalan lain; 10/10 + 3× suite penuh lolos |
+
+### Risiko & keputusan berikutnya
+
+- Belum diuji di VPS dan project Supabase sungguhan: tiruan lokal tidak memiliki layanan Auth/Storage/Realtime asli (diganti tiruan API dan tiruan `realtime.send`). Jalankan DEPLOY_VPS.md langkah 1–9 lalu `sudaya:doctor`.
+- Paket Supabase (Free vs Pro: backup otomatis, tidak *paused*) dan uptime monitor: keputusan owner.
+- Foto di Supabase Storage tidak ikut backup harian (foto absen memang dihapus 90 hari; foto menu/QRIS bisa diunggah ulang).

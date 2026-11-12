@@ -1,12 +1,14 @@
 # Panduan deployment Laravel
 
+> **Sejak 12 November 2026 langkah praktis untuk VPS ada di [DEPLOY_VPS.md](DEPLOY_VPS.md)** (skrip di [`deploy/`](../deploy/), diuji di server tiruan). Dokumen ini tetap berlaku sebagai latar belakang: variabel lingkungan, rilis, dan rollback. Perawatan rutin: [PANDUAN_SUPERADMIN.md](PANDUAN_SUPERADMIN.md).
+
 Untuk staging dan production. **Belum ada deployment yang dilakukan.** Production butuh persetujuan owner dan gate go-live terpenuhi: paritas fungsi kritis, database production terpisah, backup dan restore teruji, serta UAT outlet lolos.
 
 ## 1. Sebelum deploy pertama
 
 1. Pilih hosting sesuai [LARAVEL_HOSTING_REQUIREMENTS.md](LARAVEL_HOSTING_REQUIREMENTS.md) dan jalankan uji kelayakan di sana.
 2. Buat project Supabase **baru** untuk production, satu region dengan hosting. Jangan memakai project dev yang dipakai test.
-3. Terapkan schema ke project baru dari migration Drizzle yang ada (`npm run db:migrate` di repo Next.js, dengan `DATABASE_URL` production) lalu `php artisan db:seed`. Langkah ini hanya dijalankan dengan persetujuan owner.
+3. Pasang schema dari repo Laravel saja: `php artisan migrate --force` (schema dasar dari `database/schema/baseline` + migration Laravel; hanya berjalan di database kosong), lalu `php artisan db:seed --force` dan `php artisan sudaya:storage-setup`. Di VPS ketiganya dijalankan `sudo sudaya-deploy --first`. Repo Next.js tidak dibutuhkan lagi. Langkah ini hanya dijalankan dengan persetujuan owner.
 4. Buat akun admin pertama di Supabase Dashboard, lalu `php artisan sudaya:admin-bootstrap --email=... --name="..."`.
 5. Atur Supabase Auth:
    - Site URL = domain aplikasi.
@@ -60,7 +62,7 @@ php artisan storage:link      # bila nanti dipakai
 
 Document root web server menunjuk ke `public/`, tidak pernah ke root proyek. Konfigurasi Nginx dasar ada di dokumentasi deployment Laravel. Header keamanan sudah dikirim aplikasi, jadi jangan menambah `X-Frame-Options` yang berbeda di Nginx.
 
-Tidak ada `php artisan migrate` di rilis M1. Mulai M2, migration hanya dijalankan setelah `--pretend` dibaca dan disetujui, sesuai [LARAVEL_DATABASE_MAPPING.md](LARAVEL_DATABASE_MAPPING.md).
+Migration hanya dijalankan setelah isi filenya dibaca dan disetujui (di VPS: `sudo sudaya-deploy --migrate`; tanpa itu deploy berhenti sebelum mengubah apa pun). Jangan memakai `--pretend` di database kosong: perintah itu membuat tabel `migrations` tanpa RLS.
 
 ## 4. Rilis tanpa mengganggu outlet
 
@@ -82,6 +84,6 @@ Tidak ada `php artisan migrate` di rilis M1. Mulai M2, migration hanya dijalanka
 ## 6. Hal yang belum siap
 
 - Uji transaction pooler dan uji beban (M8).
-- Backup dan uji restore Supabase production (EXT-028).
+- Backup harian (`php artisan sudaya:backup`, 02.30 WIB) dan restore ke project baru (`php artisan sudaya:restore`) sudah tersedia dan teruji di Supabase Postgres lokal. Uji restore di project Supabase sungguhan setelah production ada (EXT-028).
 - Monitoring error terpusat (M8).
 - Domain dan HTTPS (EXT-021).

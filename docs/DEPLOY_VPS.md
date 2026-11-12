@@ -121,6 +121,8 @@ Semua baris harus ✓. Peringatan "Cron Laravel" hilang sendiri ±5 menit setela
 
 Disarankan memasang uptime monitor gratis (mis. UptimeRobot) ke `https://<domain>/api/health` tiap 5 menit: Anda dapat notifikasi bila web atau database mati, dan project Supabase paket Free tidak dianggap tidak aktif.
 
+Opsional: daftarkan domain di Google Search Console dan kirim `https://<domain>/sitemap.xml` agar halaman depan dan menu cepat muncul di pencarian. Tautan web yang dibagikan di WhatsApp/Instagram otomatis menampilkan judul, deskripsi (dari "tentang" di Konten situs), dan foto program.
+
 ## Rilis versi baru
 
 Setelah perubahan kode di-push ke branch `main` GitHub:

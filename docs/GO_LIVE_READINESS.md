@@ -4,6 +4,21 @@ Diperbarui 11 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 
 
 **Kesimpulan:** belum siap production. Fitur transaksi tunai inti terbukti di lingkungan development (database dan Supabase dev). Hosting, database production, HTTPS, backup/restore, monitoring, data menu asli, perangkat outlet, dan UAT belum ada. Seluruh PASS di bawah adalah *Development Verified*, bukan bukti production.
 
+## Ringkasan 12 November 2026: siap dipasang begitu VPS dan domain dibeli
+
+Langkah dari server kosong sampai live: [DEPLOY_VPS.md](DEPLOY_VPS.md). Perawatan rutin oleh Super Admin: [PANDUAN_SUPERADMIN.md](PANDUAN_SUPERADMIN.md).
+
+| Butir | Status | Bukti / catatan |
+|---|---|---|
+| Database production dipasang hanya dari repo Laravel (tanpa repo Next.js) | PASS (lokal) | `php artisan migrate --force` di Supabase Postgres 17.11 kosong (Docker): katalog schema **identik dengan dev** (0 perbedaan: tabel, kolom, constraint, index, fungsi, trigger, RLS, hak akses, job pg_cron); uji 22/22 termasuk penolakan schema setengah jadi dan project bukan Supabase |
+| Server: provision, deploy tanpa downtime, rollback | PASS (server tiruan) | Container Ubuntu 24.04: provision, `sudaya-deploy --first` 38 detik, HTTP 30/30, penjaga migration, rollback otomatis saat rilis rusak, `sudaya-rollback`, `sudaya:doctor` 36/36 |
+| Backup harian + restore | PASS (lokal) | `sudaya:backup` (pg_dump 17) → `sudaya:restore` ke project kosong kedua: jumlah baris semua tabel sama, Super Admin kembali; restore ke database berisi data ditolak |
+| Konfigurasi production (`APP_ENV`, cookie Secure, HSTS, CSP, X-Real-IP) | PASS (server tiruan) | `sudaya:doctor`, HTTP checks; X-Real-IP palsu tertimpa Nginx |
+| Perintah penghapus database di production | PASS | `migrate:fresh/rollback`, `db:wipe` ditolak |
+| Poin/tier di Admin → Pelanggan | Disembunyikan | Keputusan owner 12 November: sampai aturan poin diputuskan |
+| VPS, domain, project Supabase production | BLOCKED | Owner membeli/membuat; lalu ikuti DEPLOY_VPS.md langkah 1–9 |
+| Uji di VPS dan Supabase sungguhan, UAT outlet | NOT TESTED | Setelah langkah di atas; skenario di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md) |
+
 ## Ringkasan 11 November 2026 (serah terima)
 
 Semua fitur MVP PRD, Fase 2 (supplier & purchase order, pengeluaran, resep/BOM, data pelanggan), pesanan meja kantor + QRIS statis, dan **aplikasi staf di HP** sudah selesai dan lolos test di lingkungan development. Bukti test per bagian ada di [QA_CHECKPOINT.md](QA_CHECKPOINT.md). Butir yang masih menunggu pihak luar atau keputusan owner:

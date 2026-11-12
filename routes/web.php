@@ -36,6 +36,7 @@ use App\Http\Controllers\Pos\CashController;
 use App\Http\Controllers\Pos\OrderActionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\PosOrderController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\Staff\OutsideDutyController as StaffOutsideDutyController;
 use App\Http\Controllers\StaffController;
@@ -44,6 +45,10 @@ use App\Http\Middleware\EnsureActiveStaff;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class);
+
+// Mesin pencari: mengikuti domain aplikasi, hanya halaman publik.
+Route::get('/robots.txt', [SeoController::class, 'robots']);
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap']);
 
 // APK Android (Trusted Web Activity) aplikasi staf; 404 sampai paket & sidik jari diisi di env.
 Route::get('/.well-known/assetlinks.json', AppLinksController::class);
