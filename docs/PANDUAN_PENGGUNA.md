@@ -35,7 +35,7 @@ Menu **Laporan penjualan** (atau tautan di dasbor). Pilih periode **Hari ini, Ke
 - **Ekspor ke spreadsheet**: satu file berisi sheet Ringkasan, Harian, Menu terlaris, Kategori, Per jam, dan Metode bayar. **Cetak** untuk versi kertas/PDF.
 
 ### Pelanggan
-Menu **Pelanggan**: daftar pelanggan dari pesanan lunas yang mencantumkan nomor HP (checkout QR/kiosk atau delivery): jumlah transaksi, total belanja, rata-rata, transaksi terakhir, menu favorit, **poin** (Rp10.000 = 1 poin) dan **tier** (Member, Silver ≥ Rp300.000, Gold ≥ Rp1.000.000). Nomor HP disamarkan; ketuk ikon mata untuk melihat nomor lengkap. Pesanan yang dibatalkan/direfund tidak dihitung. Penukaran poin belum tersedia.
+Menu **Pelanggan**: daftar pelanggan dari pesanan lunas yang mencantumkan nomor HP (checkout QR/kiosk atau delivery): jumlah transaksi, total belanja, rata-rata, transaksi terakhir, dan menu favorit. Nomor HP disamarkan; ketuk ikon mata untuk melihat nomor lengkap. Pesanan yang dibatalkan/direfund tidak dihitung. Poin dan tier pelanggan disembunyikan sampai aturan poinnya diputuskan owner (keputusan 12 November 2026).
 
 ### Persetujuan
 Pembatalan pesanan yang **sudah dibayar**, koreksi absen staf, **tugas luar**, dan **stock opname** yang ada selisihnya harus disetujui Owner atau Manager (bukan orang yang mengajukan). Foto bukti tugas luar bisa dibuka dari kartunya. Menu **Persetujuan**, lalu pilih **Setujui** (dengan konfirmasi) atau **Tolak**. Uang pesanan yang dibatalkan dikembalikan Manager lewat **Catat refund tunai** di detail pesanan saat uang diserahkan.

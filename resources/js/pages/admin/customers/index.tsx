@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -21,8 +20,6 @@ type Customer = {
   average: number;
   lastAt: string | null;
   firstAt: string | null;
-  points: number;
-  tier: "Gold" | "Silver" | "Member";
   favorites: { name: string; quantity: number }[];
 };
 type Props = {
@@ -31,17 +28,11 @@ type Props = {
   q: string | null;
   summary: { customers: number; repeat: number; spending: number };
   customers: Customer[];
-  pointValue: number;
-  tiers: Record<string, number>;
 };
 
-const TIER: Record<Customer["tier"], string> = {
-  Gold: "border-warning/60 bg-warning/15 text-foreground",
-  Silver: "border-foreground/20 bg-muted text-foreground",
-  Member: "text-muted-foreground",
-};
-
-export default function CustomersPage({ outlets, outlet, q, summary, customers, pointValue, tiers }: Props) {
+// Poin dan tier (Rp10.000 = 1 poin) masih dihitung server (CustomerInsights) tetapi
+// disembunyikan sampai aturan poin diputuskan owner (keputusan 12 November 2026).
+export default function CustomersPage({ outlets, outlet, q, summary, customers }: Props) {
   const [search, setSearch] = useState(q ?? "");
   const [shown, setShown] = useState<Record<string, boolean>>({});
   const date = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: outlet.timezone });
@@ -54,7 +45,7 @@ export default function CustomersPage({ outlets, outlet, q, summary, customers, 
   return (
     <AdminLayout>
       <Head title="Pelanggan" />
-      <PageHeader title="Pelanggan" description={`${outlet.name} · dari pesanan lunas yang mencantumkan nomor HP · ${formatRupiah(pointValue)} = 1 poin`}>
+      <PageHeader title="Pelanggan" description={`${outlet.name} · dari pesanan lunas yang mencantumkan nomor HP`}>
         {outlets.length > 1 ? (
           <NativeSelect aria-label="Outlet" value={outlet.id} onChange={(e) => router.get("/admin/customers", { outlet: e.target.value })}>
             {outlets.map((o) => (
@@ -87,21 +78,16 @@ export default function CustomersPage({ outlets, outlet, q, summary, customers, 
         <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {customers.map((c) => (
             <li key={c.key} className="flex flex-col gap-2 rounded-xl border bg-card p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-semibold break-words">{c.name}</p>
-                  <p className="flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
-                    {shown[c.key] ? c.phoneFull : c.phoneMasked}
-                    {shown[c.key] ? null : (
-                      <Button variant="ghost" size="icon-sm" aria-label={`Lihat nomor ${c.name}`} onClick={() => setShown((s) => ({ ...s, [c.key]: true }))}>
-                        <EyeIcon />
-                      </Button>
-                    )}
-                  </p>
-                </div>
-                <Badge variant="outline" className={TIER[c.tier]}>
-                  {c.tier}
-                </Badge>
+              <div className="min-w-0">
+                <p className="font-semibold break-words">{c.name}</p>
+                <p className="flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
+                  {shown[c.key] ? c.phoneFull : c.phoneMasked}
+                  {shown[c.key] ? null : (
+                    <Button variant="ghost" size="icon-sm" aria-label={`Lihat nomor ${c.name}`} onClick={() => setShown((s) => ({ ...s, [c.key]: true }))}>
+                      <EyeIcon />
+                    </Button>
+                  )}
+                </p>
               </div>
               <dl className="grid grid-cols-3 gap-2 text-sm">
                 <div>
@@ -113,12 +99,12 @@ export default function CustomersPage({ outlets, outlet, q, summary, customers, 
                   <dd className="font-semibold">{formatRupiah(c.spending)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Poin</dt>
-                  <dd className="font-semibold">{c.points.toLocaleString("id-ID")}</dd>
+                  <dt className="text-xs text-muted-foreground">Rata-rata</dt>
+                  <dd className="font-semibold">{formatRupiah(c.average)}</dd>
                 </div>
               </dl>
               <p className="text-xs text-muted-foreground">
-                Rata-rata {formatRupiah(c.average)} · terakhir {c.lastAt ? date.format(new Date(c.lastAt)) : "—"}
+                Terakhir {c.lastAt ? date.format(new Date(c.lastAt)) : "—"}
                 {c.firstAt && c.transactions > 1 ? ` · pertama ${date.format(new Date(c.firstAt))}` : ""}
               </p>
               {c.favorites.length > 0 ? <p className="text-xs break-words">Favorit: {c.favorites.map((f) => `${f.name} (${f.quantity})`).join(", ")}</p> : null}
@@ -126,10 +112,7 @@ export default function CustomersPage({ outlets, outlet, q, summary, customers, 
           ))}
         </ul>
       )}
-      <p className="text-xs text-muted-foreground">
-        Tier dari total belanja: Silver ≥ {formatRupiah(tiers.Silver)}, Gold ≥ {formatRupiah(tiers.Gold)}. Poin dan tier dihitung ulang otomatis; pesanan yang dibatalkan atau direfund
-        tidak dihitung. Penukaran poin belum tersedia.
-      </p>
+      <p className="text-xs text-muted-foreground">Dihitung ulang otomatis; pesanan yang dibatalkan atau direfund tidak dihitung.</p>
     </AdminLayout>
   );
 }
