@@ -524,3 +524,39 @@ Catatan untuk owner: halaman **Pelanggan** menampilkan poin & tier (Rp10.000 = 1
 - Belum diuji di VPS dan project Supabase sungguhan: tiruan lokal tidak memiliki layanan Auth/Storage/Realtime asli (diganti tiruan API dan tiruan `realtime.send`). Jalankan DEPLOY_VPS.md langkah 1–9 lalu `sudaya:doctor`.
 - Paket Supabase (Free vs Pro: backup otomatis, tidak *paused*) dan uptime monitor: keputusan owner.
 - Foto di Supabase Storage tidak ikut backup harian (foto absen memang dihapus 90 hari; foto menu/QRIS bisa diunggah ulang).
+
+## Menu asli tampil sebelum ada harga ("Harga menyusul"), deskripsi menu, Americano Series (12 November 2026, sore)
+
+**Status: Development Verified.** Permintaan owner: tampilkan dulu 22 menu asli tanpa harga, buatkan deskripsinya dari nama menu; Americano jadi satu menu dengan pilihan Original atau varian Americano Series (bisa request); Maren = matcha + aren; "Matcha bary" = Matcha Berry; "Japanesh" dibetulkan; harga diisi dua cara (admin manual, atau data impor); aktifkan 22 menu dan hapus menu contoh.
+
+| Bagian | Isi | File utama |
+|---|---|---|
+| Harga menyusul | Harga Rp0 = belum diisi admin: tampil **"Harga menyusul"** di menu pelanggan, landing page, kiosk, dan kasir; tombol pesan nonaktif. Server menolak di semua kanal karena quote dan checkout QR/web/kiosk/kasir memakai `Pricing::priceSelection`, jadi tidak ada pesanan Rp0. Admin → Menu: badge **Belum diisi** + pengingat; form menjelaskan arti Rp0; `sudaya:doctor` baris **Harga menu** | `Support/Catalog/Pricing.php`, `lib/catalog/pricing.ts`, `lib/format.ts`, `storefront.tsx`, `home.tsx`, `pos/index.tsx`, `admin/products/*` |
+| Data menu asli | 22 menu **aktif** dengan deskripsi dari nama/jenis minuman (bisa diubah admin); nama: **Matcha Berry**, **Japanese Iced Coffee** (nama umum kopi seduh manual ala Jepang yang diseduh panas langsung di atas es), Maren (matcha + aren); kategori urut file owner; **Americano Series** (Original bawaan, Matcha, Sitrus) + Ice/Hot; kolom `price` per menu untuk harga lewat data; `--sync` menyelaraskan nama/deskripsi/varian/urutan tanpa menimpa harga dari admin dan tanpa memunculkan lagi menu yang dihapus admin | `Console/Commands/RealMenuCommand.php` |
+| Menu contoh | `sudaya:demo-menu --remove` kini juga menghapus kategori dan grup varian contoh yang tidak dipakai menu lain. Di dev: 9 produk, 3 kategori, 4 grup dihapus | `Console/Commands/DemoMenuCommand.php` |
+| Data dev | `sudaya:menu-asli --sync`: 22 menu diselaraskan & aktif; menu pelanggan SDY01: 22 menu, 5 kategori urut file owner, 0 menu contoh | — |
+
+### Hasil QA
+
+| Suite | Hasil | Catatan |
+|---|---|---|
+| Pint, TypeScript, build | lolos | |
+| Unit/feature (SQLite) | **197/197 (1051 assertion)** | baru: `CatalogTest` harga menyusul, `RealMenuTest` 3 (22 menu, urutan SKU tetap, deskripsi, Americano Series, harga null/positif) |
+| Live | `PricePendingTest` **2/2 (21)**, `RealMenuCommandTest` **1/1 (17)** | menu tanpa harga tampil; QR counter/web/kiosk/kasir menolak (sendiri maupun campur menu berharga), tidak ada pesanan tersimpan; menu berharga tetap bisa; setelah admin mengisi harga langsung bisa dipesan dengan harga server. Impor baru di company kosong: 22 aktif, kategori urut, Americano Series + Ice/Hot bawaan Original/Ice; `--sync` tidak menimpa harga admin, menu yang dihapus admin tidak muncul lagi, grup tidak dobel |
+| E2E regresi | `OrdersTest` **6/6**, `DeskFlowTest` **3/3 (36)** | alur pesan pelanggan, kiosk, kasir, meja kantor. Test rate limit `OrdersTest` sekali gagal (jendela waktu vs latensi DB dev Eropa, pola D39/D44), diulang sendiri lolos (14 assertion) |
+| Browser (data dev asli, tamu, HP & desktop) | **19/19** | landing "Menu pilihan" dari menu asli + "Harga menyusul", tanpa menu contoh dan tanpa "Rp 0"; menu SDY01 kategori urut, nama terkoreksi; detail Americano: Original/Matcha/Sitrus + Ice/Hot, deskripsi menyebut request, tombol "Harga menyusul" nonaktif; tanpa scroll horizontal dan error console/CSP |
+| Browser (fixture, admin & kasir) | **9/9** | Admin → Menu badge "Belum diisi" + pengingat; POS tile "Harga menyusul" nonaktif, menu berharga tetap bisa dipilih |
+
+### Defect dan perbaikan
+
+| No | Temuan | Jenis | Perbaikan |
+|---|---|---|---|
+| D54 | Probe pertama masih melihat "Rp 0": aset tampilan belum dibuild ulang setelah kode frontend berubah | Proses QA | `npm run build` sebelum probe; deploy VPS selalu build otomatis |
+| D55 | Kategori di menu pelanggan urut abjad, bukan urutan file owner | Bug data (uji browser) | Impor/sync memberi `sort_order` 1–5 |
+| D56 | Kolom cari menulis "Cari kopi, teh, camilan…" padahal tidak ada camilan | Teks | "Cari menu…" |
+| D57 | `--remove` menu contoh meninggalkan kategori kosong yang tetap tampil | Bug skrip | Kategori & grup contoh ikut dihapus bila tidak dipakai |
+
+### Catatan untuk owner
+
+- Deskripsi dibuat dari nama/jenis minuman, bukan resep: mohon dicek, terutama **Sudaya Coffee** dan **Twilight** (resep belum diketahui, deskripsinya umum).
+- Selisih harga varian Americano Series masih Rp0 sampai diisi di Admin → Varian & tambahan.

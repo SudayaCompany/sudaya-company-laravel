@@ -213,6 +213,8 @@ final class SystemHealth
         $this->add($g, 'Outlet aktif', $outlets > 0 ? self::OK : self::FAIL, "{$outlets} outlet", 'Aktifkan outlet di Admin → Outlet');
         $menu = DB::table('products')->where('company_id', $companyId)->whereNull('deleted_at')->where('is_active', true)->count();
         $this->add($g, 'Menu aktif', $menu > 0 ? self::OK : self::WARN, "{$menu} menu", 'Pelanggan melihat menu kosong: isi harga dan aktifkan menu di Admin → Menu');
+        $unpriced = DB::table('products')->where('company_id', $companyId)->whereNull('deleted_at')->where('is_active', true)->where('base_price', '<=', 0)->count();
+        $this->add($g, 'Harga menu', $unpriced === 0 ? self::OK : self::WARN, $unpriced === 0 ? 'semua menu aktif sudah berharga' : "{$unpriced} menu aktif masih \"Harga menyusul\" (belum bisa dipesan)", 'Isi harga di Admin → Menu (ikon pensil)');
         $demo = DB::table('products')->where('company_id', $companyId)->whereNull('deleted_at')->where('sku', 'like', 'CONTOH-%')->count();
         $this->add($g, 'Menu contoh', $demo === 0 ? self::OK : self::WARN, $demo === 0 ? 'tidak ada' : "{$demo} menu contoh masih ada", 'Hapus sebelum buka: php artisan sudaya:demo-menu --remove');
     }

@@ -200,7 +200,11 @@ function ProductForm({ brandId, product, categories, modifierGroups }: Omit<Prop
               className="tabular-nums"
             />
             <p className="text-xs text-muted-foreground">
-              {Number.isFinite(priceNumber) && price !== "" ? formatRupiah(priceNumber) : "Harga dasar di semua outlet."}
+              {Number.isFinite(priceNumber) && price !== "" && priceNumber > 0
+                ? formatRupiah(priceNumber)
+                : price !== "" && priceNumber === 0
+                  ? "Rp0 = harga menyusul: menu tampil di menu pelanggan tetapi belum bisa dipesan."
+                  : "Harga dasar di semua outlet. Isi 0 bila harga belum ada (tampil “Harga menyusul”)."}
             </p>
           </div>
         </div>

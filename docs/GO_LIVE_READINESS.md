@@ -16,6 +16,7 @@ Langkah dari server kosong sampai live: [DEPLOY_VPS.md](DEPLOY_VPS.md). Perawata
 | Konfigurasi production (`APP_ENV`, cookie Secure, HSTS, CSP, X-Real-IP) | PASS (server tiruan) | `sudaya:doctor`, HTTP checks; X-Real-IP palsu tertimpa Nginx |
 | Perintah penghapus database di production | PASS | `migrate:fresh/rollback`, `db:wipe` ditolak |
 | Poin/tier di Admin → Pelanggan | Disembunyikan | Keputusan owner 12 November: sampai aturan poin diputuskan |
+| Menu asli tampil sebelum ada harga | PASS (dev) | Keputusan owner 12 November: 22 menu aktif dengan deskripsi (dibuat dari nama menu, bisa diubah admin), Americano Series (Original/Matcha/Sitrus), kategori urut file owner; tampil "Harga menyusul" dan **belum bisa dipesan** di semua kanal sampai admin mengisi harga; menu contoh dihapus. Live `PricePendingTest` 2/2, `RealMenuCommandTest` 1/1, browser 28/28 |
 | VPS, domain, project Supabase production | BLOCKED | Owner membeli/membuat; lalu ikuti DEPLOY_VPS.md langkah 1–9 |
 | Uji di VPS dan Supabase sungguhan, UAT outlet | NOT TESTED | Setelah langkah di atas; skenario di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md) |
 

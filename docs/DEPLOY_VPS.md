@@ -103,10 +103,10 @@ Perintah ini hanya bisa sekali: Super Admin berikutnya diundang dari aplikasi (A
 sudo sudaya-artisan sudaya:menu-asli
 ```
 
-22 menu dari file owner masuk **nonaktif tanpa harga**. Lalu login di `https://<domain>/login` dan isi lewat Admin (urutan di [PANDUAN_PENGGUNA.md](PANDUAN_PENGGUNA.md) §Persiapan):
+22 menu dari file owner masuk **aktif** dengan deskripsi dan kategori berurutan, tampil **"Harga menyusul"** (belum bisa dipesan) sampai harganya diisi. Harga bisa diisi admin satu per satu di Admin → Menu, atau dimasukkan ke data perintah ini (kolom `price` di `app/Console/Commands/RealMenuCommand.php`) lalu `sudo sudaya-artisan sudaya:menu-asli --sync`; harga yang sudah diisi admin tidak pernah ditimpa. Lalu login di `https://<domain>/login` dan isi lewat Admin (urutan di [PANDUAN_PENGGUNA.md](PANDUAN_PENGGUNA.md) §Persiapan):
 
 1. **Outlet**: nama, alamat, koordinat & radius absen, daftar meja, gambar QRIS.
-2. **Menu**: harga, foto, deskripsi, lalu aktifkan.
+2. **Menu**: isi harga menu bertanda **Belum diisi** (ikon pensil), foto, dan sesuaikan deskripsi bila perlu.
 3. **Konten situs**: kontak WhatsApp/Instagram/email, info pelatihan, tautan program Sahabat Berbagi.
 4. **Staf**: undang tiap karyawan dengan perannya; kirim tautan undangan lewat WhatsApp.
 5. Cetak QR meja (Admin → Outlet → Cetak QR).

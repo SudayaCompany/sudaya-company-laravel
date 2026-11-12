@@ -47,7 +47,7 @@ Database development adalah project Supabase bersama: jangan menjalankan `migrat
 | `php artisan sudaya:storage-setup` | Buat/selaraskan bucket Supabase Storage |
 | `php artisan db:seed --force` | Data awal: company, brand, outlet, peran, izin (aman diulang) |
 | `php artisan sudaya:admin-bootstrap --email=… --name="…"` | Super Admin pertama (sekali) |
-| `php artisan sudaya:menu-asli` | Impor 22 menu asli (nonaktif, harga diisi admin) |
+| `php artisan sudaya:menu-asli [--sync]` | 22 menu asli: aktif, "Harga menyusul" sampai harga diisi admin; `--sync` menyelaraskan nama/deskripsi/varian tanpa menimpa harga dari admin |
 | `php artisan sudaya:demo-menu --remove` | Hapus menu contoh |
 
 ## Test

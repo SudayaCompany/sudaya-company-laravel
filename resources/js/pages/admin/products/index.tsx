@@ -183,6 +183,13 @@ export default function Products({ brand, outlets, outlet, params, list, categor
           }
         />
       ) : (
+        <>
+          {list.rows.some((product) => product.basePrice <= 0) ? (
+            <p className="rounded-xl border border-warning/60 bg-warning/10 px-4 py-3 text-sm">
+              Menu bertanda <span className="font-semibold">Belum diisi</span> tampil &ldquo;Harga menyusul&rdquo; di menu pelanggan dan belum bisa dipesan. Klik ikon pensil untuk
+              mengisi harganya; setelah disimpan, menu langsung bisa dipesan.
+            </p>
+          ) : null}
         <Card>
           <CardContent className="overflow-x-auto">
             <Table>
@@ -215,7 +222,15 @@ export default function Products({ brand, outlets, outlet, params, list, categor
                       {product.sku ? <p className="font-mono text-xs text-muted-foreground">{product.sku}</p> : null}
                     </TableCell>
                     <TableCell className="text-sm">{product.categoryName}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatRupiah(product.basePrice)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {product.basePrice > 0 ? (
+                        formatRupiah(product.basePrice)
+                      ) : (
+                        <Badge variant="outline" className="border-warning/60 bg-warning/15 text-foreground">
+                          Belum diisi
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={product.isActive ? "secondary" : "outline"}>{product.isActive ? "Aktif" : "Nonaktif"}</Badge>
                     </TableCell>
@@ -256,6 +271,7 @@ export default function Products({ brand, outlets, outlet, params, list, categor
             </Table>
           </CardContent>
         </Card>
+        </>
       )}
 
       {list.pageCount > 1 ? (

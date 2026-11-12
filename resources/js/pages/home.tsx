@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 import { Brand } from "@/components/brand";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatRupiah } from "@/lib/format";
+import { formatMenuPrice, hasMenuPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Featured = { id: string; name: string; description: string | null; price: number; imageUrl: string | null; category: string | null };
@@ -487,7 +487,9 @@ function MenuSection({ cafe, orderHref }: { cafe: Cafe; orderHref: string }) {
                 {product.category ? <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{product.category}</span> : null}
                 <span className="font-display text-lg leading-snug font-semibold">{product.name}</span>
                 {product.description ? <span className="line-clamp-2 text-sm text-muted-foreground">{product.description}</span> : null}
-                <span className="mt-auto pt-2 font-semibold tabular-nums">{formatRupiah(product.price)}</span>
+                <span className={cn("mt-auto pt-2 font-semibold tabular-nums", !hasMenuPrice(product.price) && "font-medium text-muted-foreground")}>
+                  {formatMenuPrice(product.price)}
+                </span>
               </div>
             </Link>
           </li>

@@ -15,6 +15,9 @@ final class Pricing
     /** Batas jumlah per baris keranjang. */
     public const MAX_LINE_QUANTITY = 50;
 
+    /** Menu aktif yang harganya belum diisi admin (Rp0): tampil "Harga menyusul", belum bisa dipesan. */
+    public const PRICE_PENDING_ERROR = 'Harga menyusul: menu ini belum bisa dipesan.';
+
     /** @return array{min: int, max: int} batas pilihan efektif sebuah grup */
     public static function selectionLimits(array $group): array
     {
@@ -33,6 +36,10 @@ final class Pricing
     {
         if (! $product['isAvailable']) {
             return ['ok' => false, 'error' => 'Maaf, produk ini baru saja tidak tersedia.'];
+        }
+        // Berlaku untuk semua kanal (QR, web, kiosk, kasir): tidak ada pesanan Rp0 karena harga belum diisi.
+        if ($product['price'] <= 0) {
+            return ['ok' => false, 'error' => self::PRICE_PENDING_ERROR];
         }
 
         $selected = array_flip(array_values(array_unique($selectedModifierIds)));

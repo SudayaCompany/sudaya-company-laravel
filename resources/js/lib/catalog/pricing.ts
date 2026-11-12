@@ -5,6 +5,9 @@
 /** Batas jumlah per baris keranjang. */
 export const MAX_LINE_QUANTITY = 50;
 
+/** Sama dengan Pricing::PRICE_PENDING_ERROR di server. */
+export const PRICE_PENDING_ERROR = "Harga menyusul: menu ini belum bisa dipesan.";
+
 export type PricingModifier = { id: string; name: string; priceDelta: number };
 
 export type PricingGroup = {
@@ -62,6 +65,10 @@ export function priceSelection(
 ): PricedSelection {
   if (!product.isAvailable) {
     return { ok: false, error: "Maaf, produk ini baru saja tidak tersedia." };
+  }
+  // Harga belum diisi admin: menu tampil "Harga menyusul" tetapi belum bisa dipesan.
+  if (product.price <= 0) {
+    return { ok: false, error: PRICE_PENDING_ERROR };
   }
 
   const selected = new Set(selectedModifierIds);

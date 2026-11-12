@@ -57,7 +57,8 @@ Latih restore ke project Supabase sementara (urutan [DEPLOY_VPS.md §Restore](DE
 | Karyawan lupa password | **Staf** → ikon kunci di baris karyawan | Salin **tautan reset password**, kirim lewat WhatsApp |
 | Karyawan keluar | **Staf** → nonaktifkan | Langsung ter-logout di semua perangkat dan tidak bisa login lagi. Riwayat transaksi dan absennya tetap tersimpan |
 | Ubah izin suatu peran | **Peran & izin** | Hati-hati: berlaku untuk semua karyawan dengan peran itu. Tercatat di Log aktivitas |
-| Menu baru / ubah harga, foto, deskripsi | **Menu** | Harga dihitung ulang di server; perubahan langsung tampil ke pelanggan |
+| Menu baru / ubah harga, foto, deskripsi | **Menu** | Harga dihitung ulang di server; perubahan langsung tampil ke pelanggan. Menu berharga Rp0 bertanda **Belum diisi**: tampil "Harga menyusul" dan belum bisa dipesan sampai harganya diisi |
+| Varian Americano Series / Ice-Hot | **Varian & tambahan** | Tambah varian baru atau isi selisih harga varian |
 | Menu habis hari ini | **Menu → Tandai habis** | Pelanggan tidak bisa memesannya sampai ditandai tersedia lagi |
 | Ganti gambar QRIS | **Outlet & meja → Pembayaran QRIS** | Pastikan gambar QRIS resmi milik Sudaya; pembayaran QRIS dikonfirmasi manual oleh barista/kasir |
 | Tambah meja / cetak QR meja | **Outlet & meja** | QR meja yang tidak terdaftar ditolak saat checkout |

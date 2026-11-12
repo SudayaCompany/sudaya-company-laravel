@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { AdminLayout } from "@/layouts/admin-layout";
 import { useInlineFlashError } from "@/lib/feedback";
-import { formatRupiah } from "@/lib/format";
+import { formatMenuPrice, formatRupiah } from "@/lib/format";
 
 type Item = { id: string; name: string; unit: string; kind: string; units: string[] };
 type Props = {
@@ -53,7 +53,7 @@ export default function RecipeEdit({ outlet, product, canEdit, lines: initial, i
       <Head title={`Resep ${product.name}`} />
       <PageHeader
         title={`Resep ${product.name}`}
-        description={`${outlet.name} · bahan untuk 1 porsi. Harga jual ${formatRupiah(product.price)}${cost > 0 ? ` · perkiraan modal bahan ${formatRupiah(cost)} (dari harga beli terakhir)` : ""}`}
+        description={`${outlet.name} · bahan untuk 1 porsi. Harga jual ${formatMenuPrice(product.price)}${cost > 0 ? ` · perkiraan modal bahan ${formatRupiah(cost)} (dari harga beli terakhir)` : ""}`}
       />
 
       <div className="flex max-w-3xl flex-col gap-3">

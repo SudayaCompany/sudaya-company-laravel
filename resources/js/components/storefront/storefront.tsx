@@ -27,7 +27,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from "@/components/ui/textarea";
 import { type CartLine, type CartQuote, requestQuote, useCartLines } from "@/lib/catalog/cart";
 import { MAX_LINE_QUANTITY, type PricingProduct } from "@/lib/catalog/pricing";
-import { formatPriceDelta, formatRupiah } from "@/lib/format";
+import { formatMenuPrice, formatPriceDelta, formatRupiah, hasMenuPrice } from "@/lib/format";
 import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, PAYMENT_OPTIONS, placeOrder, type OrderType } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
@@ -211,7 +211,7 @@ export function StorefrontView({
                       type="search"
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Cari kopi, teh, camilan…"
+                      placeholder="Cari menu…"
                       aria-label="Cari menu"
                       enterKeyHint="search"
                       className="h-11 rounded-full bg-muted/60 pr-10 pl-10 text-base [&::-webkit-search-cancel-button]:hidden"
@@ -338,12 +338,13 @@ function CategoryChips({ sections, active, large }: { sections: Storefront["cate
 
 function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; large: boolean; onOpen: () => void }) {
   const soldOut = !product.isAvailable;
+  const pricePending = !hasMenuPrice(product.price);
   return (
     <button
       type="button"
       onClick={onOpen}
       className="group flex cursor-pointer flex-col overflow-hidden rounded-3xl border bg-card text-left transition-[box-shadow,transform] duration-200 hover:shadow-lg active:scale-[0.98] focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-      aria-label={`${product.name}, ${formatRupiah(product.price)}${soldOut ? ", habis" : ""}`}
+      aria-label={`${product.name}, ${formatMenuPrice(product.price)}${soldOut ? ", habis" : ""}`}
     >
       <div className="relative aspect-square overflow-hidden bg-cream">
         {product.imageUrl ? (
@@ -365,8 +366,10 @@ function ProductCard({ product, large, onOpen }: { product: StorefrontProduct; l
         <p className={cn("line-clamp-2 leading-snug font-semibold", large ? "text-xl" : "text-[0.95rem]")}>{product.name}</p>
         {product.description ? <p className={cn("line-clamp-2 text-muted-foreground", large ? "text-sm" : "text-xs")}>{product.description}</p> : null}
         <div className="mt-auto flex min-h-9 items-center justify-between gap-2 pt-2">
-          <span className={cn("font-semibold tabular-nums", large ? "text-xl" : "text-sm")}>{formatRupiah(product.price)}</span>
-          {soldOut ? null : (
+          <span className={cn("font-semibold tabular-nums", large ? "text-xl" : "text-sm", pricePending && "font-medium text-muted-foreground")}>
+            {formatMenuPrice(product.price)}
+          </span>
+          {soldOut || pricePending ? null : (
             <span
               className={cn(
                 "flex shrink-0 items-center justify-center rounded-full bg-brand text-brand-foreground transition-transform duration-200 group-hover:scale-110",
@@ -399,6 +402,8 @@ function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone
   const selection = useProductSelection(product);
   const { priced, quantity } = selection;
   const [adding, startAdding] = useTransition();
+  const pricePending = !hasMenuPrice(product.price);
+  const orderable = product.isAvailable && !pricePending;
 
   function add() {
     const line = { productId: product.id, modifierIds: selection.selected, quantity, notes: selection.notes.trim() || null };
@@ -429,7 +434,8 @@ function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone
         <div className="flex flex-col gap-1 p-4">
           <SheetTitle className={large ? "text-2xl" : "text-xl"}>{product.name}</SheetTitle>
           {product.description ? <SheetDescription>{product.description}</SheetDescription> : <SheetDescription className="sr-only">Detail produk</SheetDescription>}
-          <p className={cn("mt-1 font-semibold tabular-nums", large && "text-lg")}>{formatRupiah(product.price)}</p>
+          <p className={cn("mt-1 font-semibold tabular-nums", large && "text-lg", pricePending && "text-muted-foreground")}>{formatMenuPrice(product.price)}</p>
+          {pricePending ? <p className="text-sm text-muted-foreground">Belum bisa dipesan sampai harganya diisi.</p> : null}
           {!product.isAvailable ? (
             <Badge variant="destructive" className="mt-1 w-fit">
               Habis
@@ -443,18 +449,18 @@ function ProductDetail({ product, onDone }: { product: StorefrontProduct; onDone
             group={group}
             large={large}
             selected={selection.selected}
-            disabled={!product.isAvailable}
+            disabled={!orderable}
             onChange={(ids) => selection.setGroupSelection(group, ids)}
           />
         ))}
-        <ItemNotesField value={selection.notes} onChange={selection.setNotes} disabled={!product.isAvailable} />
+        <ItemNotesField value={selection.notes} onChange={selection.setNotes} disabled={!orderable} />
       </div>
 
       <SheetFooter className="flex-row items-center gap-3 border-t bg-background p-4">
-        <QuantityStepper value={quantity} onChange={selection.setQuantity} disabled={!product.isAvailable} large={large} />
+        <QuantityStepper value={quantity} onChange={selection.setQuantity} disabled={!orderable} large={large} />
         <Button size="lg" className={cn("flex-1", large ? "h-14 text-lg" : "h-11")} disabled={!priced.ok || adding} onClick={add}>
           {adding ? <Loader2Icon className="animate-spin" /> : null}
-          {!product.isAvailable ? "Habis" : priced.ok ? `Tambah · ${formatRupiah(priced.unitPrice * quantity)}` : priced.error}
+          {!product.isAvailable ? "Habis" : pricePending ? "Harga menyusul" : priced.ok ? `Tambah · ${formatRupiah(priced.unitPrice * quantity)}` : priced.error}
         </Button>
       </SheetFooter>
     </div>

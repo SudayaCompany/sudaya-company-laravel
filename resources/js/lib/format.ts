@@ -16,6 +16,15 @@ export function formatRupiah(amount: number) {
   return rupiah.format(amount).replace(/ /g, " ");
 }
 
+/** Menu yang harganya belum diisi admin (Rp0) tampil "Harga menyusul" dan belum bisa dipesan. */
+export function hasMenuPrice(price: number) {
+  return price > 0;
+}
+
+export function formatMenuPrice(price: number) {
+  return hasMenuPrice(price) ? formatRupiah(price) : "Harga menyusul";
+}
+
 /** Selisih harga modifier: 5000 → "+Rp 5.000", 0 → "" */
 export function formatPriceDelta(delta: number) {
   if (delta === 0) return "";

@@ -32,7 +32,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { PosLayout } from "@/layouts/pos-layout";
 import { MAX_LINE_QUANTITY, priceSelection } from "@/lib/catalog/pricing";
-import { formatPriceDelta, formatRupiah } from "@/lib/format";
+import { formatMenuPrice, formatPriceDelta, formatRupiah, hasMenuPrice } from "@/lib/format";
 import { amountFromDigits, shortRupiah, tenderSuggestions } from "@/lib/money";
 import { ORDER_CONFLICT_MESSAGE, ORDER_TYPE_LABELS, postJson, type OrderType } from "@/lib/orders";
 import { cn } from "@/lib/utils";
@@ -182,7 +182,7 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                 <button
                   key={product.id}
                   type="button"
-                  disabled={!product.isAvailable}
+                  disabled={!product.isAvailable || !hasMenuPrice(product.price)}
                   onClick={() => onProduct(product)}
                   className="group flex flex-col overflow-hidden rounded-xl border bg-background text-left transition-[box-shadow,transform] duration-150 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -201,8 +201,10 @@ export default function PosPage({ outlet, outlets, categories, products, canConf
                   <div className="flex flex-1 flex-col gap-1 p-3">
                     <span className="line-clamp-2 leading-snug font-medium">{product.name}</span>
                     <span className="mt-auto flex items-center justify-between gap-2">
-                      <span className="font-semibold tabular-nums">{formatRupiah(product.price)}</span>
-                      {product.isAvailable ? (
+                      <span className={cn("font-semibold tabular-nums", !hasMenuPrice(product.price) && "font-medium text-muted-foreground")}>
+                        {formatMenuPrice(product.price)}
+                      </span>
+                      {product.isAvailable && hasMenuPrice(product.price) ? (
                         <span className="text-xs text-muted-foreground">{product.groups.length ? "Pilih varian" : "Tambah"}</span>
                       ) : null}
                     </span>
@@ -284,7 +286,7 @@ function ProductPicker({ product, onAdd }: { product: StorefrontProduct; onAdd: 
     <>
       <DialogHeader className="shrink-0 border-b p-4 pr-12">
         <DialogTitle className="text-lg">{product.name}</DialogTitle>
-        <DialogDescription className="tabular-nums">{formatRupiah(product.price)}</DialogDescription>
+        <DialogDescription className="tabular-nums">{formatMenuPrice(product.price)}</DialogDescription>
       </DialogHeader>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {product.groups.map((group) => (

@@ -100,6 +100,14 @@ class CatalogTest extends TestCase
         $this->assertFalse(Pricing::priceSelection([...self::latte(), 'isAvailable' => false], [self::id(11)])['ok']);
     }
 
+    public function test_menu_tanpa_harga_tampil_tetapi_belum_bisa_dipesan(): void
+    {
+        // Keputusan owner 12 November: menu aktif ber-harga Rp0 = "Harga menyusul".
+        $this->assertSame(['ok' => false, 'error' => Pricing::PRICE_PENDING_ERROR], Pricing::priceSelection([...self::latte(), 'price' => 0], [self::id(11)]));
+        $this->assertSame('Maaf, produk ini baru saja tidak tersedia.', Pricing::priceSelection([...self::latte(), 'price' => 0, 'isAvailable' => false], [self::id(11)])['error']);
+        $this->assertTrue(Pricing::priceSelection([...self::latte(), 'price' => 1], [self::id(11)])['ok']);
+    }
+
     public function test_harga_tidak_pernah_negatif(): void
     {
         $latte = self::latte();

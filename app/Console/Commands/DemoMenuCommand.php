@@ -23,6 +23,11 @@ class DemoMenuCommand extends Command
 
     private const NOTE = 'Menu contoh untuk presentasi — ubah atau hapus di Admin → Menu.';
 
+    /** Kategori dan grup varian yang dibuat menu contoh; ikut dihapus `--remove` bila tidak dipakai menu lain. */
+    private const CATEGORIES = ['Kopi', 'Non-Kopi', 'Makanan & Snack'];
+
+    private const GROUPS = ['Ukuran', 'Tingkat gula', 'Es', 'Tambahan'];
+
     public function handle(CatalogAdmin $catalog, AccessLoader $access): int
     {
         if (app()->isProduction() && ! $this->option('remove')) {
@@ -50,7 +55,28 @@ class DemoMenuCommand extends Command
             foreach ($ids as $id) {
                 $catalog->deleteProduct($actor, $id, $audit);
             }
-            $this->info("Menu contoh dihapus: {$ids->count()} produk (kategori & varian contoh bisa dihapus manual bila tidak dipakai).");
+            // Kategori & grup varian contoh ikut dihapus bila tidak lagi dipakai menu lain
+            // (kategori kosong tetap tampil sebagai pilihan di menu pelanggan).
+            $categories = 0;
+            foreach (self::CATEGORIES as $name) {
+                $id = DB::table('categories')->where('brand_id', $brand->id)->where('name', $name)->whereNull('deleted_at')->value('id');
+                if ($id !== null && ! DB::table('products')->where('category_id', $id)->whereNull('deleted_at')->exists()) {
+                    $catalog->deleteCategory($actor, $id, $audit);
+                    $categories++;
+                }
+            }
+            $groups = 0;
+            foreach (self::GROUPS as $name) {
+                $id = DB::table('modifier_groups')->where('brand_id', $brand->id)->where('name', $name)->value('id');
+                $used = $id !== null && DB::table('product_modifier_groups')
+                    ->join('products', 'products.id', '=', 'product_modifier_groups.product_id')
+                    ->where('product_modifier_groups.group_id', $id)->whereNull('products.deleted_at')->exists();
+                if ($id !== null && ! $used) {
+                    $catalog->deleteModifierGroup($actor, $id, $audit);
+                    $groups++;
+                }
+            }
+            $this->info("Menu contoh dihapus: {$ids->count()} produk, {$categories} kategori, {$groups} grup varian contoh.");
 
             return self::SUCCESS;
         }
