@@ -41,19 +41,19 @@ class AdminMonitoringTest extends ServerTestCase
         $coffee = $catalog->createCategory($admin, $A['brandId'], ['name' => 'Coffee'], $audit)['id'];
         $latte = $catalog->createProduct($admin, $A['brandId'], ['name' => 'Iced Latte', 'categoryId' => $coffee, 'basePrice' => '25000', 'isActive' => true, 'modifierGroupIds' => []], null, $audit)['id'];
 
-        // Transaksi nyata: sesi kas, dua pesanan lunas, satu diajukan batal oleh barista.
+        // Transaksi nyata: sesi kas, dua pesanan lunas, satu diajukan batal oleh kasir (barista hanya absen sejak 12 November 2026).
         $cashier = $ctx->load($users['cashier']['id']);
         app(CashSessions::class)->open($cashier, ['outletId' => $A['outletId'], 'openingAmount' => 100_000], $audit);
         $paid = [];
         foreach ([1, 2] as $n) {
             $id = app(OrderEngine::class)->create('pos', ['id' => $A['outletId']], $cashier, [
-                'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => "Tamu {$n}", 'paymentMethod' => 'cash',
+                'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => "Tamu {$n}", 'department' => 'Fundraising', 'paymentMethod' => 'cash',
                 'lines' => [['productId' => $latte, 'modifierIds' => [], 'quantity' => 1]],
             ], $audit)['orderId'];
             app(OrderWorkflow::class)->confirmCash($cashier, ['orderId' => $id, 'tenderedAmount' => 50_000], $audit);
             $paid[] = $id;
         }
-        app(OrderWorkflow::class)->cancel($ctx->load($users['barista']['id']), ['orderId' => $paid[1], 'reason' => 'salah input E2E'], $audit);
+        app(OrderWorkflow::class)->cancel($cashier, ['orderId' => $paid[1], 'reason' => 'salah input E2E'], $audit);
         $approval = DB::table('approvals')->where('reference_id', $paid[1])->where('status', 'pending')->value('id');
 
         return ['A' => $A, 'B' => $B, ...$users, 'kept' => $paid[0], 'cancelled' => $paid[1], 'approval' => $approval];
@@ -198,7 +198,7 @@ class AdminMonitoringTest extends ServerTestCase
         foreach (['/admin', '/admin/approvals', '/admin/cash'] as $path) {
             $this->assertSame(403, $barista->get($path)->getStatusCode(), $path);
         }
-        $barista->get('/kds');
+        $barista->get('/staff');
         $this->assertSame(403, $barista->post('/admin/approvals/'.Str::uuid().'/decide', ['approve' => true])->getStatusCode());
 
         foreach (['/admin/approvals', '/admin/orders', '/admin/cash'] as $path) {

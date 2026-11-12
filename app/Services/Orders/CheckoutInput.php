@@ -68,12 +68,14 @@ final class CheckoutInput
         if ($customRequest !== null) {
             $notes = trim(($notes === null ? '' : $notes."\n").'Permintaan di luar menu: '.$customRequest);
         }
-        // Meja kantor (QR meja): lantai & bagian disimpan sebagai keterangan lokasi untuk barista.
+        // Meja kantor (QR meja): lantai & bagian/area meja disimpan sebagai keterangan lokasi pengantaran.
         $floor = self::optionalText($raw['floor'] ?? null, 20, 'Lantai');
-        $department = self::optionalText($raw['department'] ?? null, 60, 'Bagian');
-        if ($floor !== null || $department !== null) {
-            $locationNote = mb_substr(implode(' · ', array_filter([$floor === null ? null : "Lantai {$floor}", $department])), 0, 100);
+        $area = self::optionalText($raw['area'] ?? null, 60, 'Bagian/area meja');
+        if ($floor !== null || $area !== null) {
+            $locationNote = mb_substr(implode(' · ', array_filter([$floor === null ? null : "Lantai {$floor}", $area])), 0, 100);
         }
+        // Department/unit kerja pemesan (keputusan owner 12 November 2026), ketik bebas.
+        $department = self::optionalText($raw['department'] ?? null, 60, 'Department');
         $paymentMethod = $raw['paymentMethod'] ?? null;
         if (! in_array($paymentMethod, ['cash', 'qris'], true)) {
             self::fail('Pilih metode pembayaran.');
@@ -115,8 +117,25 @@ final class CheckoutInput
             'paymentMethod' => $paymentMethod,
             'lines' => $lines,
             'floor' => $floor,
+            'area' => $area,
             'department' => $department,
         ];
+    }
+
+    /** Pesanan pelanggan (QR, web, kiosk) wajib mencantumkan department (keputusan owner 12 November 2026). */
+    public static function requireDepartment(array $input): ?string
+    {
+        return $input['department'] === null || mb_strlen($input['department']) < 2
+            ? 'Department wajib diisi (mis. Fundraising).'
+            : null;
+    }
+
+    /** Antar ke meja kantor: lantai dan bagian/area meja wajib agar pesanan sampai. */
+    public static function requireDeskLocation(string $channel, array $input): ?string
+    {
+        return $channel === 'qr_table' && $input['type'] === 'dine_in' && ($input['floor'] === null || $input['area'] === null)
+            ? 'Isi lantai dan bagian/area meja agar pesanan bisa diantar.'
+            : null;
     }
 
     /** Channel publik (QR, web, kiosk) wajib mengisi nama pemesan. */

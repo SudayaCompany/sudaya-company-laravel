@@ -78,7 +78,7 @@ class RecipeTest extends LiveTestCase
     private function paid(array $lines): string
     {
         $id = app(OrderEngine::class)->create('pos', ['id' => static::$fixture['A']['outletId']], $this->actor('cashierA'), [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Resep QA', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Resep QA', 'department' => 'Fundraising', 'paymentMethod' => 'cash',
             'lines' => array_map(fn ($l) => ['productId' => static::$fixture[$l[0]], 'modifierIds' => [], 'quantity' => $l[1]], $lines),
         ], $this->audit())['orderId'];
         app(OrderWorkflow::class)->confirmCash($this->actor('cashierA'), ['orderId' => $id, 'tenderedAmount' => 500_000], $this->audit());
@@ -129,7 +129,7 @@ class RecipeTest extends LiveTestCase
         $sales = DB::table('inventory_transactions')->where('reference_type', 'order')->where('reference_id', $order)->where('type', 'sale')->pluck('quantity', 'item_id');
         $this->assertSame(['-36.000', '-300.000', '-1.000'], [$sales[static::$fixture['beans']], $sales[static::$fixture['milk']], $sales[static::$fixture['pastry']]]);
 
-        app(OrderWorkflow::class)->cancel($this->actor('baristaA'), ['orderId' => $order, 'reason' => 'salah input resep QA'], $this->audit());
+        app(OrderWorkflow::class)->cancel($this->actor('cashierA'), ['orderId' => $order, 'reason' => 'salah input resep QA'], $this->audit());
         $approval = DB::table('approvals')->where('reference_id', $order)->where('status', 'pending')->value('id');
         app(OrderWorkflow::class)->decideCancellation($this->actor('ownerA'), ['approvalId' => $approval, 'approve' => true], $this->audit());
         $this->assertSame(['1000.000', '2000.000', '5.000'], [$this->stock('beans'), $this->stock('milk'), $this->stock('pastry')]);
@@ -154,7 +154,7 @@ class RecipeTest extends LiveTestCase
         // Produk jadi tetap ketat: croissant melebihi stok → pembayaran ditolak seluruhnya.
         DB::table('inventory_items')->where('id', static::$fixture['pastry'])->update(['stock_qty' => '2.000']);
         $id = app(OrderEngine::class)->create('pos', ['id' => static::$fixture['A']['outletId']], $this->actor('cashierA'), [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Resep QA', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Resep QA', 'department' => 'Fundraising', 'paymentMethod' => 'cash',
             'lines' => [['productId' => static::$fixture['croissant'], 'modifierIds' => [], 'quantity' => 2], ['productId' => static::$fixture['latte'], 'modifierIds' => [], 'quantity' => 1]],
         ], $this->audit())['orderId'];
         DB::table('inventory_items')->where('id', static::$fixture['pastry'])->update(['stock_qty' => '1.000']);

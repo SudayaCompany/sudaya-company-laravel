@@ -176,6 +176,19 @@ class AttendanceFlowTest extends ServerTestCase
         $this->assertSame('/admin/employees', Browser::location($updated));
         $this->assertSame('Barista E2E', DB::table('employees')->where('id', $id)->value('full_name'));
 
+        // Foto wajah terdaftar (keputusan owner 12 November 2026): persetujuan wajib, sekali daftar, dicek admin.
+        $barista = $this->login($this->f('barista'));
+        $this->assertNull(Browser::page($barista->get('/barista'))['props']['face']);
+        $barista->get('/barista');
+        $this->assertStringContainsString('persetujuan', $this->flash($barista, $barista->multipart('/staff/attendance/face', [], $this->photo()))['error'] ?? '');
+        $barista->get('/barista');
+        $this->assertStringStartsWith('Foto wajah terdaftar', $this->flash($barista, $barista->multipart('/staff/attendance/face', ['consent' => '1'], $this->photo()))['success'] ?? '');
+        $this->assertNotNull(Browser::page($barista->get('/barista'))['props']['face']);
+        $face = $admin->get("/admin/attendance/face/{$id}");
+        $this->assertSame([200, 'image/jpeg'], [$face->getStatusCode(), $face->getHeaderLine('Content-Type')]);
+        $this->assertStringContainsString('no-store', $face->getHeaderLine('Cache-Control'));
+        $this->assertSame(403, $barista->get("/admin/attendance/face/{$id}")->getStatusCode());
+
         $cashier = $this->login($this->f('cashier'));
         foreach (['/admin/attendance', '/admin/attendance/reports', '/admin/employees', '/admin/attendance/settings'] as $path) {
             $this->assertSame(403, $cashier->get($path)->getStatusCode(), $path);

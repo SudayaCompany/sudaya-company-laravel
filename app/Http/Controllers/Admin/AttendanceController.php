@@ -33,6 +33,33 @@ class AttendanceController
     }
 
     /** Foto selfie diteruskan dari bucket privat; tidak pernah di-cache browser/proxy. */
+    /** Foto wajah terdaftar karyawan (dibandingkan dengan selfie absen). */
+    public function face(Request $request, string $employee): SymfonyResponse
+    {
+        try {
+            $photo = $this->attendance->facePhoto($request->user(), strtolower($employee));
+        } catch (AccessException $error) {
+            abort($error->reason === 'forbidden' ? 403 : 404);
+        }
+        if ($photo === null) {
+            abort(404);
+        }
+
+        return response($photo['bytes'], 200, [
+            'Content-Type' => $photo['contentType'],
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function resetFace(Request $request, string $employee): RedirectResponse
+    {
+        $this->attendance->resetFace($request->user(), strtolower($employee), AuditContext::fromRequest($request));
+        Inertia::flash('success', 'Foto wajah direset. Karyawan mendaftar ulang saat membuka halaman absen.');
+
+        return back();
+    }
+
     public function photo(Request $request, string $attendance, string $side): SymfonyResponse
     {
         if (! in_array($side, ['in', 'out'], true) || ! preg_match('/^[0-9a-f-]{36}$/i', $attendance)) {

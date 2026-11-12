@@ -53,7 +53,7 @@ class OutletsTest extends ServerTestCase
         $guest = $this->browser();
         $this->ctx()->trackRateLimitKey('checkout:outlet:'.$this->f('A')['outletCode']);
         $response = $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => $table, 'customerName' => 'Tamu', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => $table, 'customerName' => 'Tamu', 'department' => 'Fundraising', 'floor' => '1', 'area' => 'Depan', 'paymentMethod' => 'cash',
             'lines' => [['productId' => $this->f('tea'), 'modifierIds' => [], 'quantity' => 1]],
         ]]);
 

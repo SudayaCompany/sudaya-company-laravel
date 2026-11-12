@@ -155,26 +155,21 @@ final class Rbac
             'customer.view',
             'report.inventory',
         ],
-        // Absen + semua urusan pesanan (keputusan owner 11 November 2026): termasuk menerima uang
-        // bayar-saat-diantar di meja. Stok & pengeluaran hanya Admin/Manager. Void pesanan lunas
-        // hanya pengajuan (eksekusi lewat approval Manager); override antrean tidak boleh.
+        // Absen saja (keputusan owner 12 November 2026): pesanan hanya diproses lewat akun kasir
+        // agar tidak ada pesanan yang dibuat dobel.
         'barista' => [
+            'attendance.checkin',
+            'attendance.checkout',
+        ],
+        // Pusat pesanan di perangkat Sudaya (keputusan owner 12 November 2026): POS, pesanan masuk
+        // (terima, antar, selesai), pembayaran tunai/QRIS, batal pesanan belum bayar, sesi kas.
+        'cashier' => [
             'attendance.checkin',
             'attendance.checkout',
             'order.view',
             'order.create',
             'order.update_status',
             'order.void',
-            'payment.view',
-            'payment.confirm_cash',
-            'kds.view',
-        ],
-        // POS, pembayaran cash, sesi kas.
-        'cashier' => [
-            'attendance.checkin',
-            'attendance.checkout',
-            'order.view',
-            'order.create',
             'order.refund',
             'payment.view',
             'payment.confirm_cash',
@@ -182,6 +177,7 @@ final class Rbac
             'cash.view',
             'cash.open',
             'cash.close',
+            'kds.view',
         ],
     ];
 

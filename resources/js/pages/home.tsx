@@ -45,7 +45,7 @@ type Site = {
 const STEPS = [
   { icon: QrCodeIcon, title: "Scan QR atau buka menu", body: "QR ada di meja. Bisa juga langsung dari HP lewat halaman menu." },
   { icon: ShoppingBagIcon, title: "Pilih & kirim pesanan", body: "Atur ukuran, gula, dan es. Total dihitung otomatis." },
-  { icon: BanknoteIcon, title: "Bayar QRIS atau tunai", body: "QRIS dari HP, tunai di kasir, atau tunai ke barista saat pesanan diantar ke meja." },
+  { icon: BanknoteIcon, title: "Bayar QRIS atau tunai", body: "QRIS dari HP, tunai di kasir, atau tunai saat pesanan diantar ke meja." },
   { icon: BellRingIcon, title: "Pesanan siap", body: "Status pesanan tampil di HP-mu dan berubah sendiri saat pesanan siap." },
 ];
 
@@ -80,7 +80,15 @@ export default function Home({ cafe, site }: { cafe?: Cafe; site?: Site }) {
                 {label}
               </a>
             ))}
-            <Link href={orderHref} className={cn(buttonVariants({ size: "sm" }), CTA, "ml-2 h-10 px-4")}>
+            {/* Satu pintu masuk untuk semua staf; setelah login diarahkan sesuai peran. */}
+            <Link
+              href="/login"
+              className="ml-1 inline-flex h-10 min-w-11 items-center justify-center rounded-full border border-white/30 px-4 font-medium text-white transition-colors hover:bg-white/10"
+              data-testid="staff-login"
+            >
+              Masuk
+            </Link>
+            <Link href={orderHref} className={cn(buttonVariants({ size: "sm" }), CTA, "ml-1 h-10 px-4")}>
               Pesan
             </Link>
           </div>

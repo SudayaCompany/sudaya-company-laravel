@@ -25,7 +25,7 @@ type Session = {
   hasCheckInPhoto: boolean;
   hasCheckOutPhoto: boolean;
 };
-type Row = { id: string; code: string; fullName: string; position: string | null; status: "working" | "done" | "absent"; minutes: number; sessions: Session[] };
+type Row = { id: string; code: string; fullName: string; hasFace: boolean; position: string | null; status: "working" | "done" | "absent"; minutes: number; sessions: Session[] };
 type Props = {
   outlets: { id: string; name: string }[];
   outlet: { id: string; name: string; timezone: string };
@@ -51,7 +51,9 @@ export default function AttendanceBoard({ outlets, outlet, board, outsideDuties 
   const time = formatter({ hour: "2-digit", minute: "2-digit" }, outlet.timezone);
   const clock = (iso: string | null) => (iso ? time.format(new Date(iso)) : "—");
   const dayLabel = formatter({ weekday: "long", day: "numeric", month: "long", year: "numeric" }, "UTC").format(new Date(`${board.date}T00:00:00Z`));
-  const [photo, setPhoto] = useState<{ src: string; title: string } | null>(null);
+  // Selfie absen dibandingkan berdampingan dengan foto wajah terdaftar (keputusan owner 12 November 2026).
+  const [photo, setPhoto] = useState<{ src: string; title: string; face: string | null } | null>(null);
+  const faceUrl = (row: Row) => (row.hasFace ? `/admin/attendance/face/${row.id}` : null);
   const go = (params: Record<string, string>) => router.get("/admin/attendance", { outlet: outlet.id, date: board.date, ...params }, { preserveScroll: true, replace: true });
 
   return (
@@ -119,7 +121,22 @@ export default function AttendanceBoard({ outlets, outlet, board, outsideDuties 
                     {row.fullName.slice(0, 1).toUpperCase()}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{row.fullName}</p>
+                    <p className="flex items-center gap-2 truncate font-medium">
+                      {row.fullName}
+                      {row.hasFace ? (
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs font-medium text-brand-strong underline-offset-4 hover:underline"
+                          onClick={() => setPhoto({ src: `/admin/attendance/face/${row.id}`, title: `${row.fullName} · wajah terdaftar`, face: null })}
+                        >
+                          Wajah terdaftar
+                        </button>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0">
+                          Wajah belum terdaftar
+                        </Badge>
+                      )}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {row.code}
                       {row.position ? ` · ${row.position}` : ""}
@@ -140,14 +157,14 @@ export default function AttendanceBoard({ outlets, outlet, board, outsideDuties 
                           value={clock(s.checkInAt)}
                           distance={s.checkInDistance}
                           photo={s.hasCheckInPhoto ? `/admin/attendance/${s.id}/photo/in` : null}
-                          onPhoto={(src) => setPhoto({ src, title: `${row.fullName} · masuk ${clock(s.checkInAt)}` })}
+                          onPhoto={(src) => setPhoto({ src, title: `${row.fullName} · masuk ${clock(s.checkInAt)}`, face: faceUrl(row) })}
                         />
                         <Stamp
                           label="Pulang"
                           value={clock(s.checkOutAt)}
                           distance={s.checkOutDistance}
                           photo={s.hasCheckOutPhoto ? `/admin/attendance/${s.id}/photo/out` : null}
-                          onPhoto={(src) => setPhoto({ src, title: `${row.fullName} · pulang ${clock(s.checkOutAt)}` })}
+                          onPhoto={(src) => setPhoto({ src, title: `${row.fullName} · pulang ${clock(s.checkOutAt)}`, face: faceUrl(row) })}
                         />
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                           <ClockIcon className="size-4" aria-hidden /> {formatMinutes(s.workingMinutes)}
@@ -168,12 +185,39 @@ export default function AttendanceBoard({ outlets, outlet, board, outsideDuties 
       </p>
 
       <Dialog open={photo !== null} onOpenChange={(next) => !next && setPhoto(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={photo?.face ? "sm:max-w-2xl" : "sm:max-w-md"}>
           <DialogHeader>
-            <DialogTitle>Foto absen</DialogTitle>
+            <DialogTitle>{photo?.face ? "Bandingkan dengan wajah terdaftar" : photo?.src.includes("/attendance/face/") ? "Foto wajah terdaftar" : "Foto absen"}</DialogTitle>
             <DialogDescription>{photo?.title}</DialogDescription>
           </DialogHeader>
-          {photo ? <img src={photo.src} alt={`Selfie ${photo.title}`} className="w-full rounded-xl object-contain" /> : null}
+          {photo ? (
+            <div className={cn("grid gap-3", photo.face && "sm:grid-cols-2")}>
+              <figure className="flex flex-col gap-1">
+                <img src={photo.src} alt={photo.src.includes("/attendance/face/") ? `Foto wajah terdaftar ${photo.title}` : `Selfie ${photo.title}`} className="w-full rounded-xl object-contain" />
+                {photo.face ? <figcaption className="text-center text-sm text-muted-foreground">Selfie absen</figcaption> : null}
+              </figure>
+              {photo.face ? (
+                <figure className="flex flex-col gap-1">
+                  <img src={photo.face} alt="Foto wajah terdaftar" className="w-full rounded-xl object-contain" />
+                  <figcaption className="text-center text-sm text-muted-foreground">Wajah terdaftar</figcaption>
+                </figure>
+              ) : null}
+            </div>
+          ) : null}
+          {photo && photo.face === null && photo.title.endsWith("wajah terdaftar") ? (
+            <button
+              type="button"
+              className="text-sm font-medium text-destructive-strong underline-offset-4 hover:underline"
+              onClick={() => {
+                const id = photo.src.split("/").pop();
+                if (id && window.confirm("Reset foto wajah? Karyawan harus mendaftarkan ulang foto wajahnya sebelum absen.")) {
+                  router.post(`/admin/attendance/face/${id}/reset`, {}, { preserveScroll: true, onSuccess: () => setPhoto(null) });
+                }
+              }}
+            >
+              Reset foto wajah (daftar ulang)
+            </button>
+          ) : null}
         </DialogContent>
       </Dialog>
     </AdminLayout>

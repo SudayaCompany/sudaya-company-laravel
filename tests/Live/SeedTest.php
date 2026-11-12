@@ -58,7 +58,7 @@ class SeedTest extends LiveTestCase
     {
         $company = $this->ctx()->createCompany('seed');
         DB::table('outlets')->where('id', $company['outletId'])->update(['attendance_radius_meter' => 25]);
-        $revoked = ['role_id' => $company['roles']['barista'], 'permission_code' => 'kds.view'];
+        $revoked = ['role_id' => $company['roles']['barista'], 'permission_code' => 'attendance.checkout'];
         DB::table('role_permissions')->where($revoked)->delete();
 
         $report = app(InitialData::class)->seed($company['target']);

@@ -67,7 +67,7 @@ const SHORTCUTS: Shortcut[] = [
     href: "/admin/expenses",
     visible: (_, auth) => auth.navigation.includes("/admin/expenses"),
   },
-  { label: "Barista display", description: "Antrean pembuatan pesanan", icon: MonitorIcon, href: "/kds", visible: (_, auth) => auth.navigation.includes("/kds") },
+  { label: "Pesanan masuk", description: "Terima, antar, dan selesaikan pesanan", icon: MonitorIcon, href: "/kds", visible: (_, auth) => auth.navigation.includes("/kds") },
   { label: "Admin", description: "Dasbor dan pengaturan sesuai peran Anda", icon: LayoutDashboardIcon, href: "/admin", visible: (_, auth) => auth.navigation.includes("/admin") },
 ];
 

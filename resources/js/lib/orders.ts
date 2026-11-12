@@ -45,8 +45,8 @@ export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
 /** Nama pemesan untuk staf bila customer tidak mengisi nama. */
 export const NO_NAME_LABEL = "Tanpa nama";
 
-/** Label untuk customer (halaman status). */
-export function customerStatusLabel(status: OrderStatus) {
+/** Label untuk customer (halaman status). Antar ke meja: "siap" berarti sedang diantar. */
+export function customerStatusLabel(status: OrderStatus, deskDelivery = false) {
   switch (status) {
     case "draft":
     case "pending_payment":
@@ -57,7 +57,7 @@ export function customerStatusLabel(status: OrderStatus) {
     case "preparing":
       return "Sedang dibuat";
     case "ready":
-      return "Siap diambil";
+      return deskDelivery ? "Sedang diantar" : "Siap diambil";
     case "completed":
       return "Selesai";
     case "cancelled":
@@ -109,6 +109,8 @@ export type StaffOrder = {
   createdAt: string;
   outletId: string;
   customerPhone: string | null;
+  /** Department/unit kerja pemesan (keputusan owner 12 November 2026). */
+  customerDepartment?: string | null;
   locationNote: string | null;
   deliveryAddress: string | null;
   cancelReason: string | null;

@@ -36,6 +36,7 @@ class OrdersTest extends ServerTestCase
         $users = [
             'admin' => $ctx->createUser($A, [['role' => 'super_admin']], true, 'E2E Admin Order'),
             'barista' => $ctx->createUser($A, [['role' => 'barista', 'outlet' => 'outlet']], true, 'E2E Barista Order'),
+            'cashier' => $ctx->createUser($A, [['role' => 'cashier', 'outlet' => 'outlet']], true, 'E2E Kasir Order'),
             'owner' => $ctx->createUser($A, [['role' => 'owner']], true, 'E2E Owner Order'),
             'adminB' => $ctx->createUser($B, [['role' => 'super_admin']], true, 'E2E Admin B'),
         ];
@@ -75,6 +76,7 @@ class OrdersTest extends ServerTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Andi',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => [['productId' => $this->f('latte'), 'modifierIds' => [$this->f('large')], 'quantity' => 2]],
             ...$overrides,
@@ -277,9 +279,11 @@ class OrdersTest extends ServerTestCase
 
     // --- POS ---------------------------------------------------------------------------
 
-    public function test_pos_barista_membuat_order_pending_dan_melihat_struk(): void
+    public function test_pos_kasir_membuat_order_pending_dan_melihat_struk(): void
     {
-        $barista = $this->login($this->f('barista'));
+        // Keputusan owner 12 November 2026: pesanan lewat kasir; barista hanya absen.
+        $this->assertSame(403, $this->login($this->f('barista'))->get('/pos')->getStatusCode());
+        $barista = $this->login($this->f('cashier'));
         $page = Browser::page($barista->get('/pos'));
         $this->assertSame('pos/index', $page['component']);
         $this->assertSame($this->f('A')['outletId'], $page['props']['outlet']['id']);
@@ -293,7 +297,7 @@ class OrdersTest extends ServerTestCase
         $orderId = $flash['placed']['orderId'];
         $this->assertSame([62000, false], [$flash['placed']['total'], $flash['placed']['replayed']]);
         $row = DB::table('orders')->where('id', $orderId)->first();
-        $this->assertSame(['pos', $this->f('barista')['id'], 'pending_payment', 'pending', null, null], [$row->channel, $row->created_by, $row->status, $row->payment_status, $row->access_token_hash, $row->queue_number]);
+        $this->assertSame(['pos', $this->f('cashier')['id'], 'pending_payment', 'pending', null, null], [$row->channel, $row->created_by, $row->status, $row->payment_status, $row->access_token_hash, $row->queue_number]);
 
         // Double submit: order sama.
         $again = $barista->post('/pos/orders', ['outletId' => $this->f('A')['outletId'], 'checkout' => $input]);

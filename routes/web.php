@@ -73,7 +73,9 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::get('/staff', StaffController::class);
         // Absen GPS + selfie (M7-lite). Izin dicek ulang per outlet di AttendanceEngine.
         Route::get('/staff/attendance', [StaffAttendanceController::class, 'index']);
+        Route::get('/barista', [StaffAttendanceController::class, 'index']);
         Route::post('/staff/attendance/location', [StaffAttendanceController::class, 'location']);
+        Route::post('/staff/attendance/face', [StaffAttendanceController::class, 'face']);
         Route::post('/staff/attendance/check-in', [StaffAttendanceController::class, 'checkIn']);
         Route::post('/staff/attendance/check-out', [StaffAttendanceController::class, 'checkOut']);
         Route::get('/staff/attendance/history', [StaffAttendanceController::class, 'history']);
@@ -124,6 +126,8 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
             Route::post('/attendance/settings/outlets/{outlet}', [AttendanceController::class, 'updateGeofence']);
             Route::post('/attendance/settings/accuracy', [AttendanceController::class, 'updateAccuracy']);
             Route::get('/attendance/{attendance}/photo/{side}', [AttendanceController::class, 'photo']);
+            Route::get('/attendance/face/{employee}', [AttendanceController::class, 'face']);
+            Route::post('/attendance/face/{employee}/reset', [AttendanceController::class, 'resetFace']);
             Route::get('/outside-duty/{duty}/evidence', [AdminOutsideDutyController::class, 'evidence']);
             Route::get('/employees', [EmployeeController::class, 'index']);
             Route::get('/employees/create', [EmployeeController::class, 'create']);

@@ -1,10 +1,12 @@
 import { Head, Link, router } from "@inertiajs/react";
 import {
   ArrowLeftIcon,
+  BikeIcon,
   CheckCircle2Icon,
   CoffeeIcon,
   Loader2Icon,
   MapPinIcon,
+  MessageCircleIcon,
   MinusIcon,
   PlusIcon,
   SearchIcon,
@@ -615,7 +617,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
   const [submitting, startSubmit] = useTransition();
   // Satu key per percobaan checkout: klik ganda atau retry menghasilkan order yang sama.
   const idempotencyKey = useRef<string | null>(null);
-  // QR meja kantor: antar ke meja (gratis; tunai dibayar ke barista saat diantar) atau ambil sendiri di counter.
+  // QR meja kantor: antar ke meja (gratis; tunai dibayar saat diantar) atau ambil sendiri di counter.
   const desk = cart.channel === "qr_table";
   const types: OrderType[] = kiosk || desk ? ["dine_in", "takeaway"] : ["dine_in", "takeaway", "delivery"];
   const typeLabel = (t: OrderType) => (desk ? (t === "dine_in" ? "Antar ke meja" : "Ambil di counter") : ORDER_TYPE_LABELS[t]);
@@ -626,8 +628,20 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const text = (name: string) => String(form.get(name) ?? "").trim() || undefined;
-    if (desk && type === "dine_in" && (!text("floor") || !text("department") || (text("customerName") ?? "").length < 2)) {
-      setError("Isi nama, lantai, dan bagian agar barista bisa mengantar ke meja Anda.");
+    // Pesan + fokus ke kolom yang kurang (ikut ter-scroll), karena pesan di bawah form bisa tak terlihat di HP.
+    const formElement = event.currentTarget;
+    const invalid = (message: string, field: string) => {
+      setError(message);
+      toast.error(message);
+      (formElement.elements.namedItem(field) as HTMLElement | null)?.focus();
+    };
+    const nameOk = (text("customerName") ?? "").length >= 2;
+    if (!nameOk || (text("department") ?? "").length < 2) {
+      invalid("Isi nama dan department Anda.", nameOk ? "department" : "customerName");
+      return;
+    }
+    if (desk && type === "dine_in" && (!text("floor") || !text("area"))) {
+      invalid("Isi lantai dan bagian/area meja agar pesanan bisa diantar.", text("floor") ? "area" : "floor");
       return;
     }
     idempotencyKey.current ??= crypto.randomUUID();
@@ -644,7 +658,8 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           tableNumber: type === "dine_in" ? text("tableNumber") : undefined,
           locationNote: type === "dine_in" && !desk ? text("locationNote") : undefined,
           floor: type === "dine_in" && desk ? text("floor") : undefined,
-          department: type === "dine_in" && desk ? text("department") : undefined,
+          area: type === "dine_in" && desk ? text("area") : undefined,
+          department: text("department"),
           deliveryAddress: type === "delivery" ? text("deliveryAddress") : undefined,
           notes: text("notes"),
           customRequest: text("customRequest"),
@@ -676,7 +691,13 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           </Button>
           <SheetTitle className={kiosk ? "text-2xl" : undefined}>Checkout</SheetTitle>
         </div>
-        <SheetDescription>{desk ? "Isi nama, lantai, dan bagian agar barista bisa mengantar ke meja Anda." : "Isi data pemesan. Pembayaran dikonfirmasi kasir."}</SheetDescription>
+        <SheetDescription>
+          {desk
+            ? type === "dine_in"
+              ? "Isi nama, department, lantai, dan bagian meja agar pesanan bisa diantar ke meja Anda."
+              : "Isi nama dan department. Pesanan diambil sendiri di counter."
+            : "Isi data pemesan. Pembayaran dikonfirmasi kasir."}
+        </SheetDescription>
       </SheetHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -690,11 +711,12 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 aria-pressed={type === t}
                 onClick={() => setType(t)}
                 className={cn(
-                  "min-h-11 rounded-xl border px-3 text-sm font-medium transition-colors",
+                  "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors",
                   kiosk ? "py-4 text-lg" : "py-2.5",
                   type === t ? "border-espresso bg-espresso text-white" : "hover:border-foreground",
                 )}
               >
+                {desk ? t === "dine_in" ? <BikeIcon className="size-4" aria-hidden /> : <ShoppingBagIcon className="size-4" aria-hidden /> : null}
                 {typeLabel(t)}
               </button>
             ))}
@@ -702,7 +724,12 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
         </fieldset>
 
         {type === "dine_in" ? (
-          <>
+          <div className={cn("flex flex-col gap-3", desk && "rounded-2xl border border-espresso/15 bg-espresso/5 p-3")}>
+            {desk ? (
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <MapPinIcon className="size-4 text-espresso" aria-hidden /> Diantar ke meja Anda
+              </p>
+            ) : null}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="tableNumber">Nomor meja{kiosk ? " (opsional)" : ""}</Label>
               <Input
@@ -723,8 +750,8 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                   <Input id="floor" name="floor" required maxLength={20} className={fieldClass} placeholder="mis. 3" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="department">Bagian / divisi</Label>
-                  <Input id="department" name="department" required maxLength={60} className={fieldClass} placeholder="mis. Keuangan" />
+                  <Label htmlFor="area">Bagian / area meja</Label>
+                  <Input id="area" name="area" required maxLength={60} className={fieldClass} placeholder="mis. dekat jendela" />
                 </div>
               </div>
             ) : (
@@ -735,7 +762,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                 <Input id="locationNote" name="locationNote" maxLength={100} className={fieldClass} placeholder="mis. teras, dekat jendela" />
               </div>
             )}
-          </>
+          </div>
         ) : null}
 
         <div className="flex flex-col gap-1.5">
@@ -743,12 +770,31 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
           <Input id="customerName" name="customerName" required minLength={2} maxLength={60} autoComplete="name" className={fieldClass} />
         </div>
 
-        {kiosk ? null : (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="department">Department</Label>
+          <Input
+            id="department"
+            name="department"
+            required
+            minLength={2}
+            maxLength={60}
+            autoComplete="organization"
+            className={fieldClass}
+            placeholder="mis. Fundraising, Pendidikan & Pendayagunaan"
+          />
+        </div>
+
+        {/* Ambil sendiri di counter (QR meja kantor): cukup nama dan department. */}
+        {kiosk || (desk && type === "takeaway") ? null : (
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="customerPhone">
-              Nomor HP {type === "delivery" ? "" : <span className="text-xs font-normal text-muted-foreground">(opsional)</span>}
+            <Label htmlFor="customerPhone" className="inline-flex items-center gap-1.5">
+              {desk ? <MessageCircleIcon className="size-4 text-success-strong" aria-hidden /> : null}
+              {desk ? "Nomor WhatsApp" : "Nomor HP"} {type === "delivery" ? "" : <span className="text-xs font-normal text-muted-foreground">(opsional)</span>}
             </Label>
             <Input id="customerPhone" name="customerPhone" type="tel" inputMode="tel" autoComplete="tel" className={fieldClass} placeholder="0812xxxxxxx" />
+            {desk ? (
+              <p className="text-xs text-muted-foreground">Untuk notif WhatsApp saat kopi diantar. Kosongkan bila cukup notif di halaman pesanan ini.</p>
+            ) : null}
           </div>
         )}
 
@@ -773,7 +819,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
             Pesan menu di luar daftar <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
           </Label>
           <Textarea id="customRequest" name="customRequest" maxLength={200} rows={2} placeholder="mis. Matcha latte oat milk 1 gelas" />
-          <p className="text-xs text-muted-foreground">Dibuat bila bahannya ada; harga dikonfirmasi barista/kasir.</p>
+          <p className="text-xs text-muted-foreground">Dibuat bila bahannya ada; harga dikonfirmasi kasir.</p>
         </div>
 
         <fieldset className="flex flex-col gap-2">
@@ -788,7 +834,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
                   : option.note
                 : desk
                   ? type === "dine_in"
-                    ? "Bayar ke barista saat diantar"
+                    ? "Bayar tunai saat diantar"
                     : "Bayar di kasir"
                   : option.note;
             return (

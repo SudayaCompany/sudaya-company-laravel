@@ -174,7 +174,7 @@ function PaidDialog({ order, change, onClose }: { order: StaffOrder; change: num
           <CheckCircle2Icon className="size-10 text-success" aria-hidden />
           <DialogTitle className="text-xl">Pembayaran berhasil</DialogTitle>
           <DialogDescription>
-            {order.payOnDelivery ? "Uang diterima. Tandai pesanan sudah diantar di layar barista." : "Pesanan masuk antrean barista."}
+            {order.payOnDelivery ? "Uang diterima. Tandai pesanan sudah diantar di layar Pesanan masuk." : "Pesanan masuk antrean untuk dibuat."}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-3 text-center">
@@ -192,9 +192,9 @@ function PaidDialog({ order, change, onClose }: { order: StaffOrder; change: num
             <PrinterIcon /> Cetak struk
           </a>
           {order.payOnDelivery ? (
-            // Barista menerima uang di meja: kembali ke layar barista untuk menandai sudah diantar.
+            // Kasir menerima uang di meja: kembali ke Pesanan masuk untuk menandai sudah diantar.
             <Link href={`/kds?outlet=${order.outletId}`} className={buttonVariants({ size: "xl", className: "w-full" })}>
-              Kembali ke layar barista
+              Kembali ke Pesanan masuk
             </Link>
           ) : (
             <Button size="xl" className="w-full" onClick={onClose}>

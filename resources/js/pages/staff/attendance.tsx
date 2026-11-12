@@ -10,6 +10,7 @@ import {
   LogOutIcon,
   MapPinIcon,
   RefreshCwIcon,
+  ScanFaceIcon,
   ShieldCheckIcon,
   TriangleAlertIcon,
   UserRoundXIcon,
@@ -45,6 +46,8 @@ type Props = {
   today?: Session[];
   pendingCorrections?: number;
   outsideDuty?: { location: string; endsAt: string | null } | null;
+  /** Foto wajah terdaftar (null = belum daftar; wajib sebelum absen pertama). */
+  face?: { registeredAt: string } | null;
 };
 
 /** `at` = waktu posisi diterima di perangkat (ms), untuk menghitung umurnya saat dikirim. */
@@ -72,7 +75,7 @@ function useElapsed(since: string | null | undefined) {
   return since ? Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000)) : null;
 }
 
-export default function StaffAttendance({ employee, settings, open = null, today = [], pendingCorrections = 0, outsideDuty = null }: Props) {
+export default function StaffAttendance({ employee, settings, open = null, today = [], pendingCorrections = 0, outsideDuty = null, face = null }: Props) {
   useInlineFlashError();
   const fileInput = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
@@ -103,6 +106,22 @@ export default function StaffAttendance({ employee, settings, open = null, today
   const mode: "in" | "out" = open ? "out" : "in";
   const blocked = !employee.isActive ? "Status karyawan Anda nonaktif. Hubungi admin." : !employee.geofenceReady ? "Lokasi outlet untuk absen belum diatur. Minta admin mengatur di Pengaturan absen." : null;
   const doneToday = !open && today.length > 0;
+
+  // Absen pertama: daftarkan foto wajah dulu (pembanding selfie yang diperiksa admin).
+  if (face === null && blocked === null) {
+    return (
+      <Shell>
+        <section className="flex flex-col gap-1 rounded-2xl bg-espresso p-5 text-espresso-foreground">
+          <p className="text-sm text-espresso-foreground/70">
+            {employee.fullName} · {employee.outletName}
+          </p>
+          <p className="text-2xl font-semibold">Selamat datang!</p>
+          <p className="text-sm text-espresso-foreground/80">Daftarkan foto wajah sekali, lalu Anda bisa absen setiap hari dari sini.</p>
+        </section>
+        <FaceRegistration />
+      </Shell>
+    );
+  }
 
   async function locate() {
     setLocating(true);
@@ -363,6 +382,68 @@ function LocationStatus({ locating, located, error }: { locating: boolean; locat
       <MapPinIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
       Lokasi sesuai{check.distance !== null ? ` · ${Math.round(check.distance)} m dari outlet` : ""} · akurasi ±{check.accuracy} m
     </p>
+  );
+}
+
+/** Daftar foto wajah sekali (keputusan owner 12 November 2026). Menggantinya lewat reset admin. */
+function FaceRegistration() {
+  const input = useRef<HTMLInputElement>(null);
+  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  const [agree, setAgree] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => () => (photo ? URL.revokeObjectURL(photo.url) : undefined), [photo]);
+
+  async function onPhoto(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    try {
+      const blob = await shrinkPhoto(file);
+      setPhoto({ file: new File([blob], "wajah.jpg", { type: "image/jpeg" }), url: URL.createObjectURL(blob) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Foto tidak bisa diproses. Ambil ulang.");
+    }
+  }
+
+  function save() {
+    if (!photo || !agree) return;
+    router.post("/staff/attendance/face", { photo: photo.file, consent: agree ? "1" : "0" }, { forceFormData: true, preserveScroll: true, onStart: () => setSending(true), onFinish: () => setSending(false) });
+  }
+
+  return (
+    <section className="flex flex-col gap-4 rounded-2xl border bg-card p-5" data-testid="face-registration">
+      <div className="flex items-start gap-3">
+        <ScanFaceIcon className="size-8 shrink-0 text-brand" aria-hidden />
+        <div>
+          <h2 className="text-lg font-semibold">Daftarkan foto wajah</h2>
+          <p className="text-sm text-muted-foreground">
+            Sekali saja sebelum absen pertama. Foto ini jadi pembanding selfie absen yang diperiksa admin. Ambil di tempat terang, wajah menghadap kamera, tanpa
+            masker atau kacamata hitam.
+          </p>
+        </div>
+      </div>
+      <input ref={input} type="file" accept="image/*" capture="user" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => void onPhoto(e.target.files?.[0])} />
+      {photo ? <img src={photo.url} alt="Pratinjau foto wajah" className="mx-auto size-48 rounded-2xl object-cover ring-1 ring-foreground/10" /> : null}
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-brand" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+        Saya setuju foto wajah saya disimpan Sudaya Coffee untuk pemeriksaan absen dan hanya bisa dilihat admin.
+      </label>
+      {error ? (
+        <p role="alert" className="text-sm font-medium text-destructive-strong">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex gap-2">
+        <Button size="lg" variant={photo ? "outline" : "default"} className="flex-1" onClick={() => input.current?.click()}>
+          <CameraIcon /> {photo ? "Ambil ulang" : "Ambil foto wajah"}
+        </Button>
+        {photo ? (
+          <Button size="lg" className="flex-1" disabled={!agree || sending} onClick={save}>
+            {sending ? <Loader2Icon className="animate-spin" /> : <CircleCheckIcon />} Simpan
+          </Button>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

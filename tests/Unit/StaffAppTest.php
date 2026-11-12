@@ -41,6 +41,7 @@ class StaffAppTest extends TestCase
         $this->assertSame([180, 180], array_slice(getimagesize(public_path('icons/apple-touch-icon.png')), 0, 2));
 
         $this->assertSame(['/staff/attendance', '/kds', '/pos'], array_column($manifest['shortcuts'], 'url'));
+        $this->assertSame(['Absen', 'Pesanan', 'Kasir'], array_column($manifest['shortcuts'], 'short_name'));
         foreach ($manifest['shortcuts'] as $shortcut) {
             $this->assertTrue(StaffApp::offeredOn(ltrim($shortcut['url'], '/')), $shortcut['url']);
             $this->assertFileExists(public_path(ltrim($shortcut['icons'][0]['src'], '/')));

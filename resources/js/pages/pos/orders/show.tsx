@@ -132,6 +132,7 @@ export default function PosOrderPage({
                   <dt className="text-muted-foreground">Pelanggan</dt>
                   <dd className="break-words">
                     {order.customerName ?? "—"}
+                    {order.customerDepartment ? ` · ${order.customerDepartment}` : ""}
                     {order.customerPhone ? ` · ${order.customerPhone}` : ""}
                     {(() => {
                       const href = order.status === "ready" ? whatsappReadyLink(order.customerPhone, { orderNumber: order.orderNumber, customerName: order.customerName, deskDelivery: order.channel === "qr_table" && order.type === "dine_in" }) : null;
@@ -225,7 +226,7 @@ function ConfirmQris({ orderId, total, area }: { orderId: string; total: number;
           </Button>
         }
         title="Dana QRIS sudah masuk?"
-        description={`Pastikan ${formatRupiah(total)} sudah tercatat di aplikasi QRIS/bank Sudaya. Pesanan lalu dikirim ke barista.`}
+        description={`Pastikan ${formatRupiah(total)} sudah tercatat di aplikasi QRIS/bank Sudaya. Pesanan lalu masuk antrean untuk dibuat.`}
         confirmLabel="Ya, dana sudah masuk"
         destructive={false}
         onConfirm={() =>

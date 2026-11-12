@@ -11,6 +11,7 @@ use App\Support\Access\AccessScope;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -95,6 +96,7 @@ final class AttendanceEngine
             ],
             'settings' => $settings,
             'businessDate' => $today,
+            'face' => ($face = self::activeFace($employee->id)) === null ? null : ['registeredAt' => self::iso($face->created_at)],
             'open' => $open === null ? null : [
                 'id' => $open->id,
                 'checkInAt' => self::iso($open->check_in_at),
@@ -496,6 +498,54 @@ final class AttendanceEngine
     }
 
     // --- Bantuan ------------------------------------------------------------------------
+
+    /** Foto wajah terdaftar (keputusan owner 12 November 2026): pembanding selfie absen yang diperiksa admin. */
+    public const FACE_PROVIDER = 'photo';
+
+    public static function activeFace(string $employeeId): ?object
+    {
+        return DB::table('face_enrollments')->where('employee_id', $employeeId)->where('provider', self::FACE_PROVIDER)
+            ->whereNull('revoked_at')->orderByDesc('created_at')->first(['id', 'external_face_id', 'created_at']);
+    }
+
+    /**
+     * Karyawan mendaftarkan foto wajahnya sekali dengan persetujuan eksplisit (data pribadi). Menggantinya
+     * hanya lewat reset admin, agar foto pembanding tidak bisa ditukar sendiri.
+     */
+    public function enrollFace(User $actor, mixed $photo, bool $consent, AuditContext $context): array
+    {
+        $employee = $this->requireSelf($actor, 'attendance.checkin');
+        if (! $consent) {
+            throw new AccessException('invalid', 'Centang persetujuan penyimpanan foto wajah dulu.');
+        }
+        if (self::activeFace($employee->id) !== null) {
+            throw new AccessException('conflict', 'Foto wajah sudah terdaftar. Minta admin meresetnya bila perlu diganti.');
+        }
+        $image = AttendancePhotos::read($photo);
+        $path = "faces/{$employee->company_id}/{$employee->id}/".Str::uuid().".{$image['ext']}";
+        $this->photos->upload($path, $image['bytes'], $image['contentType']);
+
+        try {
+            DB::transaction(function () use ($actor, $employee, $path, $context) {
+                $row = DB::selectOne(
+                    'insert into face_enrollments (employee_id, provider, external_face_id, consent_at, created_by) values (?, ?, ?, now(), ?) returning id',
+                    [$employee->id, self::FACE_PROVIDER, $path, $actor->id],
+                );
+                $this->audit->record([
+                    ...$this->auditBase($employee, $actor),
+                    'action' => 'attendance.face_enrolled',
+                    'entity_type' => 'employee',
+                    'entity_id' => $employee->id,
+                    'after' => ['faceEnrollmentId' => $row->id, 'consent' => true],
+                ], $context);
+            });
+        } catch (Throwable $error) {
+            $this->discard($path);
+            throw $error;
+        }
+
+        return ['registered' => true];
+    }
 
     public function requireSelf(User $actor, string $permission): object
     {

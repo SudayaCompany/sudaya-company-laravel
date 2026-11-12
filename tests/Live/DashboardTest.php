@@ -86,6 +86,7 @@ class DashboardTest extends LiveTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Andi',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => array_map(fn ($l) => ['productId' => static::$fixture[$l[0]], 'modifierIds' => [], 'quantity' => $l[1]], $lines),
         ], $this->audit())['orderId'];
@@ -148,7 +149,7 @@ class DashboardTest extends LiveTestCase
         $this->paid([['tea', 1]], 20_000);
         $toCancel = $this->paid([['tea', 1]], 15_000);
         $this->order([['latte', 1]]);
-        app(OrderWorkflow::class)->cancel($this->actor('baristaA'), ['orderId' => $toCancel, 'reason' => 'salah input QA'], $this->audit());
+        app(OrderWorkflow::class)->cancel($this->actor('cashierA'), ['orderId' => $toCancel, 'reason' => 'salah input QA'], $this->audit());
         DB::table('outlet_products')->updateOrInsert(['outlet_id' => $outletId, 'product_id' => static::$fixture['tea']], ['is_available' => false]);
 
         $s = $this->summary('ownerA');

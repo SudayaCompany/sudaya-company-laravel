@@ -12,7 +12,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             Satu sistem untuk seluruh operasional outlet.
           </p>
           <p className="text-sm text-neutral-400">
-            Kasir, antrean barista, sesi kas, dan menu dalam satu data.
+            Kasir, pesanan masuk, sesi kas, dan menu dalam satu data.
           </p>
         </div>
         <p className="text-xs text-espresso-foreground/60">Sudaya Company</p>

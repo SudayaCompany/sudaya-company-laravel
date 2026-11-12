@@ -80,7 +80,8 @@ class RoutesTest extends ServerTestCase
         $before = $browser->cookie('laravel-session') ?? $browser->cookie('sudaya-coffee-session');
         $response = $browser->post('/login', ['email' => $this->f('barista')['email'], 'password' => $this->f('barista')['password']]);
 
-        $this->assertSame('/staff', Browser::location($response));
+        // Satu pintu /login lalu sesuai peran (keputusan owner 12 November 2026): barista langsung ke absen.
+        $this->assertSame('/barista', Browser::location($response));
         $sessionCookie = null;
         foreach ($browser->jar as $cookie) {
             if (str_ends_with($cookie->getName(), '-session')) {
@@ -137,15 +138,22 @@ class RoutesTest extends ServerTestCase
         }
     }
 
-    public function test_barista_staff_dan_kds_kasir_tanpa_kds(): void
+    public function test_barista_absen_tanpa_pesanan_kasir_pusat_pesanan(): void
     {
+        // Keputusan owner 12 November 2026: barista hanya absen; pesanan masuk ke akun kasir.
         $barista = $this->login($this->f('barista'));
         $staff = Browser::page($barista->get('/staff'));
         $this->assertSame('staff/home', $staff['component']);
         $this->assertSame('E2E Barista', $staff['props']['auth']['user']['fullName']);
-        $this->assertSame(200, $barista->get('/kds')->getStatusCode());
+        $this->assertSame('staff/attendance', Browser::page($barista->get('/barista'))['component']);
+        foreach (['/kds', '/pos'] as $path) {
+            $this->assertSame(403, $barista->get($path)->getStatusCode(), $path);
+        }
 
-        $this->assertSame(403, $this->login($this->f('cashier'))->get('/kds')->getStatusCode());
+        $cashier = $this->login($this->f('cashier'));
+        $this->assertSame('/kds', Browser::location($this->browser()->post('/login', ['email' => $this->f('cashier')['email'], 'password' => $this->f('cashier')['password']])));
+        $this->assertSame(200, $cashier->get('/kds')->getStatusCode());
+        $this->assertSame(200, $cashier->get('/pos')->getStatusCode());
     }
 
     public function test_barista_memanggil_mutasi_admin_langsung_ditolak(): void
@@ -244,7 +252,7 @@ class RoutesTest extends ServerTestCase
         // Link hanya sekali tampil.
         $this->assertArrayNotHasKey('link', Browser::page($admin->get('/admin/users'))['flash'] ?? []);
 
-        $this->setPasswordThroughLink($link, 'Staf Undangan E2E');
+        $this->setPasswordThroughLink($link, 'Staf Undangan E2E', '/barista');
         $userId = DB::table('auth.users')->where('email', $email)->value('id');
         $this->assertSame(1, $this->ctx()->countAudit($company['id'], 'auth.password_set', $userId));
     }
@@ -257,10 +265,10 @@ class RoutesTest extends ServerTestCase
         $link = Browser::page($admin->get('/admin/users'))['flash']['link'];
         $this->assertStringContainsString('type=recovery', $link);
 
-        $password = $this->setPasswordThroughLink($link, $cashier['fullName']);
+        $password = $this->setPasswordThroughLink($link, $cashier['fullName'], '/kds');
         // Password lama tidak berlaku lagi.
         $old = $this->browser()->post('/login', ['email' => $cashier['email'], 'password' => $cashier['password']]);
-        $this->assertNotSame('/staff', Browser::location($old));
+        $this->assertNotSame('/kds', Browser::location($old));
         static::$fixture['cashier']['password'] = $password;
     }
 
@@ -282,8 +290,8 @@ class RoutesTest extends ServerTestCase
         $this->assertSame('', $response->getHeaderLine('Strict-Transport-Security'), 'HSTS hanya di production');
     }
 
-    /** @return string password baru */
-    private function setPasswordThroughLink(string $link, string $fullName): string
+    /** @return string password baru; $landing = halaman awal sesuai peran setelah masuk */
+    private function setPasswordThroughLink(string $link, string $fullName, string $landing): string
     {
         $browser = $this->browser();
         $confirm = $browser->get(substr($link, strlen($this->base())));
@@ -297,11 +305,11 @@ class RoutesTest extends ServerTestCase
 
         $password = LiveContext::newPassword();
         $saved = $browser->post('/auth/set-password', ['password' => $password, 'password_confirmation' => $password]);
-        $this->assertSame('/staff', Browser::location($saved));
+        $this->assertSame($landing, Browser::location($saved));
 
         $email = DB::table('auth.users')->where('id', DB::table('users')->where('full_name', $fullName)->value('id'))->value('email');
         $fresh = $this->browser()->post('/login', ['email' => $email, 'password' => $password]);
-        $this->assertSame('/staff', Browser::location($fresh));
+        $this->assertSame($landing, Browser::location($fresh));
 
         return $password;
     }

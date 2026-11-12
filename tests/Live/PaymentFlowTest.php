@@ -97,6 +97,7 @@ class PaymentFlowTest extends LiveTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Andi',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => array_map(fn ($l) => ['productId' => static::$fixture[$l[0]], 'modifierIds' => [], 'quantity' => $l[1]], $lines),
             ...$overrides,
@@ -362,7 +363,7 @@ class PaymentFlowTest extends LiveTestCase
         $this->assertSame('8.000', $this->stock());
 
         // Pembatalan pesanan lunas disetujui → stok kembali lewat reversal.
-        $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'salah input stok'], $this->audit());
+        $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId'], 'reason' => 'salah input stok'], $this->audit());
         $approvalId = DB::table('approvals')->where('reference_id', $created['orderId'])->where('status', 'pending')->value('id');
         $this->flow()->decideCancellation($this->actor('managerA'), ['approvalId' => $approvalId, 'approve' => true], $this->audit());
         $this->assertSame('10.000', $this->stock());
@@ -426,7 +427,7 @@ class PaymentFlowTest extends LiveTestCase
         $outlet = ['id' => $this->outletId(), 'timezone' => 'Asia/Jakarta'];
         $unpaid = $this->order();
         $paid = $this->paidOrder([['latte', 1], ['tea', 2]]);
-        $board = fn () => collect(app(OrderEngine::class)->kdsBoard($this->actor('baristaA'), $outlet))->keyBy('id');
+        $board = fn () => collect(app(OrderEngine::class)->kdsBoard($this->actor('cashierA'), $outlet))->keyBy('id');
 
         $this->assertArrayNotHasKey($unpaid['orderId'], $board()->all(), 'order belum dibayar tidak boleh masuk KDS');
         $card = $board()[$paid['orderId']];
@@ -435,15 +436,16 @@ class PaymentFlowTest extends LiveTestCase
         sort($lines);
         $this->assertSame([['Iced Latte', 1], ['Iced Tea', 2]], $lines);
 
-        $move = fn (string $from, string $to, string $actor = 'baristaA') => $this->flow()->updateStatus($this->actor($actor), ['orderId' => $paid['orderId'], 'from' => $from, 'to' => $to], $this->audit());
+        $move = fn (string $from, string $to, string $actor = 'cashierA') => $this->flow()->updateStatus($this->actor($actor), ['orderId' => $paid['orderId'], 'from' => $from, 'to' => $to], $this->audit());
         // Order belum dibayar tidak bisa didorong ke antrean lewat KDS.
-        $this->expectAccess('invalid', fn () => $this->flow()->updateStatus($this->actor('baristaA'), ['orderId' => $unpaid['orderId'], 'from' => 'pending_payment', 'to' => 'queued'], $this->audit()));
+        $this->expectAccess('invalid', fn () => $this->flow()->updateStatus($this->actor('cashierA'), ['orderId' => $unpaid['orderId'], 'from' => 'pending_payment', 'to' => 'queued'], $this->audit()));
         // Pengaman kedua: status antre tanpa pembayaran lunas tetap ditolak dan tidak tampil di KDS.
         DB::table('orders')->where('id', $unpaid['orderId'])->update(['status' => 'queued']);
-        $this->expectAccess('conflict', fn () => $this->flow()->updateStatus($this->actor('baristaA'), ['orderId' => $unpaid['orderId'], 'from' => 'queued', 'to' => 'preparing'], $this->audit()), '/belum dibayar/');
+        $this->expectAccess('conflict', fn () => $this->flow()->updateStatus($this->actor('cashierA'), ['orderId' => $unpaid['orderId'], 'from' => 'queued', 'to' => 'preparing'], $this->audit()), '/belum dibayar/');
         $this->assertArrayNotHasKey($unpaid['orderId'], $board()->all());
         $this->expectAccess('invalid', fn () => $move('queued', 'ready'), '/tidak diizinkan/');
-        $this->expectAccess('forbidden', fn () => $move('queued', 'preparing', 'cashierA'));
+        // Sejak 12 November 2026 barista hanya absen: tidak bisa mengubah status pesanan.
+        $this->expectAccess('forbidden', fn () => $move('queued', 'preparing', 'baristaA'));
         $this->expectAccess('not_found', fn () => $move('queued', 'preparing', 'superB'));
 
         $move('queued', 'preparing');
@@ -467,7 +469,7 @@ class PaymentFlowTest extends LiveTestCase
         foreach (['order.preparing' => 1, 'order.ready' => 2, 'order.completed' => 1, 'order.status_override' => 1] as $action => $count) {
             $this->assertSame($count, $this->ctx()->countAudit($A['id'], $action, $paid['orderId']), $action);
         }
-        $this->expectAccess('forbidden', fn () => app(OrderEngine::class)->kdsBoard($this->actor('cashierA'), $outlet));
+        $this->expectAccess('forbidden', fn () => app(OrderEngine::class)->kdsBoard($this->actor('baristaA'), $outlet));
     }
 
     public function test_status_pelanggan_mengikuti_pembayaran_dan_kds(): void
@@ -475,7 +477,7 @@ class PaymentFlowTest extends LiveTestCase
         $this->freshSession();
         // Antar ke meja + tunai kini bayar saat diantar (DeskOrderTest); alur bayar-dulu diuji dengan ambil di counter.
         $guest = app(OrderEngine::class)->create('qr_table', ['code' => static::$fixture['A']['outletCode']], null, [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Tamu', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Tamu', 'department' => 'Fundraising', 'paymentMethod' => 'cash',
             'lines' => [['productId' => static::$fixture['tea'], 'modifierIds' => [], 'quantity' => 1]],
         ], $this->audit());
         $view = fn () => app(OrderEngine::class)->guestOrder($guest['orderId'], $guest['accessToken']);
@@ -485,7 +487,7 @@ class PaymentFlowTest extends LiveTestCase
         $paid = $this->pay($guest['orderId']);
         $this->assertSame(['queued', 'paid', $paid['orderNumber']], [$view()['status'], $view()['paymentStatus'], $view()['orderNumber']]);
         foreach ([['queued', 'preparing'], ['preparing', 'ready'], ['ready', 'completed']] as [$from, $to]) {
-            $this->flow()->updateStatus($this->actor('baristaA'), ['orderId' => $guest['orderId'], 'from' => $from, 'to' => $to], $this->audit());
+            $this->flow()->updateStatus($this->actor('cashierA'), ['orderId' => $guest['orderId'], 'from' => $from, 'to' => $to], $this->audit());
             $this->assertSame($to, $view()['status']);
         }
         // Sinyal realtime dikirim ke topik guest (tanpa data) saat status berubah.
@@ -497,18 +499,18 @@ class PaymentFlowTest extends LiveTestCase
     public function test_batal_order_belum_dibayar(): void
     {
         $created = $this->order();
-        $this->expectAccess('invalid', fn () => $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'ab'], $this->audit()), '/minimal 3/');
-        $this->expectAccess('invalid', fn () => $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId']], $this->audit()), '/Alasan wajib/');
-        $this->expectAccess('forbidden', fn () => $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId'], 'reason' => 'salah input'], $this->audit()));
+        $this->expectAccess('invalid', fn () => $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId'], 'reason' => 'ab'], $this->audit()), '/minimal 3/');
+        $this->expectAccess('invalid', fn () => $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId']], $this->audit()), '/Alasan wajib/');
+        $this->expectAccess('forbidden', fn () => $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'salah input'], $this->audit()));
         $this->expectAccess('not_found', fn () => $this->flow()->cancel($this->actor('superB'), ['orderId' => $created['orderId'], 'reason' => 'salah input'], $this->audit()));
 
-        $this->assertSame(['result' => 'cancelled'], $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'customer batal'], $this->audit()));
+        $this->assertSame(['result' => 'cancelled'], $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId'], 'reason' => 'customer batal'], $this->audit()));
         $row = $this->row($created['orderId']);
         $this->assertSame(['cancelled', 'expired', 'customer batal'], [$row->status, $row->payment_status, $row->cancel_reason]);
         $this->assertSame('expired', DB::table('payments')->where('order_id', $row->id)->value('status'));
         $this->freshSession();
         $this->expectAccess('conflict', fn () => $this->pay($created['orderId']));
-        $this->expectAccess('conflict', fn () => $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $created['orderId'], 'reason' => 'lagi'], $this->audit()), '/sudah selesai atau dibatalkan/');
+        $this->expectAccess('conflict', fn () => $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $created['orderId'], 'reason' => 'lagi'], $this->audit()), '/sudah selesai atau dibatalkan/');
         $this->assertSame(1, $this->ctx()->countAudit(static::$fixture['A']['id'], 'order.cancelled', $row->id));
     }
 
@@ -520,7 +522,7 @@ class PaymentFlowTest extends LiveTestCase
 
         // Manager mengajukan, lalu tidak bisa menyetujui sendiri.
         $this->assertSame(['result' => 'approval_requested'], $this->flow()->cancel($this->actor('managerA'), ['orderId' => $paid['orderId'], 'reason' => 'customer komplain'], $this->audit()));
-        $this->expectAccess('conflict', fn () => $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $paid['orderId'], 'reason' => 'dobel'], $this->audit()), '/menunggu persetujuan/');
+        $this->expectAccess('conflict', fn () => $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $paid['orderId'], 'reason' => 'dobel'], $this->audit()), '/menunggu persetujuan/');
         $approvalId = DB::table('approvals')->where('reference_id', $paid['orderId'])->value('id');
         $detail = app(OrderEngine::class)->detail($this->actor('managerA'), $paid['orderId']);
         $this->assertSame([$approvalId, static::$fixture['managerA']['id']], [$detail['pendingApproval']['id'], $detail['pendingApproval']['requestedBy']]);
@@ -563,7 +565,7 @@ class PaymentFlowTest extends LiveTestCase
     {
         $this->freshSession();
         $paid = $this->paidOrder();
-        $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $paid['orderId'], 'reason' => 'salah tekan'], $this->audit());
+        $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $paid['orderId'], 'reason' => 'salah tekan'], $this->audit());
         $approvalId = DB::table('approvals')->where('reference_id', $paid['orderId'])->value('id');
         $this->assertSame(['approved' => false], $this->flow()->decideCancellation($this->actor('managerA'), ['approvalId' => $approvalId, 'approve' => false, 'note' => 'order sudah dibuat'], $this->audit()));
         $this->assertSame(['queued', 'paid'], [$this->row($paid['orderId'])->status, $this->row($paid['orderId'])->payment_status]);
@@ -575,7 +577,7 @@ class PaymentFlowTest extends LiveTestCase
     {
         $this->freshSession();
         $paid = $this->paidOrder();
-        $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $paid['orderId'], 'reason' => 'customer batal'], $this->audit());
+        $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $paid['orderId'], 'reason' => 'customer batal'], $this->audit());
         $this->flow()->decideCancellation($this->actor('managerA'), ['approvalId' => DB::table('approvals')->where('reference_id', $paid['orderId'])->value('id'), 'approve' => true], $this->audit());
 
         // Kas ditutup: refund ditolak tanpa mengubah apa pun.
@@ -602,7 +604,7 @@ class PaymentFlowTest extends LiveTestCase
         $first = $this->paidOrder();
         $second = $this->paidOrder();
         foreach ([$first, $second] as $order) {
-            $this->flow()->cancel($this->actor('baristaA'), ['orderId' => $order['orderId'], 'reason' => 'uji refund'], $this->audit());
+            $this->flow()->cancel($this->actor('cashierA'), ['orderId' => $order['orderId'], 'reason' => 'uji refund'], $this->audit());
             $this->flow()->decideCancellation($this->actor('managerA'), ['approvalId' => DB::table('approvals')->where('reference_id', $order['orderId'])->value('id'), 'approve' => true], $this->audit());
         }
 

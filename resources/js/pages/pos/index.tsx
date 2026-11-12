@@ -669,7 +669,7 @@ function ResultDialog({ result, onClose }: { result: Placed | null; onClose: () 
               {result.orderNumber ? <CheckCircle2Icon className="size-10 text-success" aria-hidden /> : null}
               <DialogTitle className="text-xl">{result.orderNumber ? "Pembayaran berhasil" : result.replayed ? "Pesanan sudah tersimpan" : "Pesanan disimpan"}</DialogTitle>
               <DialogDescription>
-                {result.orderNumber ? "Pesanan masuk antrean barista." : "Menunggu pembayaran di kasir. Nomor antrean diberikan setelah pembayaran dikonfirmasi."}
+                {result.orderNumber ? "Pesanan masuk antrean untuk dibuat." : "Menunggu pembayaran di kasir. Nomor antrean diberikan setelah pembayaran dikonfirmasi."}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-3 py-2 text-center">

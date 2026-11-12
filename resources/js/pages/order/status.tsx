@@ -77,17 +77,17 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
   const connection = useRealtimeRefresh(finished ? null : order.topic, ["order"], 15_000);
   const ready = order.status === "ready";
   const deskDelivery = order.type === "dine_in" && !!order.tableNumber;
-  // Bayar saat diantar: pesanan sudah dibuat barista, uang tunai diberikan saat diantar.
+  // Bayar saat diantar: pesanan langsung dibuat, uang tunai diberikan saat diantar.
   const payLater = !!order.payOnDelivery && order.paymentStatus === "pending" && !cancelled;
-  useReadyAlert(order.status, deskDelivery);
+  useReadyAlert(order.status, deskDelivery, order.locationNote ?? null, payLater ? formatRupiah(order.total) : null);
 
   return (
     <>
       {ready ? (
         <div role="status" className="flex flex-col gap-1 rounded-3xl bg-success p-5 text-success-foreground" data-testid="ready-banner">
-          <p className="text-xl font-bold">Pesanan Anda sudah siap!</p>
+          <p className="text-xl font-bold">{deskDelivery ? "Pesanan sedang diantar!" : "Pesanan Anda sudah siap!"}</p>
           <p className="text-sm">
-            {deskDelivery ? "Barista sedang mengantar ke meja Anda." : "Silakan ambil di counter."}
+            {deskDelivery ? `Pesananmu sedang diantar${order.locationNote ? ` ke ${order.locationNote}` : " ke meja Anda"}.` : "Silakan ambil di counter."}
             {payLater ? ` Siapkan uang tunai ${formatRupiah(order.total)}.` : ""}
           </p>
         </div>
@@ -110,7 +110,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
             )}
           >
             {cancelled ? <XCircleIcon className="size-4" /> : unpaid ? <ClockIcon className="size-4" /> : <CoffeeIcon className="size-4" />}
-            {customerStatusLabel(order.status)}
+            {customerStatusLabel(order.status, deskDelivery)}
           </span>
         </div>
 
@@ -155,7 +155,7 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
                   >
                     {done ? <CheckIcon className="size-4" /> : index + 1}
                   </span>
-                  <span className={cn("text-xs", done ? "text-white" : "text-neutral-400")}>{step.label}</span>
+                  <span className={cn("text-xs", done ? "text-white" : "text-neutral-400")}>{deskDelivery && step.label === "Siap" ? "Diantar" : step.label}</span>
                 </li>
               );
             })}
@@ -163,12 +163,12 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
         )}
         {payLater ? (
           <p className="rounded-2xl bg-white/10 px-4 py-3 text-sm" data-testid="pay-on-delivery">
-            Bayar tunai <span className="font-semibold">{formatRupiah(order.total)}</span> ke barista saat pesanan diantar ke meja Anda.
+            Siapkan uang tunai <span className="font-semibold">{formatRupiah(order.total)}</span>, dibayar saat pesanan diantar ke meja Anda.
           </p>
         ) : null}
         {order.status === "ready" ? (
           <p className="rounded-2xl bg-brand px-4 py-3 text-center text-base font-semibold text-brand-foreground">
-            {deskDelivery ? "Pesanan siap — barista sedang mengantar ke meja Anda." : "Pesanan siap — silakan ambil di counter."}
+            {deskDelivery ? "Pesanan sedang diantar ke meja Anda." : "Pesanan siap — silakan ambil di counter."}
           </p>
         ) : null}
       </section>
@@ -252,7 +252,7 @@ function PaymentDeadline({ expiresAt, label }: { expiresAt: string; label: strin
 }
 
 /** Saat status berubah menjadi "siap": bunyi singkat, getar, dan notifikasi browser (bila diizinkan). */
-function useReadyAlert(status: string, deskDelivery: boolean) {
+function useReadyAlert(status: string, deskDelivery: boolean, locationNote: string | null, cashDue: string | null) {
   const previous = useRef(status);
   useEffect(() => {
     const was = previous.current;
@@ -280,9 +280,12 @@ function useReadyAlert(status: string, deskDelivery: boolean) {
     }
     if (activated) navigator.vibrate?.([200, 100, 200]);
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Pesanan Sudaya siap", { body: deskDelivery ? "Barista sedang mengantar ke meja Anda." : "Silakan ambil di counter." });
+      const body = deskDelivery
+        ? `Pesananmu sedang diantar${locationNote ? ` ke ${locationNote}` : ""}.${cashDue ? ` Siapkan uang tunai ${cashDue}.` : ""}`
+        : "Silakan ambil di counter.";
+      new Notification(deskDelivery ? "Kopi Sudaya sedang diantar" : "Pesanan Sudaya siap", { body });
     }
-  }, [status, deskDelivery]);
+  }, [status, deskDelivery, locationNote, cashDue]);
 }
 
 /** Izin notifikasi browser agar pelanggan dikabari walau pindah tab. */

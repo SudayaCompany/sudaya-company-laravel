@@ -374,4 +374,47 @@ class AttendanceTest extends LiveTestCase
         $this->assertSame($recent->check_in_photo_path, DB::table('attendances')->where('id', $recent->id)->value('check_in_photo_path'));
         $this->assertArrayHasKey($recent->check_in_photo_path, self::$stored);
     }
+
+    public function test_foto_wajah_terdaftar_sekali_dicek_admin_dan_bisa_direset(): void
+    {
+        // Keputusan owner 12 November 2026: absen memakai selfie yang dibandingkan admin dengan foto wajah terdaftar.
+        $A = static::$fixture['A'];
+        $employee = static::$fixture['empBarista'];
+        $this->assertNull($this->engine()->state($this->actor('baristaA'))['face'], 'belum terdaftar');
+        $this->expectAccess('invalid', fn () => $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), false, $this->audit()), '/persetujuan/');
+        $this->assertSame(0, DB::table('face_enrollments')->where('employee_id', $employee)->count(), 'tanpa persetujuan tidak tersimpan');
+
+        $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), true, $this->audit());
+        $face = DB::table('face_enrollments')->where('employee_id', $employee)->whereNull('revoked_at')->first();
+        $this->assertSame([AttendanceEngine::FACE_PROVIDER, static::$fixture['baristaA']['id']], [$face->provider, $face->created_by]);
+        $this->assertStringStartsWith("faces/{$A['id']}/{$employee}/", $face->external_face_id);
+        $this->assertArrayHasKey($face->external_face_id, self::$stored);
+        $this->assertNotNull($face->consent_at);
+        $this->assertNotNull($this->engine()->state($this->actor('baristaA'))['face']);
+        $this->assertSame(1, $this->ctx()->countAudit($A['id'], 'attendance.face_enrolled', $employee));
+        // Tidak bisa ditukar sendiri.
+        $this->expectAccess('conflict', fn () => $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), true, $this->audit()), '/sudah terdaftar/');
+
+        // Admin membandingkan: tanda di papan + foto terdaftar lewat server; kasir dan tenant lain tidak bisa.
+        $admin = app(AttendanceAdmin::class);
+        $outlet = ['id' => $A['outletId'], 'timezone' => DB::table('outlets')->where('id', $A['outletId'])->value('timezone')];
+        $rows = collect($admin->board($this->actor('ownerA'), $outlet, null)['rows'])->keyBy('fullName');
+        $this->assertSame([true, false], [$rows['Barista Absen QA']['hasFace'], $rows['Kasir Absen QA']['hasFace']]);
+        $this->assertSame(self::$stored[$face->external_face_id], $admin->facePhoto($this->actor('ownerA'), $employee)['bytes']);
+        $this->expectAccess('forbidden', fn () => $admin->facePhoto($this->actor('cashierA'), $employee));
+        $this->expectAccess('not_found', fn () => $admin->facePhoto($this->actor('superB'), $employee));
+        $this->expectAccess('forbidden', fn () => $admin->resetFace($this->actor('baristaA'), $employee, $this->audit()));
+
+        // Reset admin: foto lama dihapus, tercatat, lalu karyawan mendaftar ulang.
+        $admin->resetFace($this->actor('adminA'), $employee, $this->audit());
+        $revoked = DB::table('face_enrollments')->where('id', $face->id)->first();
+        $this->assertNotNull($revoked->revoked_at);
+        $this->assertSame(static::$fixture['adminA']['id'], $revoked->revoked_by);
+        $this->assertArrayNotHasKey($face->external_face_id, self::$stored);
+        $this->assertNull($admin->facePhoto($this->actor('ownerA'), $employee));
+        $this->assertNull($this->engine()->state($this->actor('baristaA'))['face']);
+        $this->assertSame(1, $this->ctx()->countAudit($A['id'], 'attendance.face_reset', $employee));
+        $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), true, $this->audit());
+        $this->assertSame(1, DB::table('face_enrollments')->where('employee_id', $employee)->whereNull('revoked_at')->count());
+    }
 }

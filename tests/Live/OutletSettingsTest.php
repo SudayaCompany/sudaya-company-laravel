@@ -73,7 +73,7 @@ class OutletSettingsTest extends LiveTestCase
     private function checkout(string $channel, array $overrides = []): array
     {
         return app(OrderEngine::class)->create($channel, ['code' => static::$fixture['A']['outletCode']], null, [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'customerName' => 'Tamu', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'customerName' => 'Tamu', 'department' => 'Fundraising', 'floor' => '1', 'area' => 'Depan', 'paymentMethod' => 'cash',
             'lines' => [['productId' => static::$fixture['tea'], 'modifierIds' => [], 'quantity' => 1]],
             ...$overrides,
         ], $this->audit());

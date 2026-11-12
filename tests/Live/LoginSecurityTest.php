@@ -131,7 +131,7 @@ class LoginSecurityTest extends LiveTestCase
 
         $this->assertMatchesRegularExpression(self::LIMIT, $this->formError($this->login($victim['email'], $victim['password'], self::ATTACKER_IP)));
 
-        $this->login($victim['email'], $victim['password'], self::OWNER_IP)->assertRedirect('/staff');
+        $this->login($victim['email'], $victim['password'], self::OWNER_IP)->assertRedirect('/barista');
         $this->assertSame(0, $this->counter("login:email-ip:{$victim['email']}:".self::OWNER_IP)->count);
         $this->assertSame(1, $this->counter(LoginLimits::knownNetworkRule($victim['email'], self::OWNER_IP)['key'])->count);
     }
@@ -146,7 +146,7 @@ class LoginSecurityTest extends LiveTestCase
 
         $this->assertMatchesRegularExpression(self::LIMIT, $this->formError($this->login($victim['email'], $victim['password'], self::NEW_IP)));
 
-        $this->login($victim['email'], $victim['password'], self::OWNER_IP)->assertRedirect('/staff');
+        $this->login($victim['email'], $victim['password'], self::OWNER_IP)->assertRedirect('/barista');
         $this->assertSame(1, $this->ctx()->countAudit($company['id'], 'auth.login', $victim['id']));
     }
 

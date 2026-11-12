@@ -55,7 +55,7 @@ class PricePendingTest extends LiveTestCase
         $actor = $channel === 'pos' ? $this->ctx()->load(static::$fixture['cashierA']['id']) : null;
 
         return app(OrderEngine::class)->create($channel, $outlet, $actor, [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Uji', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => 'Uji', 'department' => 'Fundraising', 'paymentMethod' => 'cash',
             'lines' => array_map(fn (string $key) => ['productId' => static::$fixture[$key], 'modifierIds' => [], 'quantity' => 1], $lines),
         ], $this->audit());
     }

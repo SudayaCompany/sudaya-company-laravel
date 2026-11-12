@@ -100,7 +100,7 @@ class DeskOrderTest extends LiveTestCase
     {
         return app(OrderEngine::class)->create('qr_table', ['code' => static::$fixture['code']], null, [
             'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => 'L3-12', 'customerName' => 'Rina Meja',
-            'customerPhone' => '081234500012', 'floor' => '3', 'department' => 'Keuangan', 'paymentMethod' => 'qris',
+            'customerPhone' => '081234500012', 'floor' => '3', 'area' => 'Keuangan', 'department' => 'Fundraising', 'paymentMethod' => 'qris',
             'lines' => [['productId' => static::$fixture['latte'], 'modifierIds' => [], 'quantity' => 2, 'notes' => 'less sugar, less ice']],
             ...$overrides,
         ], $this->audit());
@@ -121,7 +121,7 @@ class DeskOrderTest extends LiveTestCase
 
     private function move(string $orderId, string $from, string $to): array
     {
-        return app(OrderWorkflow::class)->updateStatus($this->actor('baristaA'), ['orderId' => $orderId, 'from' => $from, 'to' => $to], $this->audit());
+        return app(OrderWorkflow::class)->updateStatus($this->actor('cashierA'), ['orderId' => $orderId, 'from' => $from, 'to' => $to], $this->audit());
     }
 
     public function test_qris_outlet_tanpa_biaya_antar(): void
@@ -165,7 +165,7 @@ class DeskOrderTest extends LiveTestCase
         // Tidak pernah kedaluwarsa otomatis (fungsi pg_cron yang sama).
         $this->assertSame(0, (int) DB::selectOne('select public.expire_pending_orders(200, ?::uuid) as n', [$order['orderId']])->n);
 
-        $board = app(OrderEngine::class)->kdsBoard($this->actor('baristaA'), ['id' => static::$fixture['A']['outletId']]);
+        $board = app(OrderEngine::class)->kdsBoard($this->actor('cashierA'), ['id' => static::$fixture['A']['outletId']]);
         $card = collect($board)->firstWhere('id', $order['orderId']);
         $this->assertNotNull($card, 'masuk layar barista sebelum dibayar');
         $this->assertSame(['pending', true, 40_000], [$card['paymentStatus'], $card['payOnDelivery'], $card['total']]);
@@ -180,19 +180,22 @@ class DeskOrderTest extends LiveTestCase
         $this->expectAccess('conflict', fn () => $this->move($order['orderId'], 'ready', 'completed'), '/Terima pembayaran dulu/');
 
         // Barista menerima uang di meja lalu menandai lunas; masuk laci kas outlet yang terbuka.
-        $paid = app(OrderWorkflow::class)->confirmCash($this->actor('baristaA'), ['orderId' => $order['orderId'], 'tenderedAmount' => 50_000], $this->audit());
+        // Keputusan owner 12 November 2026: barista hanya absen; kasir yang menerima uang dan memproses pesanan.
+        $this->expectAccess('forbidden', fn () => app(OrderWorkflow::class)->confirmCash($this->actor('baristaA'), ['orderId' => $order['orderId'], 'tenderedAmount' => 50_000], $this->audit()));
+        $this->expectAccess('forbidden', fn () => app(OrderEngine::class)->kdsBoard($this->actor('baristaA'), ['id' => static::$fixture['A']['outletId']]));
+        $paid = app(OrderWorkflow::class)->confirmCash($this->actor('cashierA'), ['orderId' => $order['orderId'], 'tenderedAmount' => 50_000], $this->audit());
         $this->assertSame([false, 10_000, $row->order_number], [$paid['alreadyPaid'], $paid['change'], $paid['orderNumber']]);
         $after = DB::table('orders')->where('id', $order['orderId'])->first();
         $this->assertSame(['ready', 'paid', $row->queue_number], [$after->status, $after->payment_status, $after->queue_number], 'status produksi tidak berubah saat dibayar');
         $this->assertNotNull($after->paid_at);
         $payment = DB::table('payments')->where('order_id', $order['orderId'])->first();
-        $this->assertSame(['cash', 'paid', $sessionId, 50_000, 10_000, static::$fixture['baristaA']['id']], [$payment->method, $payment->status, $payment->cash_session_id, (int) $payment->tendered_amount, (int) $payment->change_amount, $payment->confirmed_by]);
+        $this->assertSame(['cash', 'paid', $sessionId, 50_000, 10_000, static::$fixture['cashierA']['id']], [$payment->method, $payment->status, $payment->cash_session_id, (int) $payment->tendered_amount, (int) $payment->change_amount, $payment->confirmed_by]);
         $this->assertSame(140_000, CashSessions::totals(DB::table('cash_sessions')->where('id', $sessionId)->first())['expected'], 'uang barista masuk laci outlet');
         $this->assertSame($before - 2, $this->stock(), 'stok tidak dipotong dua kali');
         $audit = DB::table('audit_logs')->where('company_id', static::$fixture['A']['id'])->where('action', 'payment.confirmed')->where('entity_id', $order['orderId'])->value('after');
         // jsonb menyusun ulang kunci; nilai dibandingkan persis tanpa memedulikan urutan kunci.
         $this->assertEquals(['method' => 'cash', 'amount' => 40_000, 'tendered' => 50_000, 'change' => 10_000, 'payOnDelivery' => true], json_decode($audit, true));
-        $this->assertTrue(app(OrderWorkflow::class)->confirmCash($this->actor('baristaA'), ['orderId' => $order['orderId'], 'tenderedAmount' => 50_000], $this->audit())['alreadyPaid']);
+        $this->assertTrue(app(OrderWorkflow::class)->confirmCash($this->actor('cashierA'), ['orderId' => $order['orderId'], 'tenderedAmount' => 50_000], $this->audit())['alreadyPaid']);
 
         $this->move($order['orderId'], 'ready', 'completed');
         $this->assertSame('completed', DB::table('orders')->where('id', $order['orderId'])->value('status'));
@@ -204,7 +207,7 @@ class DeskOrderTest extends LiveTestCase
         $order = $this->deskOrder(['paymentMethod' => 'cash', 'lines' => [['productId' => static::$fixture['roti'], 'modifierIds' => [], 'quantity' => 1, 'notes' => null]]]);
         $this->assertSame($before - 1, $this->stock());
 
-        $result = app(OrderWorkflow::class)->cancel($this->actor('baristaA'), ['orderId' => $order['orderId'], 'reason' => 'Pelanggan tidak ada di meja'], $this->audit());
+        $result = app(OrderWorkflow::class)->cancel($this->actor('cashierA'), ['orderId' => $order['orderId'], 'reason' => 'Pelanggan tidak ada di meja'], $this->audit());
         $this->assertSame('cancelled', $result['result']);
         $row = DB::table('orders')->where('id', $order['orderId'])->first(['status', 'payment_status']);
         $this->assertSame(['cancelled', 'expired'], [$row->status, $row->payment_status]);
@@ -231,15 +234,16 @@ class DeskOrderTest extends LiveTestCase
         $order = $this->deskOrder();
         $this->assertSame(50_000, $order['total']);
         $row = DB::table('orders')->where('id', $order['orderId'])->first();
+        $this->assertSame('Fundraising', $row->customer_department);
         $this->assertSame(['pending_payment', 'pending', false, 'L3-12', 'Lantai 3 · Keuangan'], [$row->status, $row->payment_status, (bool) $row->pay_on_delivery, $row->table_number, $row->location_note]);
         $this->assertNotNull($row->expires_at);
         $this->assertSame('less sugar, less ice', DB::table('order_items')->where('order_id', $order['orderId'])->value('notes'));
-        $board = app(OrderEngine::class)->kdsBoard($this->actor('baristaA'), ['id' => static::$fixture['A']['outletId']]);
+        $board = app(OrderEngine::class)->kdsBoard($this->actor('cashierA'), ['id' => static::$fixture['A']['outletId']]);
         $this->assertNull(collect($board)->firstWhere('id', $order['orderId']), 'QRIS belum dikonfirmasi tidak masuk layar barista');
         $this->assertNotNull(app(OrderEngine::class)->guestOrder($order['orderId'], $order['accessToken'])['qrisImageUrl']);
 
         // Barista kini boleh mengonfirmasi QRIS (cek dana di aplikasi QRIS outlet).
-        $paid = app(OrderWorkflow::class)->confirmQris($this->actor('baristaA'), ['orderId' => $order['orderId']], $this->audit());
+        $paid = app(OrderWorkflow::class)->confirmQris($this->actor('cashierA'), ['orderId' => $order['orderId']], $this->audit());
         $this->assertFalse($paid['alreadyPaid']);
         $this->assertSame(['queued', 'paid'], [DB::table('orders')->where('id', $order['orderId'])->value('status'), DB::table('orders')->where('id', $order['orderId'])->value('payment_status')]);
         $payment = DB::table('payments')->where('order_id', $order['orderId'])->first();
@@ -259,7 +263,13 @@ class DeskOrderTest extends LiveTestCase
         app(OutletSettings::class)->updateOrdering($this->actor('superA'), static::$fixture['A']['outletId'], ['removeQris' => true], null, $this->audit());
         $this->expectAccess('invalid', fn () => $this->deskOrder(), '/QRIS belum tersedia/');
         $this->expectAccess('invalid', fn () => app(OrderWorkflow::class)->confirmQris($this->actor('cashierA'), ['orderId' => $pickup['orderId']], $this->audit()), '/QRIS belum diatur/');
+        // Pesanan masuk kasir menampilkan pesanan yang menunggu dibayar (alarm ikut berbunyi); barista tidak.
+        $outlet = ['id' => static::$fixture['A']['outletId']];
+        $awaiting = collect(app(OrderEngine::class)->awaitingPayment($this->actor('cashierA'), $outlet))->firstWhere('id', $pickup['orderId']);
+        $this->assertSame(['takeaway', 'Fundraising'], [$awaiting['type'] ?? null, $awaiting['customerDepartment'] ?? null]);
+        $this->assertSame([], app(OrderEngine::class)->awaitingPayment($this->actor('baristaA'), $outlet));
         $cash = app(OrderWorkflow::class)->confirmCash($this->actor('cashierA'), ['orderId' => $pickup['orderId'], 'tenderedAmount' => 60_000], $this->audit());
+        $this->assertNull(collect(app(OrderEngine::class)->awaitingPayment($this->actor('cashierA'), $outlet))->firstWhere('id', $pickup['orderId']), 'sudah dibayar: keluar dari daftar');
         $this->assertSame(10_000, $cash['change'], 'tunai: total 50.000 tanpa biaya antar');
     }
 }

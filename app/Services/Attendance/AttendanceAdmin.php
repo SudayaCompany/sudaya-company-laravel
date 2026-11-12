@@ -7,10 +7,12 @@ use App\Models\User;
 use App\Services\Audit\AuditContext;
 use App\Services\Audit\AuditLogger;
 use App\Services\Auth\AccessLoader;
+use App\Services\Catalog\CatalogInput;
 use App\Support\Access\AccessScope;
 use App\Support\Spreadsheet\XlsxWriter;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Sisi admin absensi: papan kehadiran harian, rekap periode + ekspor, foto berizin, dan
@@ -59,7 +61,9 @@ final class AttendanceAdmin
                 'check_in_distance_meter', 'check_out_distance_meter', 'check_in_accuracy_meter', 'check_in_photo_path', 'check_out_photo_path'])
             ->groupBy('employee_id');
 
-        $rows = $employees->map(function ($e) use ($sessions) {
+        $faces = DB::table('face_enrollments')->whereIn('employee_id', $employees->pluck('id'))
+            ->where('provider', AttendanceEngine::FACE_PROVIDER)->whereNull('revoked_at')->pluck('employee_id')->flip();
+        $rows = $employees->map(function ($e) use ($sessions, $faces) {
             $mine = ($sessions[$e->id] ?? collect())->values();
             $open = $mine->first(fn ($s) => $s->check_out_at === null);
 
@@ -67,6 +71,7 @@ final class AttendanceAdmin
                 'id' => $e->id,
                 'code' => $e->employee_code,
                 'fullName' => $e->full_name,
+                'hasFace' => isset($faces[$e->id]),
                 'position' => $e->position,
                 'status' => $open !== null ? 'working' : ($mine->isEmpty() ? 'absent' : 'done'),
                 'minutes' => (int) $mine->sum('working_minutes'),
@@ -289,6 +294,64 @@ final class AttendanceAdmin
                 'after' => ['maxGpsAccuracyMeter' => $accuracy],
             ], $context);
         });
+    }
+
+    /** Foto wajah terdaftar karyawan untuk dibandingkan dengan selfie absen (hanya lewat server). */
+    public function facePhoto(User $actor, string $employeeId): ?array
+    {
+        $employee = $this->employee($actor, $employeeId);
+        $this->assertAt($actor, 'attendance.view', $employee->outlet_id);
+        $face = AttendanceEngine::activeFace($employee->id);
+        $bytes = $face === null ? null : $this->photos->download($face->external_face_id);
+
+        return $bytes === null ? null : ['bytes' => $bytes, 'contentType' => AttendancePhotos::contentType($face->external_face_id)];
+    }
+
+    /**
+     * Reset foto wajah (mis. salah foto/ganti orang): karyawan mendaftar ulang saat membuka absen.
+     * Foto lama dihapus dari penyimpanan karena tidak dipakai lagi (data pribadi).
+     */
+    public function resetFace(User $actor, string $employeeId, AuditContext $context): void
+    {
+        $employee = $this->employee($actor, $employeeId);
+        $this->assertAt($actor, 'employee.edit', $employee->outlet_id);
+        $paths = DB::transaction(function () use ($actor, $employee, $context) {
+            $active = DB::table('face_enrollments')->where('employee_id', $employee->id)->whereNull('revoked_at')
+                ->lockForUpdate()->get(['id', 'provider', 'external_face_id']);
+            $count = DB::table('face_enrollments')->whereIn('id', $active->pluck('id'))->update([
+                'revoked_at' => DB::raw('now()'), 'revoked_by' => $actor->id, 'revoked_reason' => 'Reset oleh admin', 'updated_at' => DB::raw('now()'),
+            ]);
+            app(AuditLogger::class)->record([
+                'company_id' => $employee->company_id,
+                'brand_id' => $employee->brand_id,
+                'outlet_id' => $employee->outlet_id,
+                'actor_id' => $actor->id,
+                'action' => 'attendance.face_reset',
+                'entity_type' => 'employee',
+                'entity_id' => $employee->id,
+                'after' => ['revoked' => $count],
+            ], $context);
+
+            return $active->where('provider', AttendanceEngine::FACE_PROVIDER)->pluck('external_face_id')->all();
+        });
+        if ($paths !== []) {
+            try {
+                $this->photos->remove($paths);
+            } catch (Throwable $error) {
+                // Reset tetap berlaku; file yatim bisa dibersihkan manual dari bucket.
+                report($error);
+            }
+        }
+    }
+
+    private function employee(User $actor, string $employeeId): object
+    {
+        if (! CatalogInput::isUuid($employeeId)) {
+            throw AccessException::notFound();
+        }
+
+        return DB::table('employees')->where('id', $employeeId)->where('company_id', $actor->company_id)
+            ->first(['id', 'company_id', 'brand_id', 'outlet_id']) ?? throw AccessException::notFound();
     }
 
     private function assertAt(User $actor, string $permission, string $outletId): void

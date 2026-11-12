@@ -32,15 +32,15 @@ class AccessRulesTest extends TestCase
 
     public function test_grant_outlet_berlaku_hanya_di_outlet_tsb(): void
     {
-        $barista = [self::grant('barista', self::OUTLET_A)];
-        $this->assertTrue(AccessRules::hasPermission($barista, 'order.create'));
-        $this->assertTrue(AccessRules::hasPermission($barista, 'order.create', AccessScope::outlet(self::OUTLET_A)));
-        $this->assertFalse(AccessRules::hasPermission($barista, 'order.create', AccessScope::outlet(self::OUTLET_B)));
+        $cashier = [self::grant('cashier', self::OUTLET_A)];
+        $this->assertTrue(AccessRules::hasPermission($cashier, 'order.create'));
+        $this->assertTrue(AccessRules::hasPermission($cashier, 'order.create', AccessScope::outlet(self::OUTLET_A)));
+        $this->assertFalse(AccessRules::hasPermission($cashier, 'order.create', AccessScope::outlet(self::OUTLET_B)));
     }
 
     public function test_grant_outlet_tidak_memenuhi_syarat_company_wide(): void
     {
-        $this->assertFalse(AccessRules::hasPermission([self::grant('barista', self::OUTLET_A)], 'order.create', AccessScope::company()));
+        $this->assertFalse(AccessRules::hasPermission([self::grant('cashier', self::OUTLET_A)], 'order.create', AccessScope::company()));
     }
 
     public function test_grant_company_wide_berlaku_di_semua_outlet(): void
@@ -124,23 +124,32 @@ class AccessRulesTest extends TestCase
     {
         $this->assertSame('/admin', RouteAccess::landing([self::grant('super_admin')]));
         $this->assertSame('/admin', RouteAccess::landing([self::grant('owner')]));
-        $this->assertSame('/staff', RouteAccess::landing([self::grant('barista', self::OUTLET_A)]));
-        $this->assertSame('/staff', RouteAccess::landing([self::grant('cashier', self::OUTLET_A)]));
+        // Satu pintu /login (keputusan owner 12 November 2026): barista → absen, kasir → pesanan masuk.
+        $this->assertSame('/barista', RouteAccess::landing([self::grant('barista', self::OUTLET_A)]));
+        $this->assertSame('/kds', RouteAccess::landing([self::grant('cashier', self::OUTLET_A)]));
         $this->assertNull(RouteAccess::landing([]));
     }
 
-    public function test_barista_tidak_bisa_area_admin_bisa_staff_dan_kds(): void
+    public function test_barista_hanya_absen_tanpa_pesanan_dan_admin(): void
     {
         $barista = [self::grant('barista', self::OUTLET_A)];
         $this->assertFalse(RouteAccess::canAccess($barista, '/admin'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/admin/users'));
         $this->assertTrue(RouteAccess::canAccess($barista, '/staff'));
-        $this->assertTrue(RouteAccess::canAccess($barista, '/kds'));
+        $this->assertTrue(RouteAccess::canAccess($barista, '/barista'));
+        $this->assertTrue(RouteAccess::canAccess($barista, '/staff/attendance'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/kds'), 'pesanan hanya lewat kasir agar tidak dobel');
+        $this->assertFalse(RouteAccess::canAccess($barista, '/pos'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/pos/orders'));
     }
 
-    public function test_kasir_tidak_punya_akses_kds(): void
+    public function test_kasir_pusat_pesanan_tanpa_area_admin(): void
     {
-        $this->assertFalse(RouteAccess::canAccess([self::grant('cashier', self::OUTLET_A)], '/kds'));
+        $cashier = [self::grant('cashier', self::OUTLET_A)];
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/kds'));
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/pos'));
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/pos/orders'));
+        $this->assertFalse(RouteAccess::canAccess($cashier, '/admin'));
     }
 
     public function test_owner_dashboard_dan_audit_tanpa_manajemen_user_role(): void
@@ -158,11 +167,11 @@ class AccessRulesTest extends TestCase
         $issuer = [new AccessGrant((string) Str::uuid(), (string) Str::uuid(), 'custom', 'Pencatat waste', self::OUTLET_A, ['inventory.issue'])];
         $this->assertTrue(RouteAccess::canAccess($issuer, '/admin/inventory/stock-out'));
         $this->assertFalse(RouteAccess::canAccess($issuer, '/admin/inventory/stock-in'));
-        // Barista (keputusan owner 11 November 2026): tanpa stok & pengeluaran.
+        // Barista (keputusan owner 12 November 2026): hanya absen, tanpa stok/pengeluaran/pesanan.
         $barista = [self::grant('barista', self::OUTLET_A)];
         $this->assertFalse(RouteAccess::canAccess($barista, '/admin/inventory/stock-out'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/admin/expenses'));
-        $this->assertTrue(RouteAccess::canAccess($barista, '/pos/orders'));
+        $this->assertTrue(RouteAccess::canAccess($barista, '/staff/attendance/history'));
         // "/adminx" bukan bagian dari "/admin".
         $this->assertSame(null, RouteAccess::requiredFor('/adminx'));
     }
@@ -170,8 +179,9 @@ class AccessRulesTest extends TestCase
     public function test_post_login_memakai_next_hanya_jika_aman_dan_diizinkan(): void
     {
         $this->assertSame('/admin/users', RouteAccess::postLogin([self::grant('super_admin')], '/admin/users'));
-        $this->assertSame('/staff', RouteAccess::postLogin([self::grant('barista', self::OUTLET_A)], '/admin'));
-        $this->assertSame('/staff', RouteAccess::postLogin([self::grant('barista', self::OUTLET_A)], '//evil.com'));
+        $this->assertSame('/barista', RouteAccess::postLogin([self::grant('barista', self::OUTLET_A)], '/admin'));
+        $this->assertSame('/barista', RouteAccess::postLogin([self::grant('barista', self::OUTLET_A)], '//evil.com'));
+        $this->assertSame('/kds', RouteAccess::postLogin([self::grant('cashier', self::OUTLET_A)], null));
         $this->assertNull(RouteAccess::postLogin([], '/admin'));
     }
 }

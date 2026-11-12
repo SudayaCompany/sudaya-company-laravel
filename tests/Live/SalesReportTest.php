@@ -90,6 +90,7 @@ class SalesReportTest extends LiveTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Laporan QA',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => array_map(fn ($l) => ['productId' => static::$fixture[$l[0]], 'modifierIds' => [], 'quantity' => $l[1]], $lines),
         ], $this->audit())['orderId'];
@@ -137,7 +138,7 @@ class SalesReportTest extends LiveTestCase
         $this->order([['latte', 3]]); // belum dibayar: tidak dihitung
 
         // Pembatalan pesanan lunas yang disetujui Owner keluar dari omzet, tercatat sebagai batal.
-        app(OrderWorkflow::class)->cancel($this->actor('baristaA'), ['orderId' => $cancelled, 'reason' => 'salah input laporan QA'], $this->audit());
+        app(OrderWorkflow::class)->cancel($this->actor('cashierA'), ['orderId' => $cancelled, 'reason' => 'salah input laporan QA'], $this->audit());
         $approval = app(OrderEngine::class)->pendingApprovals($this->actor('ownerA'), $this->outlet())[0]['id'];
         app(OrderWorkflow::class)->decideCancellation($this->actor('ownerA'), ['approvalId' => $approval, 'approve' => true], $this->audit());
 

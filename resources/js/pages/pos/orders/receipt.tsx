@@ -6,8 +6,31 @@ import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/lib/format";
 import { ORDER_TYPE_LABELS, type StaffOrder } from "@/lib/orders";
 
-// Struk 58–80 mm dicetak lewat dialog print browser (PRD §46).
+type Paper = 58 | 80;
+const PAPER_KEY = "sudaya-receipt-paper";
+
+function savedPaper(): Paper {
+  try {
+    return window.localStorage.getItem(PAPER_KEY) === "80" ? 80 : 58;
+  } catch {
+    return 58;
+  }
+}
+
+// Struk 58 atau 80 mm dicetak lewat dialog print browser (PRD §46). Printer thermal Bluetooth:
+// Android lewat aplikasi print service (mis. RawBT), laptop lewat printer yang sudah dipasangkan.
+// Lebar kertas diingat per perangkat; bawaan 58 mm (paling umum untuk printer Bluetooth).
 export default function ReceiptPage({ order }: { order: StaffOrder }) {
+  const [paper, setPaper] = useState<Paper>(58);
+  useEffect(() => setPaper(savedPaper()), []);
+  const choosePaper = (next: Paper) => {
+    setPaper(next);
+    try {
+      window.localStorage.setItem(PAPER_KEY, String(next));
+    } catch {
+      // Penyimpanan perangkat tidak tersedia: pilihan berlaku untuk halaman ini saja.
+    }
+  };
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short", timeZone: order.outlet.timezone });
   // Hanya pembayaran yang benar-benar lunas yang dicetak sebagai lunas.
   const payment = order.payments.find((p) => p.status === "paid");
@@ -18,7 +41,7 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
   const [pageHeight, setPageHeight] = useState(200);
   useLayoutEffect(() => {
     if (article.current) setPageHeight(Math.ceil((article.current.getBoundingClientRect().height * 25.4) / 96) + 4);
-  }, [order]);
+  }, [order, paper]);
   // Dibuka dari tombol "Cetak struk" kasir (?print=1): langsung buka dialog cetak, hemat satu klik.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("print") !== "1") return;
@@ -31,12 +54,32 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
       <Head title="Struk">
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      {/* Kertas thermal 80 mm; area cetak 76 mm dengan margin 2 mm. */}
-      <style>{`@page { size: 80mm ${pageHeight}mm; margin: 2mm; } @media print { html, body { background: #fff; } }`}</style>
-      <Button size="lg" onClick={() => window.print()} className="print:hidden">
-        <PrinterIcon /> Cetak
-      </Button>
-      <article ref={article} className="w-[76mm] bg-white p-3 font-mono text-[12px] leading-snug break-words text-black shadow print:shadow-none">
+      {/* Kertas thermal 58/80 mm; area cetak = lebar − margin 2 mm kiri-kanan. */}
+      <style>{`@page { size: ${paper}mm ${pageHeight}mm; margin: 2mm; } @media print { html, body { background: #fff; } }`}</style>
+      <div className="flex flex-wrap items-center justify-center gap-2 print:hidden">
+        <div role="radiogroup" aria-label="Lebar kertas" className="flex rounded-lg bg-muted p-1">
+          {([58, 80] as const).map((width) => (
+            <button
+              key={width}
+              type="button"
+              role="radio"
+              aria-checked={paper === width}
+              onClick={() => choosePaper(width)}
+              className={`min-h-10 rounded-md px-3 text-sm font-semibold ${paper === width ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+            >
+              {width} mm
+            </button>
+          ))}
+        </div>
+        <Button size="lg" onClick={() => window.print()}>
+          <PrinterIcon /> Cetak
+        </Button>
+      </div>
+      <article
+        ref={article}
+        style={{ width: `${paper - 4}mm` }}
+        className={`bg-white font-mono leading-snug break-words text-black shadow print:shadow-none ${paper === 58 ? "p-1.5 text-[11px]" : "p-3 text-[12px]"}`}
+      >
         <header className="text-center">
           <p className="text-base font-bold">SUDAYA COFFEE</p>
           <p>{order.outlet.name}</p>
@@ -50,6 +93,8 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
           {order.tableNumber ? ` · Meja ${order.tableNumber}` : ""}
         </p>
         {order.customerName ? <p>Pelanggan: {order.customerName}</p> : null}
+        {order.customerDepartment ? <p>Dept: {order.customerDepartment}</p> : null}
+        {order.locationNote ? <p>Antar: {order.locationNote}</p> : null}
         {payment?.paidAt ? <p>Dibayar: {time.format(new Date(payment.paidAt))}</p> : null}
         {payment?.confirmedByName ? <p>Kasir: {payment.confirmedByName}</p> : null}
         <hr className="my-2 border-dashed border-black" />

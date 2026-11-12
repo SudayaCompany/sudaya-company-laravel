@@ -118,6 +118,24 @@ class OrdersTest extends TestCase
         $this->assertNull(CheckoutInput::requireCustomerName(CheckoutInput::parse(self::checkout())));
     }
 
+    public function test_department_wajib_dan_lokasi_antar_ke_meja(): void
+    {
+        // Keputusan owner 12 November 2026: setiap pesanan pelanggan mencantumkan department (ketik bebas);
+        // antar ke meja wajib lantai + bagian/area meja, nomor WhatsApp opsional.
+        $desk = CheckoutInput::parse(self::checkout(['type' => 'dine_in', 'floor' => '3', 'area' => 'dekat jendela', 'department' => 'Fundraising']));
+        $this->assertSame(['Lantai 3 · dekat jendela', 'Fundraising', null], [$desk['locationNote'], $desk['department'], $desk['customerPhone']]);
+        $this->assertNull(CheckoutInput::requireDepartment($desk));
+        $this->assertNull(CheckoutInput::requireDeskLocation('qr_table', $desk));
+
+        $this->assertSame('Department wajib diisi (mis. Fundraising).', CheckoutInput::requireDepartment(CheckoutInput::parse(self::checkout())));
+        $this->assertSame('Department wajib diisi (mis. Fundraising).', CheckoutInput::requireDepartment(CheckoutInput::parse(self::checkout(['department' => ' x ']))));
+        $noArea = CheckoutInput::parse(self::checkout(['type' => 'dine_in', 'floor' => '3', 'department' => 'Fundraising']));
+        $this->assertSame('Isi lantai dan bagian/area meja agar pesanan bisa diantar.', CheckoutInput::requireDeskLocation('qr_table', $noArea));
+        // Ambil di counter atau channel lain: tanpa lantai/area.
+        $this->assertNull(CheckoutInput::requireDeskLocation('qr_table', CheckoutInput::parse(self::checkout(['department' => 'Fundraising']))));
+        $this->assertNull(CheckoutInput::requireDeskLocation('kiosk', $noArea));
+    }
+
     public function test_request_hash_matches_nextjs_reference(): void
     {
         // Nilai dari algoritma src/lib/orders/request-hash.ts (Next.js) untuk sampel yang sama:

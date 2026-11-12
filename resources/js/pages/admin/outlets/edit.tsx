@@ -213,7 +213,7 @@ function TableRow({ table, outletCode }: { table: Table; outletCode: string }) {
   );
 }
 
-/** QRIS statis outlet (dikonfirmasi manual kasir/barista). Biaya antar dihapus 11 November 2026. */
+/** QRIS statis outlet (dikonfirmasi manual kasir). Biaya antar dihapus 11 November 2026. */
 function QrisSettings({ outlet }: { outlet: Outlet }) {
   const { pending, options } = useMutation();
   const [file, setFile] = useState<File | null>(null);
@@ -227,14 +227,14 @@ function QrisSettings({ outlet }: { outlet: Outlet }) {
       <CardHeader>
         <CardTitle>Pembayaran QRIS</CardTitle>
         <CardDescription>
-          Pelanggan scan QR di meja → isi nama, lantai, bagian → pilih Antar ke meja (gratis, bayar tunai ke barista saat diantar) atau Ambil di counter → atau bayar QRIS.
+          Pelanggan scan QR di meja → isi nama, department, lantai, bagian meja → pilih Antar ke meja (gratis, bayar tunai saat diantar) atau Ambil di counter → atau bayar QRIS.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Label>QRIS outlet (statis)</Label>
           <p className="text-xs text-muted-foreground">
-            Unggah foto/gambar QRIS resmi Sudaya (dari bank/penyedia QRIS). Pelanggan yang memilih QRIS melihat gambar ini beserta nominal; kasir/barista menekan "Konfirmasi QRIS
+            Unggah foto/gambar QRIS resmi Sudaya (dari bank/penyedia QRIS). Pelanggan yang memilih QRIS melihat gambar ini beserta nominal; kasir menekan "Konfirmasi QRIS
             diterima" setelah dana terlihat masuk. Tanpa gambar, pilihan QRIS tidak muncul.
           </p>
           <input

@@ -18,8 +18,8 @@ use Tests\Live\LiveContext;
 /**
  * Pesanan meja kantor lewat HTTP sungguhan: admin mengunggah QRIS (biaya antar dihapus 11 November
  * 2026) → pelanggan pesan dari QR meja (nama, lantai, bagian, catatan, request di luar menu):
- * QRIS dikonfirmasi barista/kasir; antar ke meja + tunai langsung masuk layar barista dan barista
- * menerima uang di meja (bayar saat diantar).
+ * QRIS dikonfirmasi kasir; antar ke meja + tunai langsung masuk Pesanan masuk kasir dan kasir
+ * menerima uang di meja (bayar saat diantar). Sejak 12 November 2026 barista hanya absen.
  */
 class DeskFlowTest extends ServerTestCase
 {
@@ -80,7 +80,7 @@ class DeskFlowTest extends ServerTestCase
     {
         $response = $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => [
             'idempotencyKey' => (string) Str::uuid(), 'type' => 'dine_in', 'tableNumber' => 'L2-07', 'customerName' => 'Sari',
-            'customerPhone' => '081298765432', 'floor' => '2', 'department' => 'HRD', 'paymentMethod' => 'qris',
+            'customerPhone' => '081298765432', 'floor' => '2', 'area' => 'HRD', 'department' => 'Fundraising', 'paymentMethod' => 'qris',
             'customRequest' => 'Teh tarik 1 gelas',
             'lines' => [['productId' => $this->f('latte'), 'modifierIds' => [], 'quantity' => 2, 'notes' => 'Less sugar, Less ice']],
             ...$overrides,
@@ -122,7 +122,7 @@ class DeskFlowTest extends ServerTestCase
         $this->assertStringContainsString('Permintaan di luar menu: Teh tarik 1 gelas', (string) DB::table('orders')->where('id', $body['orderId'])->value('notes'));
 
         // Barista (sejak 11 November 2026) boleh menandai QRIS diterima setelah cek dana.
-        $barista = $this->login($this->f('barista'));
+        $barista = $this->login($this->f('cashier'));
         $barista->get("/pos/orders/{$body['orderId']}");
         $flash = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/confirm-qris"));
         $this->assertStringStartsWith('Pembayaran QRIS dikonfirmasi. Nomor antrean', $flash['success'] ?? '');
@@ -137,7 +137,7 @@ class DeskFlowTest extends ServerTestCase
         $this->assertSame(['queued', null], [$after['status'], $after['qrisImageUrl']]);
     }
 
-    public function test_antar_ke_meja_tunai_dibayar_ke_barista_saat_diantar(): void
+    public function test_antar_ke_meja_tunai_dibayar_ke_kasir_saat_diantar(): void
     {
         $guest = $this->browser();
         $guest->get("/order?outlet={$this->f('A')['outletCode']}&table=L2-07");
@@ -147,7 +147,7 @@ class DeskFlowTest extends ServerTestCase
         $this->assertSame(['queued', 'pending', true], [$status['status'], $status['paymentStatus'], $status['payOnDelivery']]);
         $this->assertNotNull($status['orderNumber'], 'nomor antrean langsung terbit');
 
-        $barista = $this->login($this->f('barista'));
+        $barista = $this->login($this->f('cashier'));
         $kds = Browser::page($barista->get('/kds'));
         $card = collect($kds['props']['orders'])->firstWhere('id', $body['orderId']);
         $this->assertSame(['queued', 'pending', true, 48_000], [$card['status'], $card['paymentStatus'], $card['payOnDelivery'], $card['total']]);
@@ -160,10 +160,14 @@ class DeskFlowTest extends ServerTestCase
         $blocked = $this->flash($barista, $barista->post("/kds/orders/{$body['orderId']}/status", ['from' => 'ready', 'to' => 'completed']));
         $this->assertStringContainsString('Terima pembayaran dulu', $blocked['error'] ?? '');
 
-        // Detail pesanan untuk barista menampilkan form terima tunai.
+        // Detail pesanan untuk kasir menampilkan form terima tunai; kasir juga yang membuka kas.
         $detail = Browser::page($barista->get("/pos/orders/{$body['orderId']}"));
         $this->assertTrue($detail['props']['flags']['canConfirmCash']);
-        $this->assertFalse($detail['props']['flags']['canOpenCash']);
+        $this->assertTrue($detail['props']['flags']['canOpenCash']);
+        // Akun barista (absen saja) tidak bisa membuka maupun memproses pesanan.
+        $onlyAttendance = $this->login($this->f('barista'));
+        $this->assertSame(403, $onlyAttendance->get("/pos/orders/{$body['orderId']}")->getStatusCode());
+        $this->assertSame(403, $onlyAttendance->post("/pos/orders/{$body['orderId']}/pay", ['tenderedAmount' => 50_000])->getStatusCode());
         $this->assertTrue($detail['props']['order']['payOnDelivery']);
         $flash = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/pay", ['tenderedAmount' => 50_000]));
         $this->assertNotEmpty($flash['success'] ?? null, json_encode($flash));

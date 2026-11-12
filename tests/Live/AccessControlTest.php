@@ -253,7 +253,8 @@ class AccessControlTest extends LiveTestCase
     public function test_grant_dan_revoke_permission_role(): void
     {
         $A = static::$fixture['A'];
-        $input = ['roleId' => $A['roles']['cashier'], 'permissionCode' => 'kds.view'];
+        // Barista (absen saja sejak 12 November 2026) tidak memegang kds.view secara default.
+        $input = ['roleId' => $A['roles']['barista'], 'permissionCode' => 'kds.view'];
         $this->admin()->setRolePermission($this->actor('superA'), [...$input, 'granted' => true], $this->audit());
         $this->admin()->setRolePermission($this->actor('superA'), [...$input, 'granted' => false], $this->audit());
         $this->assertGreaterThanOrEqual(1, $this->ctx()->countAudit($A['id'], 'rbac.permission_granted'));

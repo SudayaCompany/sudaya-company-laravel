@@ -12,7 +12,7 @@ const NAV: { href: string; label: string; visible: (auth: NonNullable<SharedProp
   { href: "/pos", label: "Kasir", visible: (auth) => auth.navigation.includes("/pos") },
   { href: "/pos/orders", label: "Pesanan", visible: (auth) => auth.navigation.includes("/pos") },
   { href: "/pos/cash", label: "Kas", visible: (auth) => auth.navigation.includes("/pos") && auth.permissions.includes("cash.view") },
-  { href: "/kds", label: "Barista", visible: (auth) => auth.navigation.includes("/kds") },
+  { href: "/kds", label: "Pesanan masuk", visible: (auth) => auth.navigation.includes("/kds") },
   { href: "/staff/attendance", label: "Absen", visible: (auth) => auth.navigation.includes("/staff/attendance") },
   { href: "/staff", label: "Beranda", visible: (auth) => auth.navigation.includes("/staff") },
 ];

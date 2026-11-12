@@ -59,7 +59,7 @@ class CustomerInsightsTest extends LiveTestCase
     private function paid(array $lines, ?string $phone, ?string $name): string
     {
         $id = app(OrderEngine::class)->create('pos', ['id' => static::$fixture['A']['outletId']], $this->actor('cashierA'), [
-            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => $name ?? 'Tamu', 'paymentMethod' => 'cash',
+            'idempotencyKey' => (string) Str::uuid(), 'type' => 'takeaway', 'customerName' => $name ?? 'Tamu', 'department' => 'Fundraising', 'paymentMethod' => 'cash',
             'lines' => array_map(fn ($l) => ['productId' => static::$fixture[$l[0]], 'modifierIds' => [], 'quantity' => $l[1]], $lines),
         ], $this->audit())['orderId'];
         app(OrderWorkflow::class)->confirmCash($this->actor('cashierA'), ['orderId' => $id, 'tenderedAmount' => 500_000], $this->audit());
@@ -76,7 +76,7 @@ class CustomerInsightsTest extends LiveTestCase
         $this->paid([['tea', 1]], '085700001111', 'Budi');          // 15.000
         $this->paid([['tea', 1]], null, 'Tanpa HP');                // tidak tercatat
         $cancelled = $this->paid([['latte', 10]], '085700001111', 'Budi');
-        app(OrderWorkflow::class)->cancel($this->actor('baristaA'), ['orderId' => $cancelled, 'reason' => 'salah input CRM QA'], $this->audit());
+        app(OrderWorkflow::class)->cancel($this->actor('cashierA'), ['orderId' => $cancelled, 'reason' => 'salah input CRM QA'], $this->audit());
         $approval = DB::table('approvals')->where('reference_id', $cancelled)->where('status', 'pending')->value('id');
         app(OrderWorkflow::class)->decideCancellation($this->actor('ownerA'), ['approvalId' => $approval, 'approve' => true], $this->audit());
 

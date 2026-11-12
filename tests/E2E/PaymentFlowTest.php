@@ -3,7 +3,6 @@
 namespace Tests\E2E;
 
 use App\Services\Audit\AuditContext;
-use App\Services\Cash\CashSessions;
 use App\Services\Catalog\CatalogAdmin;
 use App\Services\Catalog\MenuImageStorage;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +67,7 @@ class PaymentFlowTest extends ServerTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Andi',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => [['productId' => $this->f('latte'), 'modifierIds' => [], 'quantity' => 1]],
             ...$overrides,
@@ -133,7 +133,7 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertStringStartsWith('Sudah lunas sebelumnya', $flash['success'] ?? '');
 
         // QR meja, ambil di counter: guest memesan, kasir menerima uang, guest melihat nomor antrean.
-        // (Antar ke meja + tunai kini bayar saat diantar ke barista, lihat DeskFlowTest.)
+        // (Antar ke meja + tunai kini bayar saat diantar ke kasir, lihat DeskFlowTest.)
         $guest = $this->browser();
         $placed = json_decode((string) $guest->json('/order/checkout', ['outlet' => $this->f('A')['outletCode'], 'channel' => 'qr_table', 'checkout' => $this->checkout(['type' => 'takeaway'])])->getBody(), true);
         $this->ctx()->trackRateLimitKey('checkout:outlet:'.$this->f('A')['outletCode']);
@@ -145,8 +145,8 @@ class PaymentFlowTest extends ServerTestCase
         $this->assertNotNull($status['orderNumber']);
         $this->assertStringStartsWith('order:', $status['topic']);
 
-        // KDS barista: hanya order lunas, FIFO waktu bayar.
-        $barista = $this->login($this->f('barista'));
+        // Pesanan masuk di akun kasir (keputusan owner 12 November 2026): hanya order lunas, FIFO waktu bayar.
+        $barista = $this->login($this->f('cashier'));
         $kds = $this->props($barista, '/kds');
         $this->assertSame([true, false], [$kds['canUpdate'], $kds['canOverride']]);
         $this->assertSame([$posOrder['orderId'], $unpaidId, $qrId], array_column($kds['orders'], 'id'));
@@ -189,8 +189,7 @@ class PaymentFlowTest extends ServerTestCase
         }
         $order = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout(), 'tenderedAmount' => 25_000]);
 
-        $barista = $this->login($this->f('barista'));
-        $flash = $this->act($barista, "/pos/orders/{$order['orderId']}/cancel", ['reason' => 'customer batal'], "/pos/orders/{$order['orderId']}");
+        $flash = $this->act($cashier, "/pos/orders/{$order['orderId']}/cancel", ['reason' => 'customer batal'], "/pos/orders/{$order['orderId']}");
         $this->assertSame('Pembatalan diajukan, menunggu persetujuan Manager.', $flash['success'] ?? null);
 
         $manager = $this->login($this->f('manager'));
@@ -218,18 +217,15 @@ class PaymentFlowTest extends ServerTestCase
         $baristaOrder = $this->pos($cashier, ['outletId' => $outletId, 'checkout' => $this->checkout()]);
 
         $barista = $this->login($this->f('barista'));
-        // Sejak 11 November 2026 Barista boleh menerima pembayaran (bayar saat diantar); laci kas tetap wajib terbuka.
-        $drawerOpen = CashSessions::hasOpen($outletId);
-        $paid = $this->act($barista, "/pos/orders/{$baristaOrder['orderId']}/pay", ['tenderedAmount' => 25_000]);
-        if ($drawerOpen) {
-            $this->assertStringStartsWith('Pembayaran dikonfirmasi', $paid['success'] ?? '', json_encode($paid));
-        } else {
-            $this->assertSame(CashSessions::NO_SESSION_MESSAGE, $paid['error'] ?? null);
-        }
-        $this->assertSame('Anda tidak memiliki izin untuk tindakan ini.', $this->act($barista, '/pos/cash/open', ['outletId' => $outletId, 'openingAmount' => 0])['error'] ?? null);
+        // Sejak 12 November 2026 Barista hanya absen: tidak membuka kasir, kas, maupun Pesanan masuk.
+        $this->assertSame(403, $barista->post("/pos/orders/{$baristaOrder['orderId']}/pay", ['tenderedAmount' => 25_000])->getStatusCode());
+        $this->assertSame('pending_payment', DB::table('orders')->where('id', $baristaOrder['orderId'])->value('status'));
+        $this->assertSame(403, $barista->post('/pos/cash/open', ['outletId' => $outletId, 'openingAmount' => 0])->getStatusCode());
         $this->assertSame(403, $barista->get('/pos/cash')->getStatusCode());
-        $this->assertSame(403, $cashier->get('/kds')->getStatusCode());
-        $this->assertSame(403, $cashier->post("/kds/orders/{$order['orderId']}/status", ['from' => 'queued', 'to' => 'preparing'])->getStatusCode());
+        $this->assertSame(403, $barista->get('/kds')->getStatusCode());
+        $this->assertSame(403, $barista->post("/kds/orders/{$order['orderId']}/status", ['from' => 'queued', 'to' => 'preparing'])->getStatusCode());
+        // Kasir = pusat pesanan.
+        $this->assertSame(200, $cashier->get('/kds')->getStatusCode());
 
         // Owner melihat KDS tetapi tidak mengubah status; POS tetap 403.
         $owner = $this->login($this->f('owner'));
@@ -274,8 +270,7 @@ class PaymentFlowTest extends ServerTestCase
         $flash = $this->act($cashier, "/pos/orders/{$placed['orderId']}/pay", ['tenderedAmount' => 70_000], "/pos/orders/{$placed['orderId']}");
         $this->assertStringContainsString('kembalian Rp 2.000', $flash['success'] ?? '');
 
-        $barista = $this->login($this->f('barista'));
-        $card = collect($this->props($barista, '/kds')['orders'])->firstWhere('id', $placed['orderId']);
+        $card = collect($this->props($cashier, '/kds')['orders'])->firstWhere('id', $placed['orderId']);
         $this->assertSame('queued', $card['status']);
         $this->assertSame([['Matcha', 2, ['Large']]], array_map(fn ($l) => [$l['productName'], $l['quantity'], array_column($l['modifiers'], 'name')], $card['lines']));
     }

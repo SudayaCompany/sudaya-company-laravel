@@ -37,6 +37,8 @@ final class RouteAccess
         '/admin/outside-duty' => ['attendance.approve_outside_duty', 'attendance.view'],
         '/admin' => ['dashboard.view'],
         '/staff/attendance' => ['attendance.checkin'],
+        // Beranda barista = absen (keputusan owner 12 November 2026).
+        '/barista' => ['attendance.checkin'],
         '/staff/outside-duty' => ['attendance.checkin'],
         '/staff' => Rbac::STAFF_APP_PERMISSIONS,
         '/pos' => ['order.create'],
@@ -74,7 +76,9 @@ final class RouteAccess
      */
     public static function landing(array $grants): ?string
     {
-        foreach (['/admin', '/staff', '/kds'] as $route) {
+        // Satu pintu /login, lalu sesuai peran: admin → /admin, kasir → pesanan masuk (/kds),
+        // barista → absen (/barista).
+        foreach (['/admin', '/kds', '/pos', '/barista', '/staff'] as $route) {
             if (AccessRules::hasAnyPermission($grants, self::MAP[$route])) {
                 return $route;
             }

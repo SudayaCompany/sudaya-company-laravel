@@ -45,6 +45,39 @@ final class OrderEngine
     ) {}
 
     /** Kode referensi pendek untuk dicari kasir sebelum nomor antrean ada. */
+    /**
+     * Pesanan pelanggan yang menunggu dibayar di kasir (ambil di counter + tunai, QRIS): tampil di
+     * Pesanan masuk agar kasir langsung tahu dan alarm berbunyi (keputusan owner 12 November 2026).
+     *
+     * @param  array{id: string}  $outlet
+     * @return list<array<string, mixed>>
+     */
+    public function awaitingPayment(User $actor, array $outlet): array
+    {
+        if (! $actor->can('payment.confirm_cash', AccessScope::outlet($outlet['id']))) {
+            return [];
+        }
+
+        return DB::table('orders')
+            ->where('company_id', $actor->company_id)->where('outlet_id', $outlet['id'])
+            ->where('status', 'pending_payment')->where('payment_status', 'pending')->where('channel', '!=', 'pos')
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', DB::raw('now()')))
+            ->orderBy('created_at')->limit(30)
+            ->get(['id', 'channel', 'type', 'customer_name', 'customer_department', 'table_number', 'location_note', 'total', 'created_at'])
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'reference' => self::reference($o->id),
+                'channel' => $o->channel,
+                'type' => $o->type,
+                'customerName' => $o->customer_name,
+                'customerDepartment' => $o->customer_department,
+                'tableNumber' => $o->table_number,
+                'locationNote' => $o->location_note,
+                'total' => (int) $o->total,
+                'createdAt' => date(DATE_ATOM, strtotime((string) $o->created_at)),
+            ])->values()->all();
+    }
+
     public static function reference(string $orderId): string
     {
         return strtoupper(substr(str_replace('-', '', $orderId), 0, 6));
@@ -96,6 +129,9 @@ final class OrderEngine
         if (! $isPos && ($nameError = CheckoutInput::requireCustomerName($input)) !== null) {
             throw new AccessException('invalid', $nameError);
         }
+        if (! $isPos && ($departmentError = CheckoutInput::requireDepartment($input)) !== null) {
+            throw new AccessException('invalid', $departmentError);
+        }
         $row = isset($outlet['id'])
             ? $this->loadOutlet('id', CatalogInput::uuid($outlet['id']))
             : $this->loadOutlet('code', strtoupper(trim($outlet['code'])));
@@ -138,15 +174,15 @@ final class OrderEngine
         return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $total, $payOnDelivery, $token, $requestHash, $context) {
             $inserted = DB::selectOne(
                 'insert into orders (company_id, brand_id, outlet_id, channel, type, status, payment_status,
-                    idempotency_key, request_hash, customer_name, customer_phone, table_number, location_note,
+                    idempotency_key, request_hash, customer_name, customer_phone, customer_department, table_number, location_note,
                     delivery_address, notes, subtotal, discount_total, total, pay_on_delivery, access_token_hash, expires_at, created_by)
-                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?::boolean, ?,
+                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?::boolean, ?,
                     case when ?::boolean then null else now() + make_interval(mins => ?::int) end, ?)
                  on conflict (outlet_id, idempotency_key) do nothing
                  returning id',
                 [
                     $row->company_id, $row->brand_id, $row->id, $channel, $input['type'],
-                    $input['idempotencyKey'], $requestHash, $input['customerName'], $input['customerPhone'],
+                    $input['idempotencyKey'], $requestHash, $input['customerName'], $input['customerPhone'], $input['department'],
                     $input['type'] === 'dine_in' ? $input['tableNumber'] : null,
                     $input['type'] === 'dine_in' ? $input['locationNote'] : null,
                     $input['type'] === 'delivery' ? $input['deliveryAddress'] : null,
@@ -184,6 +220,10 @@ final class OrderEngine
                 }
                 if (! OutletSettings::isActiveTable($row->id, $input['tableNumber'])) {
                     throw new AccessException('invalid', "Meja {$input['tableNumber']} tidak terdaftar atau sedang tidak aktif. Silakan tanyakan kasir.");
+                }
+                // Antar ke meja kantor: lantai + bagian/area meja wajib (keputusan owner 12 November 2026).
+                if (($locationError = CheckoutInput::requireDeskLocation($channel, $input)) !== null) {
+                    throw new AccessException('invalid', $locationError);
                 }
             }
             // Id item dibuat di sini agar item dan modifier masuk dalam satu insert masing-masing.
@@ -330,6 +370,7 @@ final class OrderEngine
                 'createdAt' => $this->iso($approval->created_at),
             ],
             'customerPhone' => $order->customer_phone,
+            'customerDepartment' => $order->customer_department ?? null,
             'locationNote' => $order->location_note,
             'deliveryAddress' => $order->delivery_address,
             'payOnDelivery' => (bool) $order->pay_on_delivery,
@@ -507,7 +548,7 @@ final class OrderEngine
         if (! $actor->can('kds.view', AccessScope::outlet($outlet['id']))) {
             throw AccessException::forbidden();
         }
-        $columns = ['id', 'order_number', 'queue_number', 'status', 'payment_status', 'pay_on_delivery', 'total', 'type', 'channel', 'customer_name', 'customer_phone', 'table_number', 'location_note', 'notes', 'paid_at', 'created_at', 'preparing_at', 'ready_at', 'completed_at'];
+        $columns = ['id', 'order_number', 'queue_number', 'status', 'payment_status', 'pay_on_delivery', 'total', 'type', 'channel', 'customer_name', 'customer_phone', 'customer_department', 'table_number', 'location_note', 'notes', 'paid_at', 'created_at', 'preparing_at', 'ready_at', 'completed_at'];
         $active = DB::table('orders')
             ->where('outlet_id', $outlet['id'])
             ->where('company_id', $actor->company_id)
@@ -536,6 +577,7 @@ final class OrderEngine
             'channel' => $o->channel,
             'customerName' => $o->customer_name,
             'customerPhone' => $o->customer_phone,
+            'customerDepartment' => $o->customer_department,
             'tableNumber' => $o->table_number,
             'locationNote' => $o->location_note,
             'notes' => $o->notes,

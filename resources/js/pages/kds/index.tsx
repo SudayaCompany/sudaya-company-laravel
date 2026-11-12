@@ -1,6 +1,22 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { BanknoteIcon, CheckCheckIcon, ChefHatIcon, InboxIcon, Loader2Icon, MaximizeIcon, MinimizeIcon, PlayIcon, TriangleAlertIcon, Undo2Icon, WifiOffIcon } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  BanknoteIcon,
+  BellRingIcon,
+  BikeIcon,
+  CheckCheckIcon,
+  ChefHatIcon,
+  InboxIcon,
+  Loader2Icon,
+  MaximizeIcon,
+  MessageCircleIcon,
+  MinimizeIcon,
+  PlayIcon,
+  TriangleAlertIcon,
+  Undo2Icon,
+  Volume2Icon,
+  WifiOffIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ConnectionBadge, useOnline } from "@/components/orders/live-refresh";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,6 +45,7 @@ type KdsOrder = {
   channel: OrderChannel;
   customerName: string | null;
   customerPhone?: string | null;
+  customerDepartment?: string | null;
   tableNumber: string | null;
   locationNote: string | null;
   notes: string | null;
@@ -44,10 +61,25 @@ type KdsOrder = {
   lines: OrderLine[];
 };
 
+type AwaitingOrder = {
+  id: string;
+  reference: string;
+  channel: OrderChannel;
+  type: OrderType;
+  customerName: string | null;
+  customerDepartment: string | null;
+  tableNumber: string | null;
+  locationNote: string | null;
+  total: number;
+  createdAt: string;
+};
+
 type Props = {
   outlet: { id: string; name: string };
   outlets: { id: string; name: string }[];
   orders: KdsOrder[];
+  /** Pesanan pelanggan menunggu dibayar di kasir (ambil di counter tunai, QRIS). */
+  awaiting?: AwaitingOrder[];
   canUpdate: boolean;
   canOverride: boolean;
   canTakePayment: boolean;
@@ -62,10 +94,18 @@ const ACTIVE: { status: ActiveStatus; accent: string }[] = [
 ];
 const TABS: OrderStatus[] = ["queued", "preparing", "ready", "completed"];
 
+// Alur kasir (keputusan owner 12 November 2026): pesanan baru diterima di kasir dulu, baru dibuat;
+// pesanan antar ke meja → "Antar sekarang" (pelanggan dikabari), lalu "Sudah diantar".
 const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: React.ReactNode; variant: "espresso" | "success" | "default" }>> = {
-  queued: { to: "preparing", label: "Mulai buat", icon: <PlayIcon />, variant: "espresso" },
-  preparing: { to: "ready", label: "Tandai siap", icon: <ChefHatIcon />, variant: "success" },
+  queued: { to: "preparing", label: "Terima pesanan", icon: <PlayIcon />, variant: "espresso" },
+  preparing: { to: "ready", label: "Siap diambil", icon: <ChefHatIcon />, variant: "success" },
   ready: { to: "completed", label: "Sudah diambil", icon: <CheckCheckIcon />, variant: "default" },
+};
+const COLUMN_LABELS: Record<ActiveStatus | "completed", string> = {
+  queued: "Pesanan baru",
+  preparing: "Sedang dibuat",
+  ready: "Siap / diantar",
+  completed: "Selesai",
 };
 const BACK: Partial<Record<OrderStatus, OrderStatus>> = { preparing: "queued", ready: "preparing" };
 
@@ -95,11 +135,113 @@ function subscribeFullscreen(callback: () => void) {
   return () => document.removeEventListener("fullscreenchange", callback);
 }
 
-/** Barista Display. Hanya order lunas yang tampil; urutan FIFO berdasarkan waktu bayar. */
-export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverride, canTakePayment, topic }: Props) {
+/**
+ * Alarm pesanan baru untuk perangkat kasir: bunyi keras berulang, getar, judul tab berkedip, dan
+ * notifikasi sistem sampai kasir menekan "Lihat pesanan". Browser mewajibkan satu sentuhan untuk
+ * mengizinkan suara, jadi tombol "Aktifkan suara" tampil sampai ditekan. Layar dijaga tetap menyala.
+ */
+type AlarmItem = { id: string; label: string; detail: string };
+
+function useNewOrderAlarm(items: AlarmItem[], enabled: boolean) {
+  const seen = useRef<Set<string> | null>(null);
+  const audio = useRef<AudioContext | null>(null);
+  const [fresh, setFresh] = useState<AlarmItem[]>([]);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (seen.current === null) {
+      seen.current = new Set(items.map((o) => o.id));
+      return;
+    }
+    const known = seen.current;
+    const added = items.filter((o) => !known.has(o.id));
+    added.forEach((o) => known.add(o.id));
+    if (enabled && added.length) setFresh((current) => [...current, ...added]);
+  }, [items, enabled]);
+
+  useEffect(() => {
+    if (fresh.length === 0) return;
+    const title = document.title;
+    let tick = 0;
+    const ring = () => {
+      const ctx = audio.current;
+      if (ctx && ctx.state === "running") {
+        [0, 0.22, 0.44].forEach((delay, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "square";
+          osc.frequency.value = i % 2 ? 1320 : 880;
+          gain.gain.value = 0.5;
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(ctx.currentTime + delay);
+          osc.stop(ctx.currentTime + delay + 0.18);
+        });
+      }
+      if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.([400, 150, 400]);
+      document.title = tick++ % 2 ? title : `(${fresh.length}) PESANAN BARU`;
+    };
+    ring();
+    const timer = window.setInterval(ring, 1600);
+    if ("Notification" in window && Notification.permission === "granted") {
+      const last = fresh[fresh.length - 1];
+      new Notification(`Pesanan baru ${last.label}`, {
+        body: last.detail,
+        tag: "sudaya-pesanan-baru",
+        requireInteraction: true,
+      });
+    }
+    return () => {
+      window.clearInterval(timer);
+      document.title = title;
+    };
+  }, [fresh]);
+
+  // Layar perangkat kasir tetap menyala selama halaman ini terbuka.
+  useEffect(() => {
+    if (!enabled || !armed || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const request = () => {
+      if (document.visibilityState === "visible") {
+        navigator.wakeLock.request("screen").then((l) => (lock = l), () => undefined);
+      }
+    };
+    request();
+    document.addEventListener("visibilitychange", request);
+    return () => {
+      document.removeEventListener("visibilitychange", request);
+      lock?.release().catch(() => undefined);
+    };
+  }, [enabled, armed]);
+
+  const arm = () => {
+    try {
+      const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      audio.current ??= AudioCtx ? new AudioCtx() : null;
+      void audio.current?.resume();
+    } catch {
+      audio.current = null;
+    }
+    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
+    setArmed(true);
+  };
+
+  return { fresh, armed, arm, acknowledge: () => setFresh([]) };
+}
+
+/** Pesanan masuk (perangkat kasir). Pesanan lunas atau bayar-saat-diantar; urut waktu masuk antrean. */
+export default function KdsPage({ outlet, outlets, orders, awaiting = [], canUpdate, canOverride, canTakePayment, topic }: Props) {
   const now = useNow();
+  const deskLabel = (channel: string, type: string) => (channel === "qr_table" && type === "dine_in" ? "Antar ke meja" : "Ambil di counter");
+  // Alarm: pesanan baru di antrean + pesanan yang menunggu dibayar di kasir.
+  const alarmItems: AlarmItem[] = [
+    // Pesanan pelanggan saja (pesanan POS diinput kasir sendiri); id sama dengan bagian "menunggu bayar"
+    // agar pesanan yang baru dibayar di kasir tidak membunyikan alarm lagi.
+    ...orders.filter((o) => o.status === "queued" && o.channel !== "pos").map((o) => ({ id: o.id, label: o.orderNumber ?? "", detail: `${o.customerName ?? "Tanpa nama"} · ${deskLabel(o.channel, o.type)}` })),
+    ...awaiting.map((o) => ({ id: o.id, label: o.reference, detail: `${o.customerName ?? "Tanpa nama"} · menunggu bayar · ${formatRupiah(o.total)}` })),
+  ];
+  const alarm = useNewOrderAlarm(alarmItems, canUpdate);
   // Polling cadangan lebih cepat di KDS: antrean berubah terus saat jam ramai.
-  const realtime = useRealtimeRefresh(topic, ["orders"], 5_000);
+  const realtime = useRealtimeRefresh(topic, ["orders", "awaiting"], 5_000);
   const online = useOnline();
   const [tab, setTab] = useState<OrderStatus>("queued");
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
@@ -112,8 +254,38 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
 
   return (
     <PosLayout outletId={outlet.id}>
-      <Head title="Barista display" />
+      <Head title="Pesanan masuk" />
       <main className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
+        {canUpdate && !alarm.armed ? (
+          <button
+            type="button"
+            onClick={alarm.arm}
+            className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand bg-brand-soft px-4 text-base font-semibold text-brand-strong"
+            data-testid="alarm-arm"
+          >
+            <Volume2Icon className="size-5" aria-hidden /> Ketuk untuk mengaktifkan suara & notifikasi pesanan baru
+          </button>
+        ) : null}
+        {alarm.fresh.length > 0 ? (
+          <div role="alert" className="sticky top-2 z-30 flex flex-col gap-3 rounded-2xl bg-destructive p-4 text-white shadow-2xl motion-safe:animate-pulse sm:flex-row sm:items-center" data-testid="new-order-alert">
+            <BellRingIcon className="size-10 shrink-0" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="text-2xl font-black tracking-wide uppercase">{alarm.fresh.length} pesanan baru!</p>
+              <p className="truncate text-sm font-medium">{alarm.fresh.map((o) => `${o.label} ${o.detail}`.trim()).join(" · ")}</p>
+            </div>
+            <Button
+              size="xl"
+              variant="outline"
+              className="bg-white text-destructive-strong"
+              onClick={() => {
+                alarm.acknowledge();
+                setTab("queued");
+              }}
+            >
+              Lihat pesanan
+            </Button>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="font-semibold">{outlet.name}</span>
@@ -160,6 +332,35 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
           </p>
         ) : null}
 
+        {awaiting.length > 0 ? (
+          <section aria-label="Menunggu bayar" className="flex flex-col gap-2 rounded-xl border-2 border-warning bg-warning/10 p-3" data-testid="awaiting-payment">
+            <h2 className="flex items-center justify-between text-sm font-bold tracking-wide uppercase">
+              Menunggu bayar di kasir
+              <span className="rounded-full bg-background px-2.5 py-0.5 tabular-nums">{awaiting.length}</span>
+            </h2>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {awaiting.map((o) => (
+                <li key={o.id} className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-lg font-bold">{o.reference}</p>
+                    <p className="truncate text-sm">
+                      {o.customerName ?? NO_NAME_LABEL}
+                      {o.customerDepartment ? ` · ${o.customerDepartment}` : ""}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {deskLabel(o.channel, o.type)}
+                      {o.tableNumber ? ` · Meja ${o.tableNumber}` : ""} · {formatRupiah(o.total)}
+                    </p>
+                  </div>
+                  <Link href={`/pos/orders/${o.id}`} className={cn(buttonVariants({ variant: "success", size: "lg" }), "shrink-0")}>
+                    <BanknoteIcon /> Proses bayar
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {/* Layar < 1024 px: tab per status, satu kolom terlihat. */}
         <div role="tablist" aria-label="Status pesanan" className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1 lg:hidden">
           {TABS.map((status) => {
@@ -176,7 +377,7 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
                   tab === status ? "bg-background shadow-sm" : "text-muted-foreground",
                 )}
               >
-                {ORDER_STATUS_LABELS[status]}
+                {COLUMN_LABELS[status as ActiveStatus | "completed"]}
                 <span className="tabular-nums">{count}</span>
               </button>
             );
@@ -190,11 +391,11 @@ export default function KdsPage({ outlet, outlets, orders, canUpdate, canOverrid
             return (
               <section
                 key={column.status}
-                aria-label={ORDER_STATUS_LABELS[column.status]}
+                aria-label={COLUMN_LABELS[column.status]}
                 className={cn("min-h-64 flex-col gap-3 rounded-xl border border-t-4 bg-muted/40 p-3", column.accent, tab === column.status ? "flex" : "hidden lg:flex")}
               >
                 <h2 className="flex items-center justify-between text-lg font-bold tracking-wide uppercase">
-                  {ORDER_STATUS_LABELS[column.status]}
+                  {COLUMN_LABELS[column.status]}
                   <span className="rounded-full bg-background px-2.5 py-0.5 text-sm tabular-nums">{items.length}</span>
                 </h2>
                 {items.length === 0 ? (
@@ -237,7 +438,14 @@ function OrderCard({
   const stageStart = order.status === "preparing" ? order.preparingAt : order.status === "ready" ? order.readyAt : null;
   const stage = elapsed(stageStart, now);
   const step = NEXT[order.status];
-  const next = step && step.to === "completed" && desk ? { ...step, label: "Sudah diantar" } : step;
+  const next =
+    step && desk
+      ? step.to === "ready"
+        ? { ...step, label: "Antar sekarang", icon: <BikeIcon /> }
+        : step.to === "completed"
+          ? { ...step, label: "Sudah diantar" }
+          : step
+      : step;
   const blockedByPayment = unpaid && next?.to === "completed";
   const back = BACK[order.status];
   const isLate = wait.minutes >= LATE_MINUTES;
@@ -261,7 +469,10 @@ function OrderCard({
             </span>
             {order.tableNumber ? <span className="font-semibold">· Meja {order.tableNumber}</span> : null}
           </p>
-          <p className="text-sm break-words text-muted-foreground">{order.customerName ?? NO_NAME_LABEL}</p>
+          <p className="text-sm break-words text-muted-foreground">
+            {order.customerName ?? NO_NAME_LABEL}
+            {order.customerDepartment ? <span className="font-semibold text-foreground"> · {order.customerDepartment}</span> : null}
+          </p>
           {order.locationNote ? <p className="text-sm text-muted-foreground">{order.locationNote}</p> : null}
           {unpaid ? (
             <p className="mt-1 inline-flex rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-warning-foreground" data-testid="kds-unpaid">
@@ -270,7 +481,7 @@ function OrderCard({
           ) : order.payOnDelivery ? (
             <p className="mt-1 inline-flex rounded-md bg-success px-1.5 py-0.5 text-xs font-bold text-success-foreground">LUNAS</p>
           ) : null}
-          {order.status === "ready" ? <WhatsAppReady order={order} /> : null}
+          {order.status === "ready" ? <WhatsAppReady order={order} cashDue={unpaid ? formatRupiah(order.total) : null} /> : null}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span
@@ -369,18 +580,37 @@ function CompletedStrip({ orders, active }: { orders: KdsOrder[]; active: boolea
   );
 }
 
-/** Pesanan siap: kabari pelanggan lewat WhatsApp staf (bila pelanggan mengisi nomor HP). */
-function WhatsAppReady({ order }: { order: { orderNumber: string | null; customerName: string | null; customerPhone?: string | null; channel: string; type: string } }) {
-  const href = whatsappReadyLink(order.customerPhone, { orderNumber: order.orderNumber, customerName: order.customerName, deskDelivery: order.channel === "qr_table" && order.type === "dine_in" });
-  if (!href) return null;
+/**
+ * Pesanan diantar/siap: kabari pelanggan lewat WhatsApp perangkat kasir dengan 1 ketukan (pesan siap
+ * kirim, termasuk lokasi dan pengingat uang tunai). Tanpa nomor HP, pelanggan dikabari lewat halaman
+ * status pesanan (notifikasi web).
+ */
+function WhatsAppReady({
+  order,
+  cashDue,
+}: {
+  order: { orderNumber: string | null; customerName: string | null; customerPhone?: string | null; channel: string; type: string; locationNote: string | null };
+  cashDue: string | null;
+}) {
+  const href = whatsappReadyLink(order.customerPhone, {
+    orderNumber: order.orderNumber,
+    customerName: order.customerName,
+    deskDelivery: order.channel === "qr_table" && order.type === "dine_in",
+    locationNote: order.locationNote,
+    cashDue,
+  });
+  if (!href) {
+    return <p className="mt-1 text-xs text-muted-foreground">Tanpa nomor WhatsApp: pelanggan dikabari lewat halaman status pesanan.</p>;
+  }
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener"
-      className="mt-1 inline-flex min-h-9 items-center gap-1 rounded-md bg-success/15 px-2 text-xs font-semibold text-success-strong pointer-coarse:min-h-11"
+      className="mt-2 flex min-h-11 items-center justify-center gap-2 rounded-lg bg-success px-3 text-sm font-semibold text-success-foreground"
+      data-testid="whatsapp-notify"
     >
-      Kabari via WhatsApp
+      <MessageCircleIcon className="size-4" aria-hidden /> Kirim notif WhatsApp
     </a>
   );
 }

@@ -85,7 +85,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       },
       { href: "/admin/cash", label: "Kas", icon: WalletIcon, visible: adminOnly("/admin/cash") },
       { href: "/admin/expenses", label: "Pengeluaran", icon: HandCoinsIcon, visible: nav("/admin/expenses") },
-      { href: "/kds", label: "Barista display", icon: MonitorIcon, visible: nav("/kds"), leavesAdmin: true },
+      { href: "/kds", label: "Pesanan masuk", icon: MonitorIcon, visible: nav("/kds"), leavesAdmin: true },
       { href: "/staff/attendance", label: "Absen saya", icon: UserRoundCheckIcon, visible: nav("/staff/attendance"), leavesAdmin: true },
     ],
   },

@@ -29,6 +29,15 @@ class AttendanceController
             ->header('Cache-Control', 'no-store');
     }
 
+    /** Daftar foto wajah sekali (pembanding selfie absen, diperiksa admin). */
+    public function face(Request $request): RedirectResponse
+    {
+        $this->engine->enrollFace($request->user(), $request->file('photo'), $request->boolean('consent'), AuditContext::fromRequest($request));
+        Inertia::flash('success', 'Foto wajah terdaftar. Sekarang Anda bisa absen.');
+
+        return back();
+    }
+
     public function checkIn(Request $request): RedirectResponse
     {
         $result = $this->engine->checkIn($request->user(), $this->position($request), $request->file('photo'), AuditContext::fromRequest($request));

@@ -65,23 +65,23 @@ class RbacTest extends TestCase
     }
 
     /** Keputusan owner 11 November 2026: Barista = absen + semua urusan pesanan (termasuk terima bayar saat diantar). */
-    public function test_barista_absen_dan_pesanan_termasuk_terima_bayar_tanpa_stok_kas_approval(): void
+    public function test_barista_hanya_absen(): void
     {
-        foreach (['attendance.checkin', 'order.create', 'order.update_status', 'kds.view', 'payment.confirm_cash'] as $permission) {
-            $this->assertTrue(self::roleHas('barista', $permission));
-        }
-        foreach (['dashboard.view', 'cash.open', 'cash.close', 'kds.manage', 'approval.approve', 'payment.refund', 'inventory.view', 'inventory.issue', 'inventory.adjust'] as $permission) {
-            $this->assertFalse(self::roleHas('barista', $permission));
+        // Keputusan owner 12 November 2026: pesanan hanya diproses lewat kasir agar tidak dobel.
+        $this->assertSame(['attendance.checkin', 'attendance.checkout'], Rbac::DEFAULT_ROLE_PERMISSIONS['barista']);
+        foreach (['order.view', 'order.create', 'order.update_status', 'kds.view', 'payment.confirm_cash', 'dashboard.view', 'cash.open', 'inventory.view'] as $permission) {
+            $this->assertFalse(self::roleHas('barista', $permission), $permission);
         }
     }
 
-    public function test_kasir_pos_pembayaran_sesi_kas_tanpa_kds(): void
+    public function test_kasir_pusat_pesanan_pembayaran_sesi_kas_tanpa_admin(): void
     {
-        foreach (['order.create', 'payment.confirm_cash', 'cash.open', 'cash.close'] as $permission) {
-            $this->assertTrue(self::roleHas('cashier', $permission));
+        foreach (['order.create', 'order.update_status', 'order.void', 'kds.view', 'payment.confirm_cash', 'cash.open', 'cash.close', 'attendance.checkin'] as $permission) {
+            $this->assertTrue(self::roleHas('cashier', $permission), $permission);
         }
-        $this->assertFalse(self::roleHas('cashier', 'kds.view'));
-        $this->assertFalse(self::roleHas('cashier', 'dashboard.view'));
+        foreach (['dashboard.view', 'kds.manage', 'approval.approve', 'payment.refund', 'inventory.view', 'product.edit'] as $permission) {
+            $this->assertFalse(self::roleHas('cashier', $permission), $permission);
+        }
     }
 
     public function test_setiap_role_selain_super_admin_subset_sejati(): void
@@ -96,8 +96,9 @@ class RbacTest extends TestCase
      * PHP harus sama persis dengan baseline agar data role di DB tetap berlaku.
      */
     private const DECIDED_DEVIATIONS = [
-        // 11 November 2026: Barista hanya absen + pesanan; terima uang bayar-saat-diantar di meja.
-        'barista' => ['remove' => ['inventory.view', 'inventory.issue'], 'add' => ['payment.view', 'payment.confirm_cash']],
+        // 12 November 2026: Barista hanya absen; semua urusan pesanan di akun kasir (perangkat Sudaya).
+        'barista' => ['remove' => ['order.view', 'order.create', 'order.update_status', 'order.void', 'kds.view', 'inventory.view', 'inventory.issue'], 'add' => []],
+        'cashier' => ['remove' => [], 'add' => ['order.update_status', 'order.void', 'kds.view']],
     ];
 
     /** Katalog PHP harus sama persis dengan baseline Next.js agar data role di DB tetap berlaku. */

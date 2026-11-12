@@ -102,6 +102,7 @@ class OrderEngineTest extends LiveTestCase
             'idempotencyKey' => (string) Str::uuid(),
             'type' => 'takeaway',
             'customerName' => 'Andi',
+            'department' => 'Fundraising',
             'paymentMethod' => 'cash',
             'lines' => [['productId' => static::$fixture['latte'], 'modifierIds' => [static::$fixture['large']], 'quantity' => 2]],
             ...$overrides,
@@ -194,16 +195,16 @@ class OrderEngineTest extends LiveTestCase
         $this->assertStringNotContainsString($created['accessToken'], (string) $log->after);
     }
 
-    public function test_pos_barista_dan_kiosk_memakai_engine_yang_sama(): void
+    public function test_pos_kasir_dan_kiosk_memakai_engine_yang_sama(): void
     {
         $f = static::$fixture;
-        $pos = $this->pos($this->checkout(['customerName' => null]), 'baristaA');
+        $pos = $this->pos($this->checkout(['customerName' => null]), 'cashierA');
         $kiosk = $this->guest($this->checkout(), 'kiosk');
         $web = $this->guest($this->checkout(), 'website');
         $counter = $this->guest($this->checkout(), 'qr_counter');
 
         $posRow = $this->orderRow($pos['orderId']);
-        $this->assertSame(['pos', $f['baristaA']['id'], null], [$posRow->channel, $posRow->created_by, $posRow->access_token_hash]);
+        $this->assertSame(['pos', $f['cashierA']['id'], null], [$posRow->channel, $posRow->created_by, $posRow->access_token_hash]);
         $this->assertNull($pos['accessToken']);
         $this->assertSame(['kiosk', null], [$this->orderRow($kiosk['orderId'])->channel, $this->orderRow($kiosk['orderId'])->created_by]);
         $this->assertSame('website', $this->orderRow($web['orderId'])->channel);
@@ -264,9 +265,9 @@ class OrderEngineTest extends LiveTestCase
         // Belum ada aturan ongkir resmi: total = harga item saja.
         $this->assertSame(31000 * 2, (int) $row->total);
 
-        $dineIn = $this->guest($this->checkout(['type' => 'dine_in', 'tableNumber' => 't03', 'locationNote' => 'teras', 'deliveryAddress' => 'Jl. Merdeka No. 10']));
+        $dineIn = $this->guest($this->checkout(['type' => 'dine_in', 'tableNumber' => 't03', 'floor' => '1', 'area' => 'teras', 'locationNote' => 'abaikan', 'deliveryAddress' => 'Jl. Merdeka No. 10']));
         $row = $this->orderRow($dineIn['orderId']);
-        $this->assertSame(['T03', 'teras', null], [$row->table_number, $row->location_note, $row->delivery_address]);
+        $this->assertSame(['T03', 'Lantai 1 · teras', null, 'Fundraising'], [$row->table_number, $row->location_note, $row->delivery_address, $row->customer_department]);
     }
 
     public function test_channel_pos_wajib_staf_berizin_dan_outlet_company_sendiri(): void
@@ -425,10 +426,10 @@ class OrderEngineTest extends LiveTestCase
     public function test_detail_dan_daftar_staf_terbatas_company_dan_izin(): void
     {
         $f = static::$fixture;
-        $created = $this->pos($this->checkout(['customerName' => 'Detail Test', 'customerPhone' => '081234567890']), 'baristaA');
+        $created = $this->pos($this->checkout(['customerName' => 'Detail Test', 'customerPhone' => '081234567890']), 'cashierA');
 
         $detail = $this->engine()->detail($this->actor('cashierA'), $created['orderId']);
-        $this->assertSame([$created['orderId'], $f['A']['outletId'], '081234567890', $f['baristaA']['fullName']], [$detail['id'], $detail['outletId'], $detail['customerPhone'], $detail['createdByName']]);
+        $this->assertSame([$created['orderId'], $f['A']['outletId'], '081234567890', $f['cashierA']['fullName']], [$detail['id'], $detail['outletId'], $detail['customerPhone'], $detail['createdByName']]);
         $this->assertCount(1, $detail['payments']);
         $this->assertSame(['cash', 'pending'], [$detail['payments'][0]['method'], $detail['payments'][0]['status']]);
         $this->assertSame(['order.created'], array_column($detail['history'], 'action'));
