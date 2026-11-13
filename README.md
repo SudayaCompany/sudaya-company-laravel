@@ -32,8 +32,10 @@ npm install
 cp .env.example .env        # isi DB_URL dan kunci Supabase development
 php artisan key:generate
 npm run build               # atau `npm run dev` saat mengubah tampilan
-php artisan serve
+npm run serve               # http://127.0.0.1:8000, 4 proses PHP paralel
 ```
+
+Pakai `npm run serve`, bukan `php artisan serve`/`php -S`: server bawaan PHP di Windows hanya melayani satu request dalam satu waktu, sehingga dengan database dev yang jauh, alarm kasir dan muat ulang otomatis membuat klik menu mengantre lama. Bila `php` di PATH bukan PHP 8.3+ dengan `pdo_pgsql` (mis. PHP bawaan XAMPP), skrip berhenti dengan pesan; set `PHP_BINARY` ke php.exe yang benar (Git Bash: `PHP_BINARY=C:/path/ke/php.exe npm run serve`; PowerShell: `$env:PHP_BINARY="C:\path\ke\php.exe"; npm run serve`). Opsi lain: `PORT`, `WORKERS`. Server ini juga memakai ulang koneksi database per proses dan mengirim tiap query dalam satu round trip (`DB_PERSISTENT`, `DB_DISABLE_PREPARES` hanya untuk proses server ini; `.env` tidak berubah), sehingga klik menu ke database dev yang jauh sekitar tiga kali lebih cepat. Hanya untuk lokal; production memakai Nginx + PHP-FPM (lihat [deploy/](deploy)).
 
 Database development adalah project Supabase bersama: jangan menjalankan `migrate:fresh`, `migrate:rollback`, atau `db:wipe` ke sana. Project Supabase **baru dan kosong** dipasang dengan `php artisan migrate --force` (schema dasar di [database/schema/baseline](database/schema/baseline), lalu migration Laravel); di database yang sudah berisi, schema dasar dilewati.
 

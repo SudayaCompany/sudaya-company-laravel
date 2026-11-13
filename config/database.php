@@ -98,7 +98,13 @@ return [
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             // Transaction pooler tidak mendukung prepared statement di sisi server.
-            'options' => [PDO::ATTR_EMULATE_PREPARES => (bool) env('DB_EMULATE_PREPARES', false)],
+            // DB_PERSISTENT / DB_DISABLE_PREPARES default mati; dinyalakan oleh server lokal
+            // (scripts/dev-server.mjs) karena database dev jauh: koneksi dipakai ulang antar-request dan
+            // tiap query 1 round trip (PQexecParams, parameter tetap diikat di server) alih-alih 3
+            // (prepare, execute, deallocate). Production belum diuji dengan opsi ini.
+            'options' => [PDO::ATTR_EMULATE_PREPARES => (bool) env('DB_EMULATE_PREPARES', false)]
+                + (env('DB_PERSISTENT', false) ? [PDO::ATTR_PERSISTENT => true] : [])
+                + (env('DB_DISABLE_PREPARES', false) ? [(class_exists('Pdo\Pgsql') ? Pdo\Pgsql::ATTR_DISABLE_PREPARES : PDO::PGSQL_ATTR_DISABLE_PREPARES) => true] : []),
         ],
 
         'sqlsrv' => [

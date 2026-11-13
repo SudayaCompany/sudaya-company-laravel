@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "serve": "node scripts/dev-server.mjs"
     },
     "devDependencies": {
         "@fontsource-variable/geist": "^5.3.0",
