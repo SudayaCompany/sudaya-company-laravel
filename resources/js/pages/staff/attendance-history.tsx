@@ -1,8 +1,7 @@
-import { Head, Link, router } from "@inertiajs/react";
-import { ArrowLeftIcon, CalendarClockIcon, ClipboardPenIcon, Loader2Icon } from "lucide-react";
+import { router } from "@inertiajs/react";
+import { CalendarClockIcon, ClipboardPenIcon, Loader2Icon } from "lucide-react";
 import { useState } from "react";
 
-import { Brand } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { StaffShell } from "@/layouts/staff-shell";
 import { formatMinutes } from "@/lib/attendance";
 import { useInlineFlashError } from "@/lib/feedback";
 
@@ -32,18 +32,7 @@ export default function AttendanceHistory({ month, timezone, rows, totals }: Pro
   const openSessions = rows.filter((r) => r.checkOutAt === null);
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-5 px-4 py-5">
-      <Head title="Riwayat absen" />
-      <header className="flex items-center justify-between gap-3">
-        <Link
-          href="/staff/attendance"
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-sm text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <ArrowLeftIcon className="size-4" aria-hidden /> Absen
-        </Link>
-        <Brand className="text-lg" />
-      </header>
-
+    <StaffShell title="Riwayat absen">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Riwayat absen</h1>
@@ -85,7 +74,7 @@ export default function AttendanceHistory({ month, timezone, rows, totals }: Pro
           ))}
         </ul>
       )}
-    </div>
+    </StaffShell>
   );
 }
 

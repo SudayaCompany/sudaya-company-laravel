@@ -12,8 +12,9 @@ export function AreaPage({ area = "pos", outletId, className, children }: { area
       </AdminLayout>
     );
   }
+  const width = className?.match(/max-w-\S+/)?.[0];
   return (
-    <PosLayout outletId={outletId}>
+    <PosLayout outletId={outletId} tabsClassName={cn("mx-auto w-full px-4 pt-4", width)}>
       <main className={cn("mx-auto flex w-full flex-col gap-4 p-4", className)}>{children}</main>
     </PosLayout>
   );

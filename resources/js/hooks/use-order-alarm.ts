@@ -54,7 +54,14 @@ export function useNewOrderAlarm(items: AlarmItem[] | null, enabled: boolean) {
     const known = seen;
     const added = items.filter((o) => !known.has(o.id));
     added.forEach((o) => known.add(o.id));
-    if (enabled && added.length) setFresh((current) => [...current, ...added]);
+    // Sinkron antar perangkat: pesanan yang sudah diterima atau dibatalkan di perangkat lain tidak ada
+    // lagi di umpan, jadi alarmnya berhenti juga di sini tanpa perlu diketuk.
+    const present = new Set(items.map((o) => o.id));
+    setFresh((current) => {
+      const kept = current.filter((o) => present.has(o.id));
+      const next = enabled && added.length ? [...kept, ...added] : kept;
+      return next.length === current.length && next.every((o, i) => o === current[i]) ? current : next;
+    });
   }, [items, enabled]);
 
   useEffect(() => {

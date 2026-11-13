@@ -1,11 +1,11 @@
-import { Head, Link, router } from "@inertiajs/react";
-import { Loader2Icon, PencilIcon, PlusIcon, ShoppingCartIcon, TruckIcon } from "lucide-react";
+import { Head, router } from "@inertiajs/react";
+import { Loader2Icon, PencilIcon, PlusIcon, TruckIcon } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,9 +40,6 @@ export default function SuppliersPage({ suppliers, canManage }: { suppliers: Sup
       <Head title="Supplier" />
       <PageHeader title="Supplier" description={`${suppliers.filter((s) => s.isActive).length} supplier aktif · kontak, produk, termin, dan histori pembelian`}>
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/purchase-orders" className={buttonVariants({ variant: "outline" })}>
-            <ShoppingCartIcon /> Purchase order
-          </Link>
           {canManage ? (
             <Button onClick={() => setEditing("new")}>
               <PlusIcon /> Supplier baru

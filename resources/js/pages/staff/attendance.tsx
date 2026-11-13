@@ -1,6 +1,5 @@
-import { Head, Link, router } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import {
-  ArrowLeftIcon,
   BriefcaseBusinessIcon,
   CameraIcon,
   CircleCheckIcon,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Brand } from "@/components/brand";
 import { InstallApp } from "@/components/install-app";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { checkLocation, currentPosition, formatMinutes, shrinkPhoto, type LocationCheck, type Position } from "@/lib/attendance";
 import { useInlineFlashError } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
+import { StaffShell } from "@/layouts/staff-shell";
 
 type Employee = {
   id: string;
@@ -459,20 +458,10 @@ function Notice({ tone, children }: { tone: "warning" | "info"; children: React.
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-5 px-4 py-5">
-      <Head title="Absen" />
-      <header className="flex items-center justify-between gap-3">
-        <Link
-          href="/staff"
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-sm text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <ArrowLeftIcon className="size-4" aria-hidden /> Beranda
-        </Link>
-        <Brand className="text-lg" />
-      </header>
+    <StaffShell title="Absen">
       <h1 className="sr-only">Absen</h1>
       <InstallApp />
       {children}
-    </div>
+    </StaffShell>
   );
 }

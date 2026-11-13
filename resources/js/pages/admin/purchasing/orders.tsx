@@ -1,5 +1,5 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { PlusIcon, ShoppingCartIcon, TruckIcon } from "lucide-react";
+import { PlusIcon, ShoppingCartIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -38,9 +38,6 @@ export default function PurchaseOrders({ outlets, outlet, status, statuses, orde
       <Head title="Purchase order" />
       <PageHeader title="Purchase order" description={`${outlet.name} · ajukan pembelian → disetujui Owner/Manager → terima barang → stok bertambah otomatis`}>
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/suppliers" className={buttonVariants({ variant: "outline" })}>
-            <TruckIcon /> Supplier
-          </Link>
           {canCreate ? (
             <Link href={`/admin/purchase-orders/create?outlet=${outlet.id}`} className={buttonVariants()}>
               <PlusIcon /> Buat PO

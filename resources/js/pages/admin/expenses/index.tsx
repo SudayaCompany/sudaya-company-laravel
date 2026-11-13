@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { AdminLayout } from "@/layouts/admin-layout";
+import { RoleLayout } from "@/layouts/role-layout";
 import { shrinkPhoto } from "@/lib/attendance";
 import { useInlineFlashError } from "@/lib/feedback";
 import { formatRupiah } from "@/lib/format";
@@ -104,7 +104,7 @@ export default function ExpensesPage({ outlets, outlet, today, categories, repor
   const ready = v.category !== "" && Number(v.amount) > 0 && v.description.trim().length >= 3;
 
   return (
-    <AdminLayout>
+    <RoleLayout outletId={outlet.id}>
       <Head title="Pengeluaran" />
       <PageHeader title="Pengeluaran" description={`${outlet.name} · parkir, transport, pembelian kecil, perawatan. Disetujui Owner atau Manager.`}>
         <div className="flex flex-wrap items-end gap-3">
@@ -275,6 +275,6 @@ export default function ExpensesPage({ outlets, outlet, today, categories, repor
           )}
         </section>
       </div>
-    </AdminLayout>
+    </RoleLayout>
   );
 }

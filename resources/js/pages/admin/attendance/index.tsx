@@ -1,11 +1,11 @@
-import { Head, Link, router } from "@inertiajs/react";
-import { BriefcaseBusinessIcon, ClockIcon, ImageOffIcon, LogOutIcon, SheetIcon, UserRoundCheckIcon, UsersIcon, UserRoundXIcon } from "lucide-react";
+import { Head, router } from "@inertiajs/react";
+import { BriefcaseBusinessIcon, ClockIcon, ImageOffIcon, LogOutIcon, UserRoundCheckIcon, UsersIcon, UserRoundXIcon } from "lucide-react";
 import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,9 +77,6 @@ export default function AttendanceBoard({ outlets, outlet, board, outsideDuties 
               </NativeSelect>
             </div>
           ) : null}
-          <Link href={`/admin/attendance/reports?outlet=${outlet.id}`} className={buttonVariants({ variant: "outline" })}>
-            <SheetIcon /> Rekap & ekspor
-          </Link>
         </div>
       </PageHeader>
 
