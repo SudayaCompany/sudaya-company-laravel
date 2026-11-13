@@ -127,45 +127,74 @@ export function useNewOrderAlarm(items: AlarmItem[] | null, enabled: boolean) {
   return { fresh, armed, arm, acknowledge: () => setFresh([]) };
 }
 
+type AlarmFeed = { queued: AlarmQueued[]; awaiting: AlarmAwaiting[] };
+
+const FEED_INTERVAL_MS = 5_000;
+// Bersama untuk seluruh sesi aplikasi: layout kasir dipasang ulang setiap pindah halaman.
+/** Umpan terakhir per outlet. */
+let lastFeed: { key: string; feed: AlarmFeed; at: number } | null = null;
+/** Request yang sedang berjalan; halaman berikutnya ikut menunggu hasilnya, tidak membuat request baru. */
+let pending: { key: string; result: Promise<AlarmFeed | "denied" | null> } | null = null;
+
+function fetchAlarmFeed(key: string): Promise<AlarmFeed | "denied" | null> {
+  if (pending?.key === key) return pending.result;
+  const result = (async (): Promise<AlarmFeed | "denied" | null> => {
+    try {
+      const response = await fetch(`/kds/alarm${key ? `?outlet=${encodeURIComponent(key)}` : ""}`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      });
+      if (response.status === 401 || response.status === 403 || response.status === 419) return "denied";
+      if (!response.ok) return null;
+      const body = (await response.json()) as { queued?: AlarmQueued[]; awaiting?: AlarmAwaiting[] };
+      const feed = { queued: body.queued ?? [], awaiting: body.awaiting ?? [] };
+      lastFeed = { key, feed, at: Date.now() };
+      return feed;
+    } catch {
+      // Jaringan putus sebentar: coba lagi di putaran berikutnya.
+      return null;
+    }
+  })();
+  const entry = { key, result };
+  pending = entry;
+  void result.finally(() => {
+    if (pending === entry) pending = null;
+  });
+  return result;
+}
+
 /**
  * Umpan alarm untuk halaman kasir selain Pesanan masuk: diambil berkala (5 detik, tanpa tumpang
  * tindih) dari server, yang memeriksa izin. Null sampai termuat; berhenti bila tidak berizin.
+ * Pindah halaman tidak memicu request baru: data terakhir langsung dipakai, request yang masih
+ * berjalan ditunggu (tidak dibatalkan lalu diulang), dan jadwal 5 detik dilanjutkan.
  */
 export function useAlarmFeed(enabled: boolean, outletId?: string) {
-  const [feed, setFeed] = useState<{ queued: AlarmQueued[]; awaiting: AlarmAwaiting[] } | null>(null);
+  const key = outletId ?? "";
+  const [feed, setFeed] = useState<AlarmFeed | null>(() => (lastFeed?.key === key ? lastFeed.feed : null));
 
   useEffect(() => {
     if (!enabled) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const load = async () => {
-      try {
-        const response = await fetch(`/kds/alarm${outletId ? `?outlet=${encodeURIComponent(outletId)}` : ""}`, {
-          headers: { Accept: "application/json" },
-          credentials: "same-origin",
-        });
-        if (response.status === 401 || response.status === 403 || response.status === 419) {
-          stopped = true;
-          return;
-        }
-        if (response.ok) {
-          const body = (await response.json()) as { queued?: AlarmQueued[]; awaiting?: AlarmAwaiting[] };
-          if (!stopped) setFeed({ queued: body.queued ?? [], awaiting: body.awaiting ?? [] });
-        }
-      } catch {
-        // Jaringan putus sebentar: coba lagi di putaran berikutnya.
-      }
-    };
     const tick = async () => {
-      await load();
-      if (!stopped) timer = setTimeout(tick, 5_000);
+      const result = await fetchAlarmFeed(key);
+      if (stopped) return;
+      if (result === "denied") {
+        stopped = true;
+        return;
+      }
+      if (result) setFeed(result);
+      timer = setTimeout(tick, FEED_INTERVAL_MS);
     };
-    void tick();
+    const cached = lastFeed?.key === key ? lastFeed : null;
+    const wait = pending?.key === key || !cached ? 0 : Math.max(0, cached.at + FEED_INTERVAL_MS - Date.now());
+    timer = setTimeout(tick, wait);
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [enabled, outletId]);
+  }, [enabled, key]);
 
   return enabled ? feed : null;
 }
