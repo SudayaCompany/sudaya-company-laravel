@@ -44,7 +44,6 @@ final class OrderEngine
         private Storefront $storefront,
     ) {}
 
-    /** Kode referensi pendek untuk dicari kasir sebelum nomor antrean ada. */
     /**
      * Pesanan pelanggan yang menunggu dibayar di kasir (ambil di counter + tunai, QRIS): tampil di
      * Pesanan masuk agar kasir langsung tahu dan alarm berbunyi (keputusan owner 12 November 2026).
@@ -78,6 +77,37 @@ final class OrderEngine
             ])->values()->all();
     }
 
+    /**
+     * Umpan alarm pesanan baru untuk semua halaman kasir (keputusan owner 12 November 2026: notif
+     * pesanan baru harus selalu terdengar, bukan hanya di layar Pesanan masuk): pesanan pelanggan
+     * di antrean yang belum diterima + yang menunggu dibayar di kasir. Kosong bila actor tidak
+     * memproses pesanan di outlet ini.
+     *
+     * @param  array{id: string}  $outlet
+     * @return array{queued: list<array<string, mixed>>, awaiting: list<array<string, mixed>>}
+     */
+    public function alarmFeed(User $actor, array $outlet): array
+    {
+        if (! $actor->can('order.update_status', AccessScope::outlet($outlet['id']))) {
+            return ['queued' => [], 'awaiting' => []];
+        }
+        $queued = DB::table('orders')
+            ->where('company_id', $actor->company_id)->where('outlet_id', $outlet['id'])
+            ->where('status', 'queued')->where('channel', '!=', 'pos')
+            ->orderBy('created_at')->limit(30)
+            ->get(['id', 'order_number', 'customer_name', 'channel', 'type'])
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'orderNumber' => $o->order_number,
+                'customerName' => $o->customer_name,
+                'channel' => $o->channel,
+                'type' => $o->type,
+            ])->values()->all();
+
+        return ['queued' => $queued, 'awaiting' => $this->awaitingPayment($actor, $outlet)];
+    }
+
+    /** Kode referensi pendek untuk dicari kasir sebelum nomor antrean ada. */
     public static function reference(string $orderId): string
     {
         return strtoupper(substr(str_replace('-', '', $orderId), 0, 6));

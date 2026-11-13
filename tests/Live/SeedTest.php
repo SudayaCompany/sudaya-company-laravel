@@ -3,6 +3,7 @@
 namespace Tests\Live;
 
 use App\Services\Seed\InitialData;
+use App\Support\Access\Rbac;
 use Illuminate\Support\Facades\DB;
 
 /** Padanan tests/integration/seed.test.ts. */
@@ -75,6 +76,10 @@ class SeedTest extends LiveTestCase
 
         $this->assertCount(6, $company['roles']);
         $this->assertSame(41, DB::table('role_permissions')->where('role_id', $company['roles']['super_admin'])->count());
-        $this->assertSame(11, DB::table('role_permissions')->where('role_id', $company['roles']['cashier'])->count());
+        $this->assertSame(14, DB::table('role_permissions')->where('role_id', $company['roles']['cashier'])->count());
+        // Keputusan owner 12 November 2026: kasir = pusat pesanan (+ Pesanan masuk, status, batal), barista = absen saja.
+        $codes = fn (string $role) => DB::table('role_permissions')->where('role_id', $company['roles'][$role])->pluck('permission_code')->all();
+        $this->assertEqualsCanonicalizing(Rbac::DEFAULT_ROLE_PERMISSIONS['cashier'], $codes('cashier'));
+        $this->assertEqualsCanonicalizing(['attendance.checkin', 'attendance.checkout'], $codes('barista'));
     }
 }

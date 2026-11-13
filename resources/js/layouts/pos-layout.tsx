@@ -1,8 +1,11 @@
-import { Link, usePage } from "@inertiajs/react";
-import { LayoutDashboardIcon } from "lucide-react";
+import { Link, router, usePage } from "@inertiajs/react";
+import { LayoutDashboardIcon, Volume2Icon } from "lucide-react";
+import { useMemo } from "react";
 
 import { Brand } from "@/components/brand";
 import { LogoutButton } from "@/components/logout-button";
+import { NewOrderAlert } from "@/components/orders/new-order-alert";
+import { buildAlarmItems, useAlarmFeed, useNewOrderAlarm } from "@/hooks/use-order-alarm";
 import { cn } from "@/lib/utils";
 import type { SharedProps } from "@/types";
 
@@ -25,6 +28,14 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
   const items = auth ? NAV.filter((item) => item.visible(auth)) : [];
   // Logo kembali ke halaman yang memang boleh dibuka (Owner tidak punya akses Kasir).
   const home = !auth || auth.navigation.includes("/pos") ? "/pos" : auth.navigation.includes("/admin") ? "/admin" : "/staff";
+  // Alarm pesanan baru di semua halaman kasir (keputusan owner 12 November 2026). Layar Pesanan masuk
+  // punya alarm sendiri dari datanya; status "sudah dilihat" & izin suara dipakai bersama.
+  const onKds = pathname === "/kds" || pathname.startsWith("/kds/");
+  const alarmEnabled = !!auth && !onKds && auth.navigation.includes("/kds") && auth.permissions.includes("order.update_status");
+  const feed = useAlarmFeed(alarmEnabled, outletId);
+  const alarmItems = useMemo(() => (feed ? buildAlarmItems(feed.queued, feed.awaiting) : null), [feed]);
+  const alarm = useNewOrderAlarm(alarmItems, alarmEnabled);
+  const kdsHref = outletId ? `/kds?outlet=${outletId}` : "/kds";
 
   return (
     <div className="flex min-h-svh flex-1 flex-col bg-muted/30">
@@ -62,6 +73,28 @@ export function PosLayout({ outletId, children }: { outletId?: string; children:
         <span className="hidden text-sm text-neutral-300 lg:inline">{props.auth?.user.fullName}</span>
         <LogoutButton variant="ghost" />
       </header>
+      {alarmEnabled && !alarm.armed ? (
+        <button
+          type="button"
+          onClick={alarm.arm}
+          className="flex min-h-11 w-full items-center justify-center gap-2 border-b border-brand/40 bg-brand-soft px-4 text-sm font-semibold text-brand-strong print:hidden"
+          data-testid="alarm-arm-bar"
+        >
+          <Volume2Icon className="size-4" aria-hidden /> Ketuk untuk mengaktifkan suara pesanan baru
+        </button>
+      ) : null}
+      {alarmEnabled && alarm.fresh.length > 0 ? (
+        <div className="sticky top-14 z-20 px-3 pt-3 sm:px-4 print:hidden">
+          <NewOrderAlert
+            items={alarm.fresh}
+            onLater={alarm.acknowledge}
+            onView={() => {
+              alarm.acknowledge();
+              router.visit(kdsHref);
+            }}
+          />
+        </div>
+      ) : null}
       <div className="flex flex-1 flex-col">{children}</div>
     </div>
   );

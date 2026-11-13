@@ -139,6 +139,7 @@ class AccessRulesTest extends TestCase
         $this->assertTrue(RouteAccess::canAccess($barista, '/barista'));
         $this->assertTrue(RouteAccess::canAccess($barista, '/staff/attendance'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/kds'), 'pesanan hanya lewat kasir agar tidak dobel');
+        $this->assertFalse(RouteAccess::canAccess($barista, '/kds/alarm'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos/orders'));
     }
@@ -147,6 +148,8 @@ class AccessRulesTest extends TestCase
     {
         $cashier = [self::grant('cashier', self::OUTLET_A)];
         $this->assertTrue(RouteAccess::canAccess($cashier, '/kds'));
+        // Umpan alarm pesanan baru untuk semua halaman kasir.
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/kds/alarm'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos/orders'));
         $this->assertFalse(RouteAccess::canAccess($cashier, '/admin'));

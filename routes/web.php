@@ -99,6 +99,8 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::post('/pos/cash/movements', [CashController::class, 'movement']);
         Route::post('/pos/cash/close', [CashController::class, 'close']);
         Route::get('/kds', KdsController::class);
+        // Alarm pesanan baru di semua halaman kasir (keputusan owner 12 November 2026).
+        Route::get('/kds/alarm', [KdsController::class, 'alarm']);
         Route::post('/kds/orders/{order}/status', [OrderActionController::class, 'status']);
 
         Route::prefix('admin')->group(function () {

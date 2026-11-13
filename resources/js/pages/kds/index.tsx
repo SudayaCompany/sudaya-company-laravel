@@ -1,7 +1,6 @@
 import { Head, Link, router } from "@inertiajs/react";
 import {
   BanknoteIcon,
-  BellRingIcon,
   BikeIcon,
   CheckCheckIcon,
   ChefHatIcon,
@@ -16,11 +15,13 @@ import {
   Volume2Icon,
   WifiOffIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { ConnectionBadge, useOnline } from "@/components/orders/live-refresh";
+import { NewOrderAlert } from "@/components/orders/new-order-alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { buildAlarmItems, deskLabel, useNewOrderAlarm } from "@/hooks/use-order-alarm";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { PosLayout } from "@/layouts/pos-layout";
 import {
@@ -135,111 +136,12 @@ function subscribeFullscreen(callback: () => void) {
   return () => document.removeEventListener("fullscreenchange", callback);
 }
 
-/**
- * Alarm pesanan baru untuk perangkat kasir: bunyi keras berulang, getar, judul tab berkedip, dan
- * notifikasi sistem sampai kasir menekan "Lihat pesanan". Browser mewajibkan satu sentuhan untuk
- * mengizinkan suara, jadi tombol "Aktifkan suara" tampil sampai ditekan. Layar dijaga tetap menyala.
- */
-type AlarmItem = { id: string; label: string; detail: string };
-
-function useNewOrderAlarm(items: AlarmItem[], enabled: boolean) {
-  const seen = useRef<Set<string> | null>(null);
-  const audio = useRef<AudioContext | null>(null);
-  const [fresh, setFresh] = useState<AlarmItem[]>([]);
-  const [armed, setArmed] = useState(false);
-
-  useEffect(() => {
-    if (seen.current === null) {
-      seen.current = new Set(items.map((o) => o.id));
-      return;
-    }
-    const known = seen.current;
-    const added = items.filter((o) => !known.has(o.id));
-    added.forEach((o) => known.add(o.id));
-    if (enabled && added.length) setFresh((current) => [...current, ...added]);
-  }, [items, enabled]);
-
-  useEffect(() => {
-    if (fresh.length === 0) return;
-    const title = document.title;
-    let tick = 0;
-    const ring = () => {
-      const ctx = audio.current;
-      if (ctx && ctx.state === "running") {
-        [0, 0.22, 0.44].forEach((delay, i) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = "square";
-          osc.frequency.value = i % 2 ? 1320 : 880;
-          gain.gain.value = 0.5;
-          osc.connect(gain).connect(ctx.destination);
-          osc.start(ctx.currentTime + delay);
-          osc.stop(ctx.currentTime + delay + 0.18);
-        });
-      }
-      if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.([400, 150, 400]);
-      document.title = tick++ % 2 ? title : `(${fresh.length}) PESANAN BARU`;
-    };
-    ring();
-    const timer = window.setInterval(ring, 1600);
-    if ("Notification" in window && Notification.permission === "granted") {
-      const last = fresh[fresh.length - 1];
-      new Notification(`Pesanan baru ${last.label}`, {
-        body: last.detail,
-        tag: "sudaya-pesanan-baru",
-        requireInteraction: true,
-      });
-    }
-    return () => {
-      window.clearInterval(timer);
-      document.title = title;
-    };
-  }, [fresh]);
-
-  // Layar perangkat kasir tetap menyala selama halaman ini terbuka.
-  useEffect(() => {
-    if (!enabled || !armed || !("wakeLock" in navigator)) return;
-    let lock: WakeLockSentinel | null = null;
-    const request = () => {
-      if (document.visibilityState === "visible") {
-        navigator.wakeLock.request("screen").then((l) => (lock = l), () => undefined);
-      }
-    };
-    request();
-    document.addEventListener("visibilitychange", request);
-    return () => {
-      document.removeEventListener("visibilitychange", request);
-      lock?.release().catch(() => undefined);
-    };
-  }, [enabled, armed]);
-
-  const arm = () => {
-    try {
-      const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      audio.current ??= AudioCtx ? new AudioCtx() : null;
-      void audio.current?.resume();
-    } catch {
-      audio.current = null;
-    }
-    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
-    setArmed(true);
-  };
-
-  return { fresh, armed, arm, acknowledge: () => setFresh([]) };
-}
-
 /** Pesanan masuk (perangkat kasir). Pesanan lunas atau bayar-saat-diantar; urut waktu masuk antrean. */
 export default function KdsPage({ outlet, outlets, orders, awaiting = [], canUpdate, canOverride, canTakePayment, topic }: Props) {
   const now = useNow();
-  const deskLabel = (channel: string, type: string) => (channel === "qr_table" && type === "dine_in" ? "Antar ke meja" : "Ambil di counter");
-  // Alarm: pesanan baru di antrean + pesanan yang menunggu dibayar di kasir.
-  const alarmItems: AlarmItem[] = [
-    // Pesanan pelanggan saja (pesanan POS diinput kasir sendiri); id sama dengan bagian "menunggu bayar"
-    // agar pesanan yang baru dibayar di kasir tidak membunyikan alarm lagi.
-    ...orders.filter((o) => o.status === "queued" && o.channel !== "pos").map((o) => ({ id: o.id, label: o.orderNumber ?? "", detail: `${o.customerName ?? "Tanpa nama"} · ${deskLabel(o.channel, o.type)}` })),
-    ...awaiting.map((o) => ({ id: o.id, label: o.reference, detail: `${o.customerName ?? "Tanpa nama"} · menunggu bayar · ${formatRupiah(o.total)}` })),
-  ];
-  const alarm = useNewOrderAlarm(alarmItems, canUpdate);
+  // Alarm: pesanan pelanggan baru di antrean + yang menunggu dibayar di kasir. Status "sudah dilihat"
+  // dan izin suara dipakai bersama layout kasir, jadi alarm juga berbunyi di halaman Kasir/Pesanan/Kas.
+  const alarm = useNewOrderAlarm(buildAlarmItems(orders.filter((o) => o.status === "queued"), awaiting), canUpdate);
   // Polling cadangan lebih cepat di KDS: antrean berubah terus saat jam ramai.
   const realtime = useRealtimeRefresh(topic, ["orders", "awaiting"], 5_000);
   const online = useOnline();
@@ -267,24 +169,14 @@ export default function KdsPage({ outlet, outlets, orders, awaiting = [], canUpd
           </button>
         ) : null}
         {alarm.fresh.length > 0 ? (
-          <div role="alert" className="sticky top-2 z-30 flex flex-col gap-3 rounded-2xl bg-destructive p-4 text-white shadow-2xl motion-safe:animate-pulse sm:flex-row sm:items-center" data-testid="new-order-alert">
-            <BellRingIcon className="size-10 shrink-0" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <p className="text-2xl font-black tracking-wide uppercase">{alarm.fresh.length} pesanan baru!</p>
-              <p className="truncate text-sm font-medium">{alarm.fresh.map((o) => `${o.label} ${o.detail}`.trim()).join(" · ")}</p>
-            </div>
-            <Button
-              size="xl"
-              variant="outline"
-              className="bg-white text-destructive-strong"
-              onClick={() => {
-                alarm.acknowledge();
-                setTab("queued");
-              }}
-            >
-              Lihat pesanan
-            </Button>
-          </div>
+          <NewOrderAlert
+            items={alarm.fresh}
+            className="sticky top-2 z-30"
+            onView={() => {
+              alarm.acknowledge();
+              setTab("queued");
+            }}
+          />
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">

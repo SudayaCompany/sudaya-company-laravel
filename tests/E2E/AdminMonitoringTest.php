@@ -106,7 +106,7 @@ class AdminMonitoringTest extends ServerTestCase
         $detail = Browser::page($owner->get('/admin/orders/'.$this->f('cancelled')));
         $this->assertSame(['pos/orders/show', 'admin'], [$detail['component'], $detail['props']['area']]);
         // Area admin: hanya memantau + memutuskan; aksi kasir tidak ditawarkan.
-        $this->assertSame(['canConfirmCash' => false, 'canCancel' => false, 'canDecide' => true, 'canRefund' => false], $detail['props']['flags']);
+        $this->assertSame(['canConfirmCash' => false, 'canCancel' => false, 'canDecide' => true, 'canRefund' => false, 'canOpenCash' => false], $detail['props']['flags']);
         $this->assertSame('pos/orders/receipt', Browser::page($owner->get('/admin/orders/'.$this->f('kept').'/receipt'))['component']);
 
         $cash = Browser::page($owner->get('/admin/cash'));
