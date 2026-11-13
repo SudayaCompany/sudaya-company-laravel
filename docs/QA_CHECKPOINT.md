@@ -608,3 +608,21 @@ Unit **198/198**; tsc 0; probe browser `m1/run-leak.sh` (server `npm run serve`,
 ### Catatan
 - Tab yang masih memuat JavaScript lama akan memuat ulang sendiri pada klik berikutnya (versi aset berubah); bila terasa aneh, tekan F5 sekali.
 - Production memakai Nginx + PHP-FPM (banyak proses) dan rencana database Singapura, jadi tidak terkena antrean satu proses. `DB_DISABLE_PREPARES` layak diuji untuk production (lebih sedikit round trip), tetapi belum dinyalakan.
+
+## Satu aplikasi per peran, menu sama di laptop & HP, sinkron antar perangkat (13 November 2026, malam)
+
+Permintaan owner: web mudah dan tidak banyak fitur yang mengulang (kasir satu tampilan, staf juga, admin juga), dan sinkronisasi laptop–HP diperbaiki. Pilihan owner: **satu aplikasi per peran** dan sinkron = **tampilan sama + data langsung sama**. Tidak ada fitur yang dihapus; navigasinya digabung.
+
+### Sebelum
+Tiga "aplikasi" dengan menu yang saling mengulang: sidebar admin ±33 item (termasuk tautan keluar ke Kasir, Pesanan masuk, Absen saya), menu kasir 6 item (Beranda dan Absen membuka tampilan lain), dan Beranda staf berisi kartu pintasan yang sama ("Pesanan hari ini", "Kas", "Absen" masing-masing muncul di 3 tempat).
+
+### Sesudah
+- `resources/js/lib/app-nav.ts` = satu peta menu untuk semua kerangka. **Kasir**: Pesanan (tab Masuk | Hari ini) · Kasir · Kas (Kas | Pengeluaran) · Absen (Absen | Riwayat | Tugas luar). **Barista**: hanya Absen. **Admin**: 9 menu (Dasbor, Pesanan, Keuangan, Persetujuan, Laporan, Menu, Stok, Karyawan, Pengaturan), halaman turunannya jadi tab (`components/section-tabs.tsx`).
+- Laptop dan HP memakai daftar yang sama: kasir di bar atas (HP: baris kedua header, tombol ≥ 44 px; bawah layar tetap untuk keranjang Kasir), admin di sidebar (HP: drawer ☰ dengan isi identik).
+- Absen/Riwayat/Tugas luar (`layouts/staff-shell.tsx`) dan Pengeluaran (`layouts/role-layout.tsx`) tampil di kerangka peran user sendiri; kasir tidak lagi "pindah" ke tampilan admin untuk mencatat pengeluaran (dulu hanya lewat Beranda staf).
+- Beranda staf (`/staff`) hanya meneruskan ke halaman utama peran (rute & test server tidak berubah). Tombol dobel dihapus: Purchase order ↔ Supplier, Kehadiran → Rekap.
+- Bug lama ditemukan probe: menu **Konten situs** (sejak 11 November) tidak pernah tampil karena `/admin/site` tidak ada di daftar navigasi `HandleInertiaRequests`; kini ada (izin tetap `settings.manage`).
+- Sinkron data: pesanan dari meja muncul sendiri di laptop dan HP kasir; perubahan status ikut ter-update; **alarm berhenti sendiri di semua perangkat** begitu pesanan ditangani di salah satunya (dulu banner + bunyi tetap menyala di HP walau sudah diterima di laptop).
+
+### Hasil QA
+Unit **198/198**; tsc 0; probe browser baru `m1/run-nav.sh` (kasir laptop + HP bersamaan, barista, owner, super admin; fixture sementara dibersihkan): **61/61 (menu kasir, barista, owner, super admin sama di laptop & HP; tab per menu; tanpa scroll horizontal di HP; /staff diteruskan; pesanan meja muncul di laptop + HP kasir ±9 dtk; status dan alarm ikut sinkron ±6 dtk; tanpa error console)**; QA browser alur lengkap 12 November di build yang sama (`m1/run-12nov-8000.sh`, cek menu kasir disesuaikan): **56/56**.

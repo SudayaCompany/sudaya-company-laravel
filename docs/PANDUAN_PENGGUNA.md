@@ -18,6 +18,20 @@ Untuk Owner, Super Admin, Manager, Kasir, Barista, dan seluruh staf. Alamat web 
 - Jangan memakai satu akun bersama. Semua perubahan penting tercatat atas nama akun di **Log aktivitas**.
 - **Aplikasi di HP**: staf bisa memasang Sudaya sebagai aplikasi (ikon di layar HP, terbuka layar penuh) lewat Chrome di Android atau Safari di iPhone. Caranya ada di [Aplikasi Sudaya di HP](APLIKASI_HP.md).
 
+### Menu per peran (satu aplikasi per peran)
+
+Sejak 13 November 2026 setiap peran punya **satu tampilan** dengan menunya sendiri, tanpa menu yang berulang. Isi dan urutan menu **sama persis di laptop dan HP**: di laptop menu kasir ada di bar atas dan menu admin di sidebar; di HP menu kasir menjadi baris kedua di atas layar (bawah layar dipakai keranjang Kasir) dan menu admin dibuka lewat tombol **☰**. Halaman turunan satu menu tampil sebagai **tab** di atas konten.
+
+| Peran | Menu | Tab di dalamnya |
+|---|---|---|
+| **Kasir** | **Pesanan** · **Kasir** · **Kas** · **Absen** | Pesanan: **Masuk** (pesanan masuk + alarm) \| **Hari ini**; Kas: **Kas** \| **Pengeluaran**; Absen: **Absen** \| **Riwayat** \| **Tugas luar** |
+| **Barista** | **Absen** (satu-satunya) | **Absen** \| **Riwayat** \| **Tugas luar** |
+| **Owner, Super Admin, Manager, Admin** | **Dasbor** · **Pesanan** · **Keuangan** · **Persetujuan** · **Laporan** · **Menu** · **Stok** · **Karyawan** · **Pengaturan** (sesuai izin) | Keuangan: Kas \| Pengeluaran; Laporan: Penjualan \| Pelanggan; Menu: Menu \| Kategori \| Varian & tambahan; Stok: Stok \| Masuk \| Keluar & waste \| Opname \| Riwayat \| Resep \| Purchase order \| Supplier; Karyawan: Kehadiran \| Rekap absensi \| Data karyawan \| Pengaturan absen; Pengaturan: Outlet & meja \| Konten situs \| Staf \| Peran & izin \| Log aktivitas |
+
+- Akun admin yang juga bertugas di kasir membuka aplikasi kasir dari tombol **Buka aplikasi kasir** di bawah menu admin, dan kembali lewat tombol **Admin** di bar kasir. **Absen saya** juga ada di bawah menu admin.
+- Halaman **Beranda staf** yang lama sudah tidak dipakai; alamat lamanya otomatis membuka halaman utama sesuai peran.
+- Data **langsung sama di semua perangkat**: pesanan dari meja muncul sendiri di laptop dan HP kasir yang sedang terbuka, dan perubahan status (terima, antar, selesai) ikut ter-update tanpa muat ulang.
+
 ## 2. Owner
 
 ### Dasbor
@@ -41,7 +55,7 @@ Menu **Pelanggan**: daftar pelanggan dari pesanan lunas yang mencantumkan nomor 
 Pembatalan pesanan yang **sudah dibayar**, koreksi absen staf, **tugas luar**, dan **stock opname** yang ada selisihnya harus disetujui Owner atau Manager (bukan orang yang mengajukan). Foto bukti tugas luar bisa dibuka dari kartunya. Menu **Persetujuan**, lalu pilih **Setujui** (dengan konfirmasi) atau **Tolak**. Uang pesanan yang dibatalkan dikembalikan Manager lewat **Catat refund tunai** di detail pesanan saat uang diserahkan.
 
 ### Pesanan dan Kas
-Menu **Pesanan hari ini** dan **Kas** hanya untuk memantau. Bayar, batal, refund, dan buka/tutup laci dilakukan dari perangkat kasir.
+Menu **Pesanan** dan **Keuangan → Kas** di area admin hanya untuk memantau. Bayar, batal, refund, dan buka/tutup laci dilakukan dari aplikasi kasir.
 
 ### Ekspor
 - **Menu → Ekspor ke spreadsheet**: daftar menu, harga, varian, dan ketersediaan per outlet (file `.xlsx`, terbuka di Excel atau Google Sheets).
@@ -75,11 +89,11 @@ Status di daftar stok: **Aman**, **Menipis** (di bawah minimum), **Habis**. Item
 
 ## 5. Pengeluaran
 
-Menu **Pengeluaran** (atau pintasan **Catat pengeluaran** di beranda staf): tanggal, nominal, kategori (parkir, transport, pembelian kecil, perawatan, kebersihan, lainnya), keterangan, dan foto nota. Pengeluaran menunggu persetujuan Owner/Manager di **Persetujuan** (bukan orang yang mencatat). Halaman ini menampilkan total disetujui per bulan dan per kategori; **Laporan penjualan** menampilkan "omzet dikurangi pengeluaran" untuk periode yang sama. Uang yang diambil dari laci kasir tetap dicatat juga di **Kas → Kas keluar**.
+Menu **Keuangan → Pengeluaran** (admin) atau **Kas → Pengeluaran** (aplikasi kasir): tanggal, nominal, kategori (parkir, transport, pembelian kecil, perawatan, kebersihan, lainnya), keterangan, dan foto nota. Pengeluaran menunggu persetujuan Owner/Manager di **Persetujuan** (bukan orang yang mencatat). Halaman ini menampilkan total disetujui per bulan dan per kategori; **Laporan penjualan** menampilkan "omzet dikurangi pengeluaran" untuk periode yang sama. Uang yang diambil dari laci kasir tetap dicatat juga di **Kas → Kas keluar**.
 
 ## 6. Kasir (pusat pesanan)
 
-Satu pintu masuk untuk semua staf: **/login** (tombol **Masuk** di halaman depan). Setelah login, akun kasir langsung membuka **Pesanan masuk**, admin membuka **/admin**, dan barista membuka halaman **absen**.
+Satu pintu masuk untuk semua staf: **/login** (tombol **Masuk** di halaman depan). Setelah login, akun kasir langsung membuka **Pesanan → Masuk** (pesanan masuk), admin membuka **/admin**, dan barista membuka halaman **absen**.
 
 1. **Buka kas** setiap awal shift: menu **Kas**, isi modal awal (uang di laci), lalu **Buka sesi kas**. Pembayaran tunai baru bisa diterima setelah kas dibuka.
 2. **Pesanan masuk** (biarkan terbuka di HP/laptop Sudaya): ketuk sekali **"Ketuk untuk mengaktifkan suara"** setiap membuka aplikasi (diulang bila halaman dimuat ulang penuh). Pesanan baru membunyikan **alarm keras berulang**, getar, judul tab berkedip, notifikasi sistem, dan banner merah **PESANAN BARU** sampai kasir menekan **Lihat pesanan**. Alarm juga berbunyi saat kasir sedang di halaman **Kasir, Pesanan, atau Kas** (banner dengan **Lihat pesanan** atau **Nanti**, agar input yang sedang diketik tidak hilang). Layar dijaga tetap menyala. Biarkan aplikasi terbuka (dicas, volume penuh, layar tidak dikunci): bila aplikasi ditutup atau HP terkunci, browser tidak bisa membunyikan alarm. Saran: HP Sudaya untuk Pesanan masuk, laptop untuk Kasir dan cetak struk.

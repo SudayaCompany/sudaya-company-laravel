@@ -51,22 +51,24 @@ Latih restore ke project Supabase sementara (urutan [DEPLOY_VPS.md §Restore](DE
 
 ## 3. Tugas umum di aplikasi
 
+Menu admin berisi 9 menu (Dasbor, Pesanan, Keuangan, Persetujuan, Laporan, Menu, Stok, Karyawan, Pengaturan); halaman turunannya tampil sebagai **tab** di atas konten, sama di laptop dan HP (lihat [Panduan Pengguna §1](PANDUAN_PENGGUNA.md#menu-per-peran-satu-aplikasi-per-peran)).
+
 | Kebutuhan | Menu | Catatan |
 |---|---|---|
-| Karyawan baru | **Staf → Undang staf** | Pilih peran dan outlet. Salin **tautan undangan** dan kirim lewat WhatsApp; karyawan membuat password sendiri. Tautan sekali pakai |
-| Karyawan lupa password | **Staf** → ikon kunci di baris karyawan | Salin **tautan reset password**, kirim lewat WhatsApp |
-| Karyawan keluar | **Staf** → nonaktifkan | Langsung ter-logout di semua perangkat dan tidak bisa login lagi. Riwayat transaksi dan absennya tetap tersimpan |
-| Ubah izin suatu peran | **Peran & izin** | Hati-hati: berlaku untuk semua karyawan dengan peran itu. Tercatat di Log aktivitas |
+| Karyawan baru | **Pengaturan → Staf → Undang staf** | Pilih peran dan outlet. Salin **tautan undangan** dan kirim lewat WhatsApp; karyawan membuat password sendiri. Tautan sekali pakai |
+| Karyawan lupa password | **Pengaturan → Staf** → ikon kunci di baris karyawan | Salin **tautan reset password**, kirim lewat WhatsApp |
+| Karyawan keluar | **Pengaturan → Staf** → nonaktifkan | Langsung ter-logout di semua perangkat dan tidak bisa login lagi. Riwayat transaksi dan absennya tetap tersimpan |
+| Ubah izin suatu peran | **Pengaturan → Peran & izin** | Hati-hati: berlaku untuk semua karyawan dengan peran itu. Tercatat di Log aktivitas |
 | Menu baru / ubah harga, foto, deskripsi | **Menu** | Harga dihitung ulang di server; perubahan langsung tampil ke pelanggan. Menu berharga Rp0 bertanda **Belum diisi**: tampil "Harga menyusul" dan belum bisa dipesan sampai harganya diisi |
-| Varian Americano Series / Ice-Hot | **Varian & tambahan** | Tambah varian baru atau isi selisih harga varian |
+| Varian Americano Series / Ice-Hot | **Menu → Varian & tambahan** | Tambah varian baru atau isi selisih harga varian |
 | Menu habis hari ini | **Menu → Tandai habis** | Pelanggan tidak bisa memesannya sampai ditandai tersedia lagi |
-| Ganti gambar QRIS | **Outlet & meja → Pembayaran QRIS** | Pastikan gambar QRIS resmi milik Sudaya; pembayaran QRIS dikonfirmasi manual oleh barista/kasir |
-| Tambah meja / cetak QR meja | **Outlet & meja** | QR meja yang tidak terdaftar ditolak saat checkout |
-| Lokasi & radius absen | **Pengaturan absen** | Radius awal 30 m; foto absen terhapus otomatis setelah 90 hari |
-| Isi halaman depan publik | **Konten situs** | Tentang, program, info pelatihan, tautan sedekah, kontak WA/IG/email |
-| Laporan penjualan / ekspor | **Laporan penjualan** | Ekspor Excel per periode |
-| Rekap absensi untuk gaji | **Rekap absensi** | Ekspor Excel |
-| Siapa mengubah apa | **Log aktivitas** | Tidak bisa diubah atau dihapus siapa pun |
+| Ganti gambar QRIS | **Pengaturan → Outlet & meja → Pembayaran QRIS** | Pastikan gambar QRIS resmi milik Sudaya; pembayaran QRIS dikonfirmasi manual oleh barista/kasir |
+| Tambah meja / cetak QR meja | **Pengaturan → Outlet & meja** | QR meja yang tidak terdaftar ditolak saat checkout |
+| Lokasi & radius absen | **Karyawan → Pengaturan absen** | Radius awal 30 m; foto absen terhapus otomatis setelah 90 hari |
+| Isi halaman depan publik | **Pengaturan → Konten situs** | Tentang, program, info pelatihan, tautan sedekah, kontak WA/IG/email |
+| Laporan penjualan / ekspor | **Laporan → Penjualan** | Ekspor Excel per periode |
+| Rekap absensi untuk gaji | **Karyawan → Rekap absensi** | Ekspor Excel |
+| Siapa mengubah apa | **Pengaturan → Log aktivitas** | Tidak bisa diubah atau dihapus siapa pun |
 
 ## 4. Memperbarui aplikasi
 
