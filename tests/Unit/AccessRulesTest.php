@@ -140,6 +140,7 @@ class AccessRulesTest extends TestCase
         $this->assertTrue(RouteAccess::canAccess($barista, '/staff/attendance'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/kds'), 'pesanan hanya lewat kasir agar tidak dobel');
         $this->assertFalse(RouteAccess::canAccess($barista, '/kds/alarm'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/push/subscriptions'), 'notifikasi pesanan hanya untuk yang memproses pesanan');
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos/orders'));
     }
@@ -150,6 +151,8 @@ class AccessRulesTest extends TestCase
         $this->assertTrue(RouteAccess::canAccess($cashier, '/kds'));
         // Umpan alarm pesanan baru untuk semua halaman kasir.
         $this->assertTrue(RouteAccess::canAccess($cashier, '/kds/alarm'));
+        // Notifikasi pesanan baru saat aplikasi tertutup (Web Push, 17 November 2026).
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/push/subscriptions'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos/orders'));
         $this->assertFalse(RouteAccess::canAccess($cashier, '/admin'));

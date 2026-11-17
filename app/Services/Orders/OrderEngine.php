@@ -12,6 +12,7 @@ use App\Services\Catalog\MenuImages;
 use App\Services\Catalog\Storefront;
 use App\Services\Inventory\InventoryLedger;
 use App\Services\Outlets\OutletSettings;
+use App\Services\Push\NewOrderPush;
 use App\Support\Access\AccessScope;
 use App\Support\Orders\OrderFlow;
 use Carbon\CarbonImmutable;
@@ -320,6 +321,10 @@ final class OrderEngine
                 $this->enqueueForDelivery($orderId, $row, $actor, $context);
             }
             self::notify([self::outletTopic($row->id)]);
+            // Pesanan pelanggan: kasir yang aplikasinya tertutup tetap mendapat notifikasi (setelah commit & respons).
+            if ($channel !== 'pos') {
+                app(NewOrderPush::class)->queue($orderId);
+            }
 
             return ['orderId' => $orderId, 'reference' => self::reference($orderId), 'total' => $total, 'replayed' => false, 'accessToken' => $token['token'] ?? null];
         });

@@ -43,6 +43,8 @@ final class RouteAccess
         '/staff' => Rbac::STAFF_APP_PERMISSIONS,
         '/pos' => ['order.create'],
         '/kds' => ['kds.view'],
+        // Langganan notifikasi pesanan baru: hanya yang memproses pesanan.
+        '/push' => ['order.update_status'],
     ];
 
     private const MAX_NEXT_LENGTH = 512;

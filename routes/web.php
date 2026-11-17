@@ -36,6 +36,7 @@ use App\Http\Controllers\Pos\CashController;
 use App\Http\Controllers\Pos\OrderActionController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\PosOrderController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\Staff\AttendanceController as StaffAttendanceController;
 use App\Http\Controllers\Staff\OutsideDutyController as StaffOutsideDutyController;
@@ -101,6 +102,9 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::get('/kds', KdsController::class);
         // Alarm pesanan baru di semua halaman kasir (keputusan owner 12 November 2026).
         Route::get('/kds/alarm', [KdsController::class, 'alarm']);
+        // Notifikasi pesanan baru saat aplikasi kasir tertutup (Web Push, 17 November 2026).
+        Route::post('/push/subscriptions', [PushSubscriptionController::class, 'store']);
+        Route::post('/push/subscriptions/delete', [PushSubscriptionController::class, 'destroy']);
         Route::post('/kds/orders/{order}/status', [OrderActionController::class, 'status']);
 
         Route::prefix('admin')->group(function () {

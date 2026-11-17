@@ -3,6 +3,7 @@ import { LogOutIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { disablePush } from "@/lib/push";
 
 export function LogoutButton({
   variant = "outline",
@@ -19,12 +20,11 @@ export function LogoutButton({
       variant={variant}
       size="sm"
       disabled={pending}
-      onClick={() =>
-        router.post("/logout", undefined, {
-          onStart: () => setPending(true),
-          onFinish: () => setPending(false),
-        })
-      }
+      onClick={() => {
+        setPending(true);
+        // Perangkat ini berhenti menerima notifikasi pesanan akun ini sebelum keluar.
+        void disablePush().finally(() => router.post("/logout", undefined, { onFinish: () => setPending(false) }));
+      }}
     >
       <LogOutIcon />
       {label}

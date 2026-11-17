@@ -14,6 +14,7 @@
 // Proses PHP memakai ulang koneksi database dan mengirim tiap query dalam 1 round trip (DB_PERSISTENT,
 // DB_DISABLE_PREPARES; hanya di server ini, .env tidak diubah): klik menu jauh lebih cepat ke database dev.
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,8 +31,8 @@ const QUIET = /\.(js|css|map|png|jpe?g|webp|svg|ico|woff2?|webmanifest|txt)(\?|$
 
 // PHP yang salah (mis. `php` XAMPP lama tanpa pdo_pgsql) baru ketahuan di browser sebagai error 500:
 // cek sekali di awal dan beri pesan yang jelas.
-const check = spawnSync(PHP, ["-r", "echo PHP_VERSION, '|', extension_loaded('pdo_pgsql') ? 1 : 0;"], { encoding: "utf8" });
-const [phpVersion = "", hasPgsql] = check.error || check.status !== 0 ? [] : check.stdout.trim().split("|");
+const check = spawnSync(PHP, ["-r", "echo PHP_VERSION, '|', extension_loaded('pdo_pgsql') ? 1 : 0, '|', PHP_BINARY;"], { encoding: "utf8" });
+const [phpVersion = "", hasPgsql, phpPath = ""] = check.error || check.status !== 0 ? [] : check.stdout.trim().split("|");
 const [major, minor] = phpVersion.split(".").map(Number);
 if (!phpVersion || major < 8 || (major === 8 && minor < 3) || hasPgsql !== "1") {
   console.error(
@@ -50,6 +51,9 @@ const PHP_ENV = {
   DB_PERSISTENT: process.env.DB_PERSISTENT ?? "true",
   DB_DISABLE_PREPARES: process.env.DB_DISABLE_PREPARES ?? "true",
 };
+// Web Push butuh OpenSSL membuat kunci EC; PHP Windows sering tidak menemukan openssl.cnf-nya sendiri.
+const bundledOpensslConf = phpPath ? path.join(path.dirname(phpPath), "extras", "ssl", "openssl.cnf") : "";
+if (!PHP_ENV.OPENSSL_CONF && bundledOpensslConf && existsSync(bundledOpensslConf)) PHP_ENV.OPENSSL_CONF = bundledOpensslConf;
 
 let stopping = false;
 const workers = [];

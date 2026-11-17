@@ -12,6 +12,8 @@ use App\Services\Catalog\MenuImageStorage;
 use App\Services\Catalog\SupabaseMenuImageStorage;
 use App\Services\Inventory\EvidenceStorage;
 use App\Services\Inventory\SupabaseEvidenceStorage;
+use App\Services\Push\PushTransport;
+use App\Services\Push\WebPushTransport;
 use App\Support\Access\AccessScope;
 use App\Support\Access\Rbac;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
         MenuImageStorage::class => SupabaseMenuImageStorage::class,
         AttendancePhotoStorage::class => SupabaseAttendancePhotoStorage::class,
         EvidenceStorage::class => SupabaseEvidenceStorage::class,
+        PushTransport::class => WebPushTransport::class,
     ];
 
     public function boot(): void

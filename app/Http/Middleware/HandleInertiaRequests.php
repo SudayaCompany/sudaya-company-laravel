@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Push\PushKeys;
+use App\Support\Access\AccessRules;
 use App\Support\Access\RouteAccess;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -23,6 +25,8 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => fn () => $this->auth($request),
+            // Kunci publik Web Push hanya untuk yang memproses pesanan (notifikasi saat aplikasi tertutup).
+            'push' => fn () => $this->push($request),
             // Kunci publishable memang publik (dipakai browser untuk Realtime). Sinyal realtime
             // tidak berisi data; data selalu dimuat ulang lewat server yang memeriksa izin.
             'realtime' => fn () => config('services.supabase.url') && config('services.supabase.publishable_key') ? [
@@ -30,6 +34,18 @@ class HandleInertiaRequests extends Middleware
                 'key' => (string) config('services.supabase.publishable_key'),
             ] : null,
         ];
+    }
+
+    /** @return array{publicKey: string}|null */
+    private function push(Request $request): ?array
+    {
+        $user = $request->user();
+        if ($user === null || ! $user->isStaffActive() || ! AccessRules::hasAnyPermission($user->grants(), ['order.update_status'])) {
+            return null;
+        }
+        $key = app(PushKeys::class)->publicKey();
+
+        return $key === null ? null : ['publicKey' => $key];
     }
 
     /** Token Supabase tidak pernah ikut ke sini. */

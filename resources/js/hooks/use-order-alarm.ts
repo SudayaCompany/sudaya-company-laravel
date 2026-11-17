@@ -1,6 +1,9 @@
+import { usePage } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 
 import { formatRupiah } from "@/lib/format";
+import { showOrderNotification, syncPush } from "@/lib/push";
+import type { SharedProps } from "@/types";
 
 /**
  * Alarm pesanan baru untuk akun kasir (keputusan owner 12 November 2026): bunyi keras berulang,
@@ -43,6 +46,13 @@ let armedInSession = false;
 export function useNewOrderAlarm(items: AlarmItem[] | null, enabled: boolean) {
   const [fresh, setFresh] = useState<AlarmItem[]>([]);
   const [armed, setArmed] = useState(() => armedInSession);
+  const pushKey = usePage<SharedProps>().props.push?.publicKey ?? null;
+
+  // Notifikasi saat aplikasi tertutup (Web Push): perangkat yang sudah memberi izin didaftarkan lagi
+  // tiap aplikasi dibuka (sekali per sesi), jadi langganan selalu segar.
+  useEffect(() => {
+    if (enabled) void syncPush(pushKey);
+  }, [enabled, pushKey]);
 
   useEffect(() => {
     if (items === null) return;
@@ -89,11 +99,7 @@ export function useNewOrderAlarm(items: AlarmItem[] | null, enabled: boolean) {
     const timer = window.setInterval(ring, 1600);
     if ("Notification" in window && Notification.permission === "granted") {
       const last = fresh[fresh.length - 1];
-      new Notification(`Pesanan baru ${last.label}`, {
-        body: last.detail,
-        tag: "sudaya-pesanan-baru",
-        requireInteraction: true,
-      });
+      showOrderNotification(`Pesanan baru ${last.label}`, last.detail);
     }
     return () => {
       window.clearInterval(timer);
@@ -126,7 +132,11 @@ export function useNewOrderAlarm(items: AlarmItem[] | null, enabled: boolean) {
     } catch {
       audio = null;
     }
-    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
+    // Izin notifikasi diminta di ketukan ini juga; begitu diberi, perangkat didaftarkan untuk Web Push.
+    if ("Notification" in window) {
+      const permission = Notification.permission === "default" ? Notification.requestPermission() : Promise.resolve(Notification.permission);
+      void permission.then(() => syncPush(pushKey));
+    }
     armedInSession = true;
     setArmed(true);
   };

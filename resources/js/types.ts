@@ -10,7 +10,12 @@ export type AuthProps = {
   permissions: string[];
 } | null;
 
-export type SharedProps = { auth: AuthProps; realtime: { url: string; key: string } | null };
+export type SharedProps = {
+  auth: AuthProps;
+  realtime: { url: string; key: string } | null;
+  /** Kunci publik Web Push; hanya untuk akun yang memproses pesanan. */
+  push?: { publicKey: string } | null;
+};
 
 export type Flash = { success?: string; error?: string; link?: string };
 
