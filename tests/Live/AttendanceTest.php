@@ -49,11 +49,16 @@ class AttendanceTest extends LiveTestCase
             'user_id' => $users[$user]['id'], 'employee_code' => $code, 'full_name' => $name,
         ]);
 
-        return ['A' => $A, 'B' => $B, ...$users,
+        $staff = [
             'empCashier' => $employee($A, 'cashierA', 'QA-KSR', 'Kasir Absen QA'),
             'empBarista' => $employee($A, 'baristaA', 'QA-BRS', 'Barista Absen QA'),
             'empB' => $employee($B, 'cashierB', 'QB-KSR', 'Kasir Tenant B'),
         ];
+        // Absen wajib foto wajah terdaftar; barista mendaftar sendiri di test foto wajah.
+        $ctx->registerFace($staff['empCashier']);
+        $ctx->registerFace($staff['empB']);
+
+        return ['A' => $A, 'B' => $B, ...$users, ...$staff];
     }
 
     protected function setUp(): void
@@ -195,6 +200,7 @@ class AttendanceTest extends LiveTestCase
     {
         $A = static::$fixture['A'];
         $barista = $this->actor('baristaA');
+        $this->ctx()->registerFace(static::$fixture['empBarista']);
         $session = $this->engine()->checkIn($barista, $this->at(), $this->selfie(), $this->audit())['id'];
         DB::table('attendances')->where('id', $session)->update(['check_in_at' => DB::raw("now() - interval '3 hours'")]);
 
@@ -380,7 +386,12 @@ class AttendanceTest extends LiveTestCase
         // Keputusan owner 12 November 2026: absen memakai selfie yang dibandingkan admin dengan foto wajah terdaftar.
         $A = static::$fixture['A'];
         $employee = static::$fixture['empBarista'];
+        // Mulai dari barista tanpa wajah (test koreksi di atas memberinya wajah agar bisa absen).
+        DB::table('face_enrollments')->where('employee_id', $employee)->delete();
         $this->assertNull($this->engine()->state($this->actor('baristaA'))['face'], 'belum terdaftar');
+        // Ditegakkan server sejak 17 November 2026: tanpa wajah terdaftar absen ditolak.
+        $this->expectAccess('conflict', fn () => $this->engine()->checkIn($this->actor('baristaA'), $this->at(), $this->selfie(), $this->audit()), '/Daftarkan foto wajah/');
+        $this->assertSame(0, DB::table('attendances')->where('employee_id', $employee)->where('status', 'checked_in')->count(), 'tanpa wajah tidak ada sesi masuk');
         $this->expectAccess('invalid', fn () => $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), false, $this->audit()), '/persetujuan/');
         $this->assertSame(0, DB::table('face_enrollments')->where('employee_id', $employee)->count(), 'tanpa persetujuan tidak tersimpan');
 
@@ -399,7 +410,8 @@ class AttendanceTest extends LiveTestCase
         $admin = app(AttendanceAdmin::class);
         $outlet = ['id' => $A['outletId'], 'timezone' => DB::table('outlets')->where('id', $A['outletId'])->value('timezone')];
         $rows = collect($admin->board($this->actor('ownerA'), $outlet, null)['rows'])->keyBy('fullName');
-        $this->assertSame([true, false], [$rows['Barista Absen QA']['hasFace'], $rows['Kasir Absen QA']['hasFace']]);
+        // Kasir uji sudah punya wajah dari fixture (absen wajib wajah sejak 17 November); tanda "tanpa wajah" dicek setelah reset.
+        $this->assertSame([true, true], [$rows['Barista Absen QA']['hasFace'], $rows['Kasir Absen QA']['hasFace']]);
         $this->assertSame(self::$stored[$face->external_face_id], $admin->facePhoto($this->actor('ownerA'), $employee)['bytes']);
         $this->expectAccess('forbidden', fn () => $admin->facePhoto($this->actor('cashierA'), $employee));
         $this->expectAccess('not_found', fn () => $admin->facePhoto($this->actor('superB'), $employee));
@@ -414,6 +426,8 @@ class AttendanceTest extends LiveTestCase
         $this->assertNull($admin->facePhoto($this->actor('ownerA'), $employee));
         $this->assertNull($this->engine()->state($this->actor('baristaA'))['face']);
         $this->assertSame(1, $this->ctx()->countAudit($A['id'], 'attendance.face_reset', $employee));
+        $afterReset = collect($admin->board($this->actor('ownerA'), $outlet, null)['rows'])->keyBy('fullName');
+        $this->assertSame([false, true], [$afterReset['Barista Absen QA']['hasFace'], $afterReset['Kasir Absen QA']['hasFace']], 'tanda wajah hilang setelah reset');
         $this->engine()->enrollFace($this->actor('baristaA'), $this->selfie(), true, $this->audit());
         $this->assertSame(1, DB::table('face_enrollments')->where('employee_id', $employee)->whereNull('revoked_at')->count());
     }

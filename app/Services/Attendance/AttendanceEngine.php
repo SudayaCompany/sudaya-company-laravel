@@ -36,6 +36,9 @@ final class AttendanceEngine
 
     private const OPEN_MESSAGE = 'Anda masih tercatat masuk. Absen pulang dulu sebelum absen masuk lagi.';
 
+    /** Keputusan owner 12 November 2026, ditegakkan server sejak 17 November: selfie absen selalu punya pembanding. */
+    public const FACE_REQUIRED_MESSAGE = 'Daftarkan foto wajah dulu sebelum absen.';
+
     public function __construct(private AuditLogger $audit, private AttendancePhotoStorage $photos) {}
 
     // --- Profil & status staf -----------------------------------------------------------
@@ -128,6 +131,7 @@ final class AttendanceEngine
         if ($this->open($employee->id) !== null) {
             throw new AccessException('conflict', self::OPEN_MESSAGE);
         }
+        $this->requireFace($employee);
         $position = AttendanceInput::position($raw);
         $settings = $this->settings($actor->company_id);
         $outlet = ['latitude' => self::coord($employee->latitude), 'longitude' => self::coord($employee->longitude), 'radius' => (int) $employee->radius];
@@ -179,6 +183,7 @@ final class AttendanceEngine
     {
         $employee = $this->requireSelf($actor, 'attendance.checkout');
         $open = $this->open($employee->id) ?? throw new AccessException('conflict', 'Anda belum absen masuk.');
+        $this->requireFace($employee);
         $position = AttendanceInput::position($raw);
         $settings = $this->settings($actor->company_id);
         // Geofence mengikuti outlet tempat sesi dibuka.
@@ -501,6 +506,17 @@ final class AttendanceEngine
 
     /** Foto wajah terdaftar (keputusan owner 12 November 2026): pembanding selfie absen yang diperiksa admin. */
     public const FACE_PROVIDER = 'photo';
+
+    /**
+     * Absen masuk/pulang hanya setelah foto wajah terdaftar, sama seperti aplikasi yang menampilkan
+     * pendaftaran wajah sebelum tombol absen (sebelumnya hanya aplikasi yang mewajibkan).
+     */
+    private function requireFace(object $employee): void
+    {
+        if (self::activeFace($employee->id) === null) {
+            throw new AccessException('conflict', self::FACE_REQUIRED_MESSAGE);
+        }
+    }
 
     public static function activeFace(string $employeeId): ?object
     {

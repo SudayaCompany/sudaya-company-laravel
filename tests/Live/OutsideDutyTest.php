@@ -46,12 +46,18 @@ class OutsideDutyTest extends LiveTestCase
             'user_id' => $users[$user]['id'], 'employee_code' => $code, 'full_name' => $name,
         ]);
 
-        return ['A' => $A, 'B' => $B, ...$users,
+        $staff = [
             'empCashier' => $employee($A, 'cashierA', 'TL-KSR', 'Kasir Tugas Luar QA'),
             'empManager' => $employee($A, 'managerA', 'TL-MGR', 'Manager Tugas Luar QA'),
             'empBarista' => $employee($A, 'baristaA', 'TL-BRS', 'Barista Tugas Luar QA'),
             'empB' => $employee($B, 'cashierB', 'TLB-KSR', 'Kasir Tenant B'),
         ];
+        // Absen wajib foto wajah terdaftar (17 November 2026).
+        foreach (['empCashier', 'empManager', 'empBarista', 'empB'] as $key) {
+            $ctx->registerFace($staff[$key]);
+        }
+
+        return ['A' => $A, 'B' => $B, ...$users, ...$staff];
     }
 
     protected function setUp(): void

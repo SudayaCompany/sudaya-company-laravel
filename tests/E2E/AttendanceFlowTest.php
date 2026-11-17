@@ -33,6 +33,9 @@ class AttendanceFlowTest extends ServerTestCase
             'user_id' => $users['cashier']['id'], 'employee_code' => 'E2E-KSR', 'full_name' => 'Karyawan Kasir E2E', 'position' => 'Kasir',
         ]);
 
+        // Absen wajib foto wajah terdaftar (17 November 2026); barista mendaftar lewat HTTP di test akses.
+        $ctx->registerFace($employee);
+
         return ['A' => $A, ...$users, 'employee' => $employee];
     }
 
@@ -179,6 +182,10 @@ class AttendanceFlowTest extends ServerTestCase
         // Foto wajah terdaftar (keputusan owner 12 November 2026): persetujuan wajib, sekali daftar, dicek admin.
         $barista = $this->login($this->f('barista'));
         $this->assertNull(Browser::page($barista->get('/barista'))['props']['face']);
+        // Ditegakkan server sejak 17 November 2026: absen sebelum wajah terdaftar ditolak, tanpa sesi baru.
+        $barista->get('/barista');
+        $this->assertSame('Daftarkan foto wajah dulu sebelum absen.', $this->flash($barista, $barista->multipart('/staff/attendance/check-in', $this->at(), $this->photo()))['error'] ?? null);
+        $this->assertSame(0, DB::table('attendances')->where('employee_id', $id)->count());
         $barista->get('/barista');
         $this->assertStringContainsString('persetujuan', $this->flash($barista, $barista->multipart('/staff/attendance/face', [], $this->photo()))['error'] ?? '');
         $barista->get('/barista');

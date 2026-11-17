@@ -3,6 +3,7 @@
 namespace Tests\Live;
 
 use App\Models\User;
+use App\Services\Attendance\AttendanceEngine;
 use App\Services\Auth\AccessLoader;
 use App\Services\Security\LoginLimits;
 use App\Services\Security\RateLimits;
@@ -102,6 +103,17 @@ final class LiveContext
         }
 
         return ['id' => $id, 'email' => $email, 'password' => $password, 'fullName' => $fullName];
+    }
+
+    /** Foto wajah terdaftar untuk karyawan uji: absen mewajibkannya sejak 17 November 2026. Ikut terhapus bersama karyawannya. */
+    public function registerFace(string $employeeId): void
+    {
+        DB::table('face_enrollments')->insert([
+            'employee_id' => $employeeId,
+            'provider' => AttendanceEngine::FACE_PROVIDER,
+            'external_face_id' => "faces/qa/{$employeeId}.jpg",
+            'consent_at' => now(),
+        ]);
     }
 
     /** User dengan grants terbaru dari DB. */
