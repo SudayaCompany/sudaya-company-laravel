@@ -626,3 +626,33 @@ Tiga "aplikasi" dengan menu yang saling mengulang: sidebar admin ±33 item (term
 
 ### Hasil QA
 Unit **198/198**; tsc 0; probe browser baru `m1/run-nav.sh` (kasir laptop + HP bersamaan, barista, owner, super admin; fixture sementara dibersihkan): **61/61 (menu kasir, barista, owner, super admin sama di laptop & HP; tab per menu; tanpa scroll horizontal di HP; /staff diteruskan; pesanan meja muncul di laptop + HP kasir ±9 dtk; status dan alarm ikut sinkron ±6 dtk; tanpa error console)**; QA browser alur lengkap 12 November di build yang sama (`m1/run-12nov-8000.sh`, cek menu kasir disesuaikan): **56/56**.
+
+## Absen wajib foto wajah, notifikasi pesanan saat aplikasi kasir tertutup (17 November 2026)
+
+Permintaan owner: "lanjut selesaikan web nya". Pilihan owner: **blokir absen tanpa wajah** dan **notifikasi pesanan saat aplikasi tertutup**. Aturan harga request di luar menu diputuskan: **kasir mengisi harga dulu**, baru pelanggan bisa membayar (fiturnya belum dibuat, tercatat di [GO_LIVE_READINESS.md](GO_LIVE_READINESS.md)). Domain belum ada, jadi stiker QR meja dicetak setelah domain aktif (QR berisi alamat web).
+
+### Absen wajib foto wajah (server)
+- `AttendanceEngine::requireFace`: absen masuk dan pulang (termasuk tugas luar) ditolak dengan pesan "Daftarkan foto wajah dulu sebelum absen." bila karyawan belum punya foto wajah aktif. Sebelumnya hanya aplikasi yang menampilkan pendaftaran wajah lebih dulu; request langsung ke server tetap diterima. Melengkapi keputusan 12 November (selfie absen dibandingkan admin dengan foto wajah terdaftar).
+- Test: `LiveContext::registerFace` untuk karyawan uji; test foto wajah kini juga menguji penolakan (engine + HTTP) dan tanda "tanpa wajah" di papan admin setelah reset.
+
+### Notifikasi pesanan baru saat aplikasi kasir tertutup (Web Push)
+- Server: tabel `push_subscriptions` (migration aditif `2026_11_17_000001`, sudah dijalankan di dev; RLS aktif tanpa policy; satu baris per perangkat, endpoint unik; ikut terhapus bersama user/company). Kunci VAPID dari `VAPID_*` di `.env`, atau dibuat sekali di `storage/app/private/webpush-vapid.json` (folder shared di VPS, tetap antar-rilis). Hanya host layanan push resmi (FCM, Mozilla, Apple, WNS) yang diterima, mencegah server dipakai menembak alamat sembarang (SSRF). Pesanan pelanggan baru (bukan POS) dikirim setelah commit dan setelah respons, ke user aktif dengan izin `order.update_status` di outlet itu; isinya sama dengan banner alarm; endpoint kedaluwarsa (404/410) dihapus; gagal kirim tidak mengganggu pesanan.
+- `POST /push/subscriptions` dan `/push/subscriptions/delete` (JSON + CSRF; `/push` butuh `order.update_status`, barista ditolak). Kunci publik hanya dibagikan ke staf yang memproses pesanan.
+- Browser: izin notifikasi diminta lewat tombol "aktifkan suara"; perangkat didaftarkan sekali per sesi (berlangganan ulang otomatis bila kunci server berganti); **Keluar** mencabut langganan perangkat itu. Notifikasi berbunyi/bergetar, bertahan sampai diketuk; diketuk → Pesanan masuk (hanya alamat domain sendiri).
+- Dependency baru: `minishlink/web-push` ^11 (pustaka Web Push standar PHP; ikut php-http/discovery, web-token/jwt-library, spomky-labs/pki-framework, spomky-labs/base64url).
+- `npm run serve` menyetel `OPENSSL_CONF` ke `openssl.cnf` bawaan PHP: PHP Windows tidak bisa membuat kunci EC tanpanya. Server Linux (VPS) tidak terpengaruh.
+
+### Temuan dan perbaikan saat QA
+1. **Langganan ganda**: halaman Pesanan masuk mendaftar otomatis (izin sudah ada), dan tombol "aktifkan suara" mendaftar lagi sebelum yang pertama selesai. Hasilnya dua alamat, dan setelah keluar satu tertinggal di server (probe putaran 2). Kini satu pendaftaran yang sedang berjalan dipakai bersama; Keluar menunggunya selesai lalu mencabutnya.
+2. **Bug lama 13 November**: alarm halaman memakai `new Notification()`. Chrome Android menolaknya dengan TypeError di dalam effect React (tidak ada ErrorBoundary), sehingga layar kasir bisa kosong begitu pesanan masuk bila izin notifikasi sudah diberi. Kini lewat service worker (`showOrderNotification`), cadangan `new Notification` dalam try/catch, tag sama dengan Web Push (tidak muncul dua kali).
+3. Alat uji: Chrome headless tidak menyimpan daftar notifikasi (`getNotifications()` selalu kosong), sehingga 3 cek awal gagal walau notifikasi dibuat. Kini yang diperiksa adalah panggilan `showNotification` di service worker (sesi CDP ke service worker) dan di halaman. Diagnosis `m1/diag-sw.mjs`: push sungguhan PHP → FCM (201) → service worker ±1 dtk.
+
+### Hasil QA
+Unit + feature **214/214**; tsc 0; Pint bersih; Live (Supabase dev, berurutan): Attendance 8/8, OutsideDuty 6/6, **PushNotification 2/2 (baru)**, OrderEngine 19/19, OrderAlarm 1/1, DeskOrder 4/4; E2E: **PushSubscriptionFlow 1/1 (baru)**, AttendanceFlow 5/5, Orders 6/6, DeskFlow 3/3, Routes 18/18, PaymentFlow 5/5; browser `m1/run-push.sh` putaran 3: **17/17** (izin → berlangganan FCM, 1× simpan di server; push simulasi tampil, tautan luar domain diganti; pesanan dari meja → server → FCM → notifikasi di perangkat kasir ±8 dtk sejak klik "Kirim pesanan"; Chrome Android ditiru: alarm halaman tetap memunculkan notifikasi dan layar utuh; Keluar mencabut langganan di browser dan server, 0 sisa; tanpa error console). Tanpa sisa data uji.
+
+### Pembaruan keamanan dependency
+`composer audit` menemukan 7 advisory di 4 paket: laravel/framework < 13.40 (output injection proses Concurrency, low) dan symfony/http-foundation, http-kernel, routing < 8.1.11 (antara lain shortcut trusted proxies `private_ranges`, URL yang dibuat bisa menunjuk host pilihan klien, header forwarded pada inline fragment, placeholder host di route). `composer update laravel/framework symfony/http-foundation symfony/http-kernel symfony/routing --with-dependencies`: 21 paket naik versi minor/patch (Laravel 13.42.0, Symfony 8.1.11, Guzzle 8.5.1); `composer.json` tidak berubah; audit setelahnya bersih. QA ulang: unit + feature 214/214; E2E Routes 18/18, PushSubscriptionFlow 1/1, Orders 6/6, PaymentFlow 5/5, AttendanceFlow 5/5; Live LoginSecurity 14/14, PushNotification 2/2; push sungguhan PHP → FCM 201 → service worker; browser `m1/run-push.sh` putaran 4 **17/17**.
+
+### Catatan
+- Uji di HP sungguhan menunggu alamat https (VPS + domain): skenario UAT 57 di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md). iPhone hanya bila Sudaya dipasang ke layar utama (iOS 16.4+).
+- Alarm keras berulang tetap butuh aplikasi terbuka; saat aplikasi tertutup yang muncul adalah notifikasi sistem (bunyi notifikasi HP + getar).

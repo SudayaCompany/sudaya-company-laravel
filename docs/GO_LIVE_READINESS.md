@@ -36,10 +36,11 @@ Semua fitur MVP PRD, Fase 2 (supplier & purchase order, pengeluaran, resep/BOM, 
 | Aplikasi staf di HP (absen, kasir, barista, admin) | PASS (dev) | Dipasang dari Chrome Android / Safari iPhone setelah domain HTTPS aktif; file APK opsional lewat PWABuilder ([APLIKASI_HP.md](APLIKASI_HP.md)) |
 | QRIS | PASS (statis, konfirmasi kasir) | Owner mengunggah gambar QRIS asli di Admin → Outlet; QRIS otomatis butuh payment gateway |
 | Logo, foto, data menu asli | Sebagian | Logo resmi & foto program terpasang (ikon aplikasi dari logo). 22 menu asli masuk **nonaktif tanpa harga** → owner isi harga & aktifkan di Admin → Menu; foto menu belum ada. Menu contoh dihapus dengan `php artisan sudaya:demo-menu --remove` |
-| Harga request di luar menu | BLOCKED | Keputusan aturan bayar: kasir mengisi harga sebelum pelanggan bayar, atau tagihan tambahan saat diantar |
+| Harga request di luar menu | BLOCKED (aturan sudah diputuskan) | Keputusan 17 November 2026: **kasir mengisi harga dulu**, baru pelanggan bisa membayar. Fiturnya belum dibuat |
 | Promo/voucher & penukaran poin | BLOCKED | Aturan bisnis tertulis (mengubah harga checkout) |
-| WhatsApp otomatis, notifikasi push saat aplikasi tertutup | BLOCKED | WhatsApp Business API (berbayar) / Web Push + kunci VAPID di server production. Saat ini: tombol WhatsApp + notifikasi di halaman |
-| Absen pengenalan wajah | BLOCKED | Penyedia biometrik untuk pencocokan otomatis; sejak 12 November: GPS + selfie + foto wajah terdaftar yang dicek admin |
+| Notifikasi pesanan baru saat aplikasi kasir tertutup (Web Push) | PASS (dev, localhost) | Sejak 17 November 2026. Jalan di alamat https production: Chrome/Edge Android & laptop; iPhone bila dipasang ke layar utama (iOS 16.4+). Kunci VAPID dibuat otomatis di storage, atau isi `VAPID_*` di `.env` |
+| WhatsApp otomatis | BLOCKED | WhatsApp Business API (berbayar). Saat ini: tombol WhatsApp 1 ketukan |
+| Absen pengenalan wajah | BLOCKED | Penyedia biometrik untuk pencocokan otomatis; sejak 12 November: GPS + selfie + foto wajah terdaftar yang dicek admin; sejak 17 November server menolak absen sebelum foto wajah terdaftar |
 | UAT outlet (skenario 1–51) | NOT TESTED | Dijalankan Manager/Owner di staging ([SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md)) |
 
 ## Fitur

@@ -1,6 +1,6 @@
 # UAT operasional outlet Sudaya Coffee
 
-Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) 37–43 (supplier, purchase order, resep, pengeluaran, pelanggan), dan 44–48 (pesanan meja kantor, QRIS, notifikasi) ditambahkan 10 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
+Disusun 4 November 2026; skenario 25–36 (absensi, tugas luar, stok, laporan) 37–43 (supplier, purchase order, resep, pengeluaran, pelanggan), dan 44–48 (pesanan meja kantor, QRIS, notifikasi) ditambahkan 10 November 2026; 57–58 (notifikasi saat aplikasi kasir tertutup, absen wajib foto wajah) ditambahkan 17 November 2026. Dijalankan di **staging** (bukan production, bukan development), di perangkat dan jaringan outlet yang sebenarnya, oleh staf dengan peran aslinya. Kolom **Hasil aktual** dan **Status** diisi saat UAT. Status: PASS, FAIL, BLOCKED, NOT TESTED.
 
 Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATION.md)), smoke test staging lolos ([LARAVEL_STAGING_RUNBOOK.md](LARAVEL_STAGING_RUNBOOK.md) §10), akun UAT untuk Kasir, Barista, Manager (2 orang), dan Owner, serta uang kas uji yang dihitung.
 
@@ -62,10 +62,12 @@ Persiapan: data master siap ([MASTER_DATA_PREPARATION.md](MASTER_DATA_PREPARATIO
 | 54 | Halaman depan publik | Buka alamat web tanpa login di HP | Logo Sudaya, tentang, program pelatihan kopi & pemberdayaan petani kopi, info pelatihan, tombol sedekah (membuka Sahabat Berbagi di tab baru), menu, lokasi, kontak footer; warna oranye-hijau | | | Owner |
 | 55 | Konten situs | **Admin → Konten situs** → ubah kontak & tambah info pelatihan → Simpan → buka halaman depan | Perubahan langsung tampil; kontak kosong tidak ditampilkan | | | Super Admin |
 | 56 | Menu asli | **Admin → Menu** → isi harga salah satu menu asli (SKU SDY-) → aktifkan → buka halaman pesan | Menu tampil dengan harga yang diisi; pilihan Ice/Hot muncul untuk menu ice-hot | | | Admin |
+| 57 | Notifikasi saat aplikasi kasir tertutup | HP kasir (Android Chrome, atau iPhone dari ikon layar utama): login Kasir → Pesanan masuk → **aktifkan suara & notifikasi** → **Izinkan** → tutup aplikasi dan kunci layar → pelanggan kirim pesanan dari QR meja → ketuk notifikasinya → **Keluar** dari akun → kirim pesanan lagi | Notifikasi **Pesanan baru** (nama, antar ke meja/ambil, lokasi) muncul dalam beberapa detik walau aplikasi tertutup; diketuk → Pesanan masuk. Setelah Keluar, HP itu tidak lagi menerima notifikasi | | | Kasir + Manager |
+| 58 | Absen wajib foto wajah | Karyawan baru (atau setelah admin **Reset foto wajah**) membuka Absen | Absen masuk/pulang belum bisa sampai foto wajah didaftarkan; setelah didaftarkan absen berjalan normal | | | Barista + Admin |
 
 ## Penerimaan
 
-UAT dianggap lolos bila skenario 1–56 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
+UAT dianggap lolos bila skenario 1–58 PASS, atau defect yang tersisa disetujui owner sebagai bukan penghalang soft launch.
 
 | Peran | Nama | Tanda tangan | Tanggal |
 |---|---|---|---|
