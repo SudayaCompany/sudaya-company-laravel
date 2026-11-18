@@ -90,8 +90,15 @@ export type OrderLine = {
   modifiers: { groupName: string; name: string; priceDelta: number }[];
 };
 
+/**
+ * Permintaan di luar menu (keputusan owner 17 November 2026): baris tanpa harga sampai kasir mengisi
+ * harganya (`priced`) atau menandai tidak tersedia (`declined`); pembayaran baru bisa diterima setelahnya.
+ */
+export type CustomRequest = { text: string; status: "pending" | "priced" | "declined"; price: number | null };
+
 /** Detail order untuk staf (OrderEngine::detail). */
 export type StaffOrder = {
+  customRequest?: CustomRequest | null;
   subtotal?: number;
   /** Bayar saat diantar (QR meja diantar, tunai): masuk antrean sebelum lunas. */
   payOnDelivery?: boolean;

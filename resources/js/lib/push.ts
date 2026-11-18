@@ -102,12 +102,20 @@ export async function disablePush(): Promise<void> {
  * menjatuhkan layar kasir. Tag sama dengan Web Push, jadi tidak muncul dua kali.
  */
 export function showOrderNotification(title: string, body: string): void {
-  const options: NotificationOptions = { body, tag: "sudaya-pesanan-baru", requireInteraction: true, icon: "/icons/icon-192.png" };
+  showSystemNotification(title, { body, tag: "sudaya-pesanan-baru", requireInteraction: true, icon: "/icons/icon-192.png" });
+}
+
+/**
+ * Notifikasi sistem dari halaman yang sedang terbuka, tanpa pernah melempar error: lewat service
+ * worker bila terdaftar (Chrome Android menolak `new Notification()`), selain itu `new Notification`
+ * dalam try/catch. Gagal tampil = tidak apa-apa; banner, bunyi, dan getar di halaman tetap jalan.
+ */
+export function showSystemNotification(title: string, options: NotificationOptions): void {
   const fallback = () => {
     try {
       new Notification(title, options);
     } catch {
-      // Notifikasi halaman tidak didukung: alarm suara, getar, dan judul tab tetap berjalan.
+      // Notifikasi halaman tidak didukung di browser ini.
     }
   };
   if (!("serviceWorker" in navigator)) return fallback();

@@ -35,7 +35,7 @@ final class NewOrderPush
     {
         try {
             $order = DB::table('orders')->where('id', $orderId)
-                ->first(['id', 'company_id', 'outlet_id', 'order_number', 'customer_name', 'channel', 'type', 'status', 'location_note']);
+                ->first(['id', 'company_id', 'outlet_id', 'order_number', 'customer_name', 'channel', 'type', 'status', 'location_note', 'custom_request_status']);
             if ($order === null || $order->channel === 'pos') {
                 return 0;
             }
@@ -83,6 +83,10 @@ final class NewOrderPush
         }
         if ($order->status === 'pending_payment') {
             $parts[] = 'menunggu bayar';
+        }
+        // Permintaan di luar menu: kasir perlu mengisi harga dulu sebelum pelanggan bisa membayar.
+        if (($order->custom_request_status ?? null) === 'pending') {
+            $parts[] = 'isi harga request';
         }
 
         return [

@@ -5,9 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/brand";
 import { EmptyState } from "@/components/empty-state";
 import { buttonVariants } from "@/components/ui/button";
+import { CustomRequestRow } from "@/components/orders/order-parts";
 import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 import { formatPriceDelta, formatRupiah } from "@/lib/format";
-import { customerStatusLabel, ORDER_TYPE_LABELS, PAYMENT_STATUS_LABELS, type OrderLine, type OrderStatus, type OrderType, type PaymentStatus } from "@/lib/orders";
+import {
+  customerStatusLabel,
+  ORDER_TYPE_LABELS,
+  PAYMENT_STATUS_LABELS,
+  type CustomRequest,
+  type OrderLine,
+  type OrderStatus,
+  type OrderType,
+  type PaymentStatus,
+} from "@/lib/orders";
+import { showSystemNotification } from "@/lib/push";
 import { cn } from "@/lib/utils";
 
 type GuestOrder = {
@@ -32,6 +43,8 @@ type GuestOrder = {
   locationNote?: string | null;
   qrisImageUrl?: string | null;
   lines: OrderLine[];
+  /** Permintaan di luar menu: harganya diisi kasir dulu, baru bisa dibayar. */
+  customRequest?: CustomRequest | null;
   topic: string;
 };
 
@@ -79,6 +92,8 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
   const deskDelivery = order.type === "dine_in" && !!order.tableNumber;
   // Bayar saat diantar: pesanan langsung dibuat, uang tunai diberikan saat diantar.
   const payLater = !!order.payOnDelivery && order.paymentStatus === "pending" && !cancelled;
+  // Permintaan di luar menu belum diberi harga kasir: total belum final, jadi belum bisa dibayar.
+  const requestPending = order.customRequest?.status === "pending" && !cancelled;
   useReadyAlert(order.status, deskDelivery, order.locationNote ?? null, payLater ? formatRupiah(order.total) : null);
 
   return (
@@ -116,7 +131,12 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
 
         {unpaid ? (
           <div className="flex flex-col gap-2">
-            {order.qrisImageUrl ? (
+            {requestPending ? (
+              <p className="rounded-2xl bg-white/60 px-4 py-3 text-sm" data-testid="request-pending">
+                Kasir sedang menghitung harga permintaanmu (“{order.customRequest?.text}”). Total final dan cara bayar muncul di sini begitu harganya diisi; tunggu
+                sebentar, halaman ini berubah sendiri.
+              </p>
+            ) : order.qrisImageUrl ? (
               <div className="flex flex-col items-center gap-3 rounded-2xl border bg-white p-4 text-center text-black">
                 <p className="text-sm font-medium">Scan QRIS Sudaya lalu bayar tepat</p>
                 <p className="text-2xl font-bold tabular-nums" data-testid="qris-amount">
@@ -163,7 +183,16 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
         )}
         {payLater ? (
           <p className="rounded-2xl bg-white/10 px-4 py-3 text-sm" data-testid="pay-on-delivery">
-            Siapkan uang tunai <span className="font-semibold">{formatRupiah(order.total)}</span>, dibayar saat pesanan diantar ke meja Anda.
+            {requestPending ? (
+              <>
+                Bayar tunai saat pesanan diantar. Total final menunggu kasir mengisi harga permintaanmu (sementara{" "}
+                <span className="font-semibold">{formatRupiah(order.total)}</span>).
+              </>
+            ) : (
+              <>
+                Siapkan uang tunai <span className="font-semibold">{formatRupiah(order.total)}</span>, dibayar saat pesanan diantar ke meja Anda.
+              </>
+            )}
           </p>
         ) : null}
         {order.status === "ready" ? (
@@ -208,11 +237,15 @@ function OrderStatusView({ order }: { order: GuestOrder }) {
               <span className="tabular-nums">{formatRupiah(line.lineTotal)}</span>
             </li>
           ))}
+          {order.customRequest ? <CustomRequestRow request={order.customRequest} /> : null}
         </ul>
         <div className="flex justify-between border-t pt-3 text-base font-semibold">
           <span>Total</span>
-          <span className="tabular-nums">{formatRupiah(order.total)}</span>
+          <span className="tabular-nums" data-testid="order-total">
+            {formatRupiah(order.total)}
+          </span>
         </div>
+        {requestPending ? <p className="text-xs text-muted-foreground">Belum termasuk permintaan di luar menu; harganya diisi kasir.</p> : null}
       </section>
 
       <Link href={`/order?outlet=${order.outletCode}`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 rounded-full")}>
@@ -283,7 +316,8 @@ function useReadyAlert(status: string, deskDelivery: boolean, locationNote: stri
       const body = deskDelivery
         ? `Pesananmu sedang diantar${locationNote ? ` ke ${locationNote}` : ""}.${cashDue ? ` Siapkan uang tunai ${cashDue}.` : ""}`
         : "Silakan ambil di counter.";
-      new Notification(deskDelivery ? "Kopi Sudaya sedang diantar" : "Pesanan Sudaya siap", { body });
+      // Chrome Android menolak `new Notification()`; helper ini tidak pernah menjatuhkan halaman.
+      showSystemNotification(deskDelivery ? "Kopi Sudaya sedang diantar" : "Pesanan Sudaya siap", { body, tag: "sudaya-pesanan-siap" });
     }
   }, [status, deskDelivery, locationNote, cashDue]);
 }

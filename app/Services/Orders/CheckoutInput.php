@@ -32,7 +32,7 @@ final class CheckoutInput
     }
 
     /**
-     * @return array{idempotencyKey: string, type: string, customerName: ?string, customerPhone: ?string, tableNumber: ?string, locationNote: ?string, deliveryAddress: ?string, notes: ?string, paymentMethod: string, lines: list<array{productId: string, modifierIds: list<string>, quantity: int, notes: ?string}>}
+     * @return array{idempotencyKey: string, type: string, customerName: ?string, customerPhone: ?string, tableNumber: ?string, locationNote: ?string, deliveryAddress: ?string, notes: ?string, customRequest: ?string, paymentMethod: string, lines: list<array{productId: string, modifierIds: list<string>, quantity: int, notes: ?string}>}
      */
     public static function parse(mixed $raw): array
     {
@@ -63,11 +63,9 @@ final class CheckoutInput
         $locationNote = self::optionalText($raw['locationNote'] ?? null, 100, 'Lokasi/keterangan');
         $deliveryAddress = self::optionalText($raw['deliveryAddress'] ?? null, 300, 'Alamat');
         $notes = self::optionalText($raw['notes'] ?? null, 300, 'Catatan pesanan');
-        // Menu di luar daftar: dicatat jelas untuk barista; harganya dikonfirmasi staf.
+        // Menu di luar daftar (keputusan owner 17 November 2026): baris tanpa harga yang diisi kasir
+        // sebelum pelanggan bisa membayar. Disimpan terpisah dari catatan pesanan.
         $customRequest = self::optionalText($raw['customRequest'] ?? null, 200, 'Permintaan di luar menu');
-        if ($customRequest !== null) {
-            $notes = trim(($notes === null ? '' : $notes."\n").'Permintaan di luar menu: '.$customRequest);
-        }
         // Meja kantor (QR meja): lantai & bagian/area meja disimpan sebagai keterangan lokasi pengantaran.
         $floor = self::optionalText($raw['floor'] ?? null, 20, 'Lantai');
         $area = self::optionalText($raw['area'] ?? null, 60, 'Bagian/area meja');
@@ -114,6 +112,7 @@ final class CheckoutInput
             'locationNote' => $locationNote,
             'deliveryAddress' => $deliveryAddress,
             'notes' => $notes,
+            'customRequest' => $customRequest,
             'paymentMethod' => $paymentMethod,
             'lines' => $lines,
             'floor' => $floor,
@@ -160,7 +159,7 @@ final class CheckoutInput
             $input['type'] === 'dine_in' ? $input['tableNumber'] : null,
             $input['type'] === 'dine_in' ? $input['locationNote'] : null,
             $input['type'] === 'delivery' ? $input['deliveryAddress'] : null,
-            $input['notes'],
+            self::hashNotes($input),
             $input['paymentMethod'],
             array_map(function (array $line) {
                 $modifiers = $line['modifierIds'];
@@ -171,6 +170,20 @@ final class CheckoutInput
         ];
 
         return hash('sha256', json_encode($canonical, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS));
+    }
+
+    /**
+     * Catatan + request di luar menu dalam bentuk sebelum keduanya dipisah (18 November 2026), agar
+     * sidik checkout yang sama tetap sama.
+     */
+    private static function hashNotes(array $input): ?string
+    {
+        $request = $input['customRequest'] ?? null;
+        if ($request === null) {
+            return $input['notes'];
+        }
+
+        return trim(($input['notes'] === null ? '' : $input['notes']."\n").'Permintaan di luar menu: '.$request);
     }
 
     /** @return array{productId: string, modifierIds: list<string>, quantity: int, notes: ?string} */

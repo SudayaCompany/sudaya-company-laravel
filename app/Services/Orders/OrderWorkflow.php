@@ -25,6 +25,8 @@ final class OrderWorkflow
 {
     public const EXPIRED_MESSAGE = 'Batas waktu pembayaran pesanan ini sudah habis, pesanan dibatalkan otomatis. Buat pesanan baru.';
 
+    public const REQUEST_PRICE_MESSAGE = 'Isi dulu harga permintaan di luar menu. Pembayaran baru bisa diterima setelah totalnya final.';
+
     public function __construct(private AuditLogger $audit) {}
 
     // --- Pembayaran dan antrean -------------------------------------------------------
@@ -76,6 +78,10 @@ final class OrderWorkflow
             $locked = DB::selectOne('select *, (expires_at is not null and expires_at <= now()) as is_expired from orders where id = ? for update', [$order->id]);
             if ($locked->payment_status === 'paid') {
                 return ['orderNumber' => $locked->order_number, 'change' => null, 'alreadyPaid' => true];
+            }
+            // Keputusan owner 17 November 2026: permintaan di luar menu diberi harga kasir dulu.
+            if ($locked->custom_request_status === 'pending') {
+                throw new AccessException('conflict', self::REQUEST_PRICE_MESSAGE);
             }
             if ($locked->pay_on_delivery) {
                 return $this->settleOnDelivery($actor, $locked, $method, $tendered, $context);
@@ -161,6 +167,69 @@ final class OrderWorkflow
         OrderEngine::notify(self::topics($locked));
 
         return ['orderNumber' => $locked->order_number, 'change' => $change, 'alreadyPaid' => false];
+    }
+
+    /**
+     * Harga permintaan di luar menu (keputusan owner 17 November 2026: "kasir isi harga dulu"):
+     * request masuk sebagai baris tanpa harga; kasir mengisi harganya atau menandai tidak tersedia
+     * (Rp0), baru pembayaran bisa diterima. Total pesanan dan tagihan yang menunggu dibayar ikut
+     * berubah; batas bayar dihitung ulang dari sekarang agar pelanggan sempat membayar total final.
+     * Bisa dikoreksi selama belum lunas. Izin sama dengan menerima pembayaran.
+     *
+     * @return array{status: string, price: int, total: int}
+     */
+    public function priceCustomRequest(User $actor, array $raw, AuditContext $context): array
+    {
+        $orderId = CatalogInput::uuid($raw['orderId'] ?? null);
+        $action = $raw['action'] ?? null;
+        if (! in_array($action, ['price', 'decline'], true)) {
+            throw new AccessException('invalid', 'Input tidak valid.');
+        }
+        $price = $action === 'decline' ? 0 : Money::amount($raw['price'] ?? null, 'Harga permintaan', max: 10_000_000);
+        $order = $this->loadForStaff($actor, $orderId);
+        $this->assertAt($actor, 'payment.confirm_cash', $order->outlet_id);
+
+        $result = DB::transaction(function () use ($actor, $order, $action, $price, $context) {
+            $locked = DB::selectOne('select *, (expires_at is not null and expires_at <= now()) as is_expired from orders where id = ? for update', [$order->id]);
+            if ($locked->custom_request === null) {
+                throw new AccessException('invalid', 'Pesanan ini tidak punya permintaan di luar menu.');
+            }
+            if ($locked->payment_status !== 'pending' || in_array($locked->status, OrderFlow::TERMINAL, true)) {
+                throw new AccessException('conflict', 'Harga permintaan hanya bisa diisi sebelum pesanan dibayar.');
+            }
+            if ($locked->status === 'pending_payment' && $locked->is_expired) {
+                DB::select('select public.expire_pending_orders(1, ?::uuid)', [$locked->id]);
+
+                return 'expired';
+            }
+            $status = $action === 'decline' ? 'declined' : 'priced';
+            $total = (int) $locked->subtotal - (int) $locked->discount_total + $price;
+            $ttl = (int) DB::table('outlets')->where('id', $locked->outlet_id)->value('pending_payment_ttl_minutes');
+            DB::update(
+                'update orders set custom_request_status = ?, custom_request_price = ?, custom_request_priced_by = ?,
+                    custom_request_priced_at = clock_timestamp(), total = ?, updated_at = now(),
+                    expires_at = case when expires_at is null then null else greatest(expires_at, now() + make_interval(mins => ?::int)) end
+                 where id = ?',
+                [$status, $price, $actor->id, $total, $ttl, $locked->id],
+            );
+            // Tagihan yang menunggu dibayar mengikuti total final.
+            DB::table('payments')->where('order_id', $locked->id)->where('status', 'pending')->update(['amount' => $total, 'updated_at' => DB::raw('now()')]);
+            $this->audit->record([
+                ...$this->auditBase($locked, $actor),
+                'action' => 'order.custom_request_priced',
+                'before' => ['status' => $locked->custom_request_status, 'price' => $locked->custom_request_price === null ? null : (int) $locked->custom_request_price, 'total' => (int) $locked->total],
+                'after' => ['status' => $status, 'price' => $price, 'total' => $total],
+            ], $context);
+            OrderEngine::notify(self::topics($locked));
+
+            return ['status' => $status, 'price' => $price, 'total' => $total];
+        });
+
+        if ($result === 'expired') {
+            throw new AccessException('conflict', self::EXPIRED_MESSAGE);
+        }
+
+        return $result;
     }
 
     /** Tunai hanya diterima saat laci outlet terbuka; tutup sesi menunggu kunci ini. QRIS tanpa laci. */

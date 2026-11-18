@@ -29,6 +29,7 @@ import {
   NO_NAME_LABEL,
   ORDER_STATUS_LABELS,
   ORDER_TYPE_LABELS,
+  type CustomRequest,
   type OrderChannel,
   type OrderLine,
   type OrderStatus,
@@ -60,9 +61,12 @@ type KdsOrder = {
   readyAt: string | null;
   completedAt: string | null;
   lines: OrderLine[];
+  /** Permintaan di luar menu: harga diisi kasir sebelum pembayaran (keputusan owner 17 November 2026). */
+  customRequest?: CustomRequest | null;
 };
 
 type AwaitingOrder = {
+  customRequest?: CustomRequest | null;
   id: string;
   reference: string;
   channel: OrderChannel;
@@ -243,9 +247,14 @@ export default function KdsPage({ outlet, outlets, orders, awaiting = [], canUpd
                       {deskLabel(o.channel, o.type)}
                       {o.tableNumber ? ` · Meja ${o.tableNumber}` : ""} · {formatRupiah(o.total)}
                     </p>
+                    {o.customRequest?.status === "pending" ? (
+                      <p className="mt-1 inline-flex rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-warning-foreground" data-testid="awaiting-request-pending">
+                        PERLU HARGA REQUEST
+                      </p>
+                    ) : null}
                   </div>
                   <Link href={`/pos/orders/${o.id}`} className={cn(buttonVariants({ variant: "success", size: "lg" }), "shrink-0")}>
-                    <BanknoteIcon /> Proses bayar
+                    <BanknoteIcon /> {o.customRequest?.status === "pending" ? "Isi harga" : "Proses bayar"}
                   </Link>
                 </li>
               ))}
@@ -368,7 +377,8 @@ function OrderCard({
           {order.locationNote ? <p className="text-sm text-muted-foreground">{order.locationNote}</p> : null}
           {unpaid ? (
             <p className="mt-1 inline-flex rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-warning-foreground" data-testid="kds-unpaid">
-              BELUM BAYAR · {formatRupiah(order.total)} · tunai saat diantar
+              BELUM BAYAR · {formatRupiah(order.total)}
+              {order.customRequest?.status === "pending" ? " + request" : ""} · tunai saat diantar
             </p>
           ) : order.payOnDelivery ? (
             <p className="mt-1 inline-flex rounded-md bg-success px-1.5 py-0.5 text-xs font-bold text-success-foreground">LUNAS</p>
@@ -405,6 +415,26 @@ function OrderCard({
             {line.notes ? <p className="mt-1 ml-9 rounded-md bg-brand-soft px-2 py-1 text-base font-semibold break-words text-brand-strong">“{line.notes}”</p> : null}
           </li>
         ))}
+        {order.customRequest ? (
+          <li data-testid="kds-custom-request">
+            <p className="flex items-baseline gap-2 break-words">
+              <span className="font-mono text-xl font-black tabular-nums">1×</span>
+              <span className={cn("text-lg leading-snug font-semibold", order.customRequest.status === "declined" && "text-muted-foreground line-through")}>
+                {order.customRequest.text}
+              </span>
+            </p>
+            <p className="pl-9 text-sm">
+              <span className="text-muted-foreground">Permintaan di luar menu · </span>
+              {order.customRequest.status === "pending" ? (
+                <span className="rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-warning-foreground">PERLU HARGA</span>
+              ) : order.customRequest.status === "declined" ? (
+                <span className="font-semibold text-muted-foreground">tidak tersedia, jangan dibuat</span>
+              ) : (
+                <span className="font-semibold tabular-nums">{formatRupiah(order.customRequest.price ?? 0)}</span>
+              )}
+            </p>
+          </li>
+        ) : null}
       </ul>
       {order.notes ? (
         <p className="rounded-lg bg-brand-soft px-3 py-2 text-base break-words text-brand-strong">
@@ -434,7 +464,7 @@ function OrderCard({
             href={`/pos/orders/${order.id}`}
             className={cn(buttonVariants({ variant: blockedByPayment ? "success" : "outline", size: "xl" }), "w-full")}
           >
-            <BanknoteIcon /> Terima pembayaran · {formatRupiah(order.total)}
+            <BanknoteIcon /> {order.customRequest?.status === "pending" ? "Isi harga request dulu" : `Terima pembayaran · ${formatRupiah(order.total)}`}
           </Link>
         ) : (
           <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-strong">Uang diterima kasir sebelum pesanan ditutup.</p>

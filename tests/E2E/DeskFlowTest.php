@@ -118,14 +118,31 @@ class DeskFlowTest extends ServerTestCase
         $body = $this->checkout($guest, []);
         $status = Browser::page($guest->get("/order/status/{$body['orderId']}"))['props']['order'];
         $this->assertSame(['qris', false, 'Lantai 2 · HRD', 48_000, 'pending_payment'], [$status['paymentMethod'], $status['payOnDelivery'], $status['locationNote'], $status['total'], $status['status']]);
-        $this->assertNotNull($status['qrisImageUrl']);
-        $this->assertStringContainsString('Permintaan di luar menu: Teh tarik 1 gelas', (string) DB::table('orders')->where('id', $body['orderId'])->value('notes'));
+        // Permintaan di luar menu (keputusan owner 17 November 2026): baris tanpa harga; QRIS belum
+        // tampil sampai kasir mengisi harganya (total final dulu, baru bayar).
+        $this->assertSame(['text' => 'Teh tarik 1 gelas', 'status' => 'pending', 'price' => null], $status['customRequest']);
+        $this->assertNull($status['qrisImageUrl']);
+        $this->assertSame([null, 'Teh tarik 1 gelas'], array_values((array) DB::table('orders')->where('id', $body['orderId'])->first(['notes', 'custom_request'])));
 
-        // Barista (sejak 11 November 2026) boleh menandai QRIS diterima setelah cek dana.
         $barista = $this->login($this->f('cashier'));
+        $detail = Browser::page($barista->get("/pos/orders/{$body['orderId']}"))['props'];
+        $this->assertSame('pending', $detail['order']['customRequest']['status']);
+        $blocked = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/confirm-qris"));
+        $this->assertStringContainsString('Isi dulu harga permintaan', $blocked['error'] ?? '');
+        // Akun barista (absen saja) tidak bisa mengisi harga.
+        $this->assertSame(403, $this->login($this->f('barista'))->post("/pos/orders/{$body['orderId']}/custom-request", ['action' => 'price', 'price' => 12_000])->getStatusCode());
+        $barista->get("/pos/orders/{$body['orderId']}");
+        $priced = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/custom-request", ['action' => 'price', 'price' => '12000']));
+        $this->assertSame('Harga permintaan Rp 12.000 disimpan. Total sekarang Rp 60.000; pembayaran bisa diterima.', $priced['success'] ?? null);
+        $status = Browser::page($guest->get("/order/status/{$body['orderId']}"))['props']['order'];
+        $this->assertSame([60_000, 'priced', 12_000], [$status['total'], $status['customRequest']['status'], $status['customRequest']['price']]);
+        $this->assertNotNull($status['qrisImageUrl'], 'QRIS tampil setelah total final');
+
+        // Kasir menandai QRIS diterima setelah cek dana (total final).
         $barista->get("/pos/orders/{$body['orderId']}");
         $flash = $this->flash($barista, $barista->post("/pos/orders/{$body['orderId']}/confirm-qris"));
         $this->assertStringStartsWith('Pembayaran QRIS dikonfirmasi. Nomor antrean', $flash['success'] ?? '');
+        $this->assertSame(60_000, (int) DB::table('payments')->where('order_id', $body['orderId'])->where('status', 'paid')->value('amount'));
 
         $kds = Browser::page($barista->get('/kds'));
         $card = collect($kds['props']['orders'])->firstWhere('id', $body['orderId']);

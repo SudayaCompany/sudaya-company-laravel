@@ -37,6 +37,21 @@ class OrderActionController
         return back();
     }
 
+    /** Permintaan di luar menu: kasir mengisi harga (atau tidak tersedia) sebelum pembayaran diterima. */
+    public function customRequest(Request $request, string $order): RedirectResponse
+    {
+        $result = $this->workflow->priceCustomRequest($request->user(), [
+            'orderId' => $order,
+            'action' => $request->input('action'),
+            'price' => $request->input('price'),
+        ], AuditContext::fromRequest($request));
+        Inertia::flash('success', $result['status'] === 'declined'
+            ? 'Permintaan ditandai tidak tersedia. Total sekarang '.Money::rupiah($result['total']).'.'
+            : 'Harga permintaan '.Money::rupiah($result['price']).' disimpan. Total sekarang '.Money::rupiah($result['total']).'; pembayaran bisa diterima.');
+
+        return back();
+    }
+
     public function cancel(Request $request, string $order): RedirectResponse
     {
         $result = $this->workflow->cancel($request->user(), ['orderId' => $order, 'reason' => $request->input('reason')], AuditContext::fromRequest($request));

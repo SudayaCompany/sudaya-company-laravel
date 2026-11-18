@@ -50,13 +50,20 @@ export function OrderActions({
   const approval = order.pendingApproval;
   // Kembalian dihitung dari uang yang diketik kasir (tampilan saja; nilai sah dicatat server).
   const [paidChange, setPaidChange] = useState<number | null>(null);
+  // Permintaan di luar menu belum diberi harga: uang belum bisa diterima (server juga menolak).
+  const requestPending = order.customRequest?.status === "pending";
 
   return (
     <div className="flex flex-col gap-3">
       <PaidDialog order={order} change={paidChange} onClose={() => setPaidChange(null)} />
       {unpaid && flags.canConfirmCash ? (
-        cashSessionOpen ? (
-          <ConfirmCash orderId={order.id} total={order.total} onPaid={setPaidChange} />
+        requestPending ? (
+          <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning-strong" data-testid="payment-blocked-request">
+            Isi harga permintaan di luar menu dulu. Form terima uang muncul setelah totalnya final.
+          </p>
+        ) : cashSessionOpen ? (
+          // Total berubah (harga permintaan diisi/diubah) → form diulang dengan "uang pas" yang baru.
+          <ConfirmCash key={order.total} orderId={order.id} total={order.total} onPaid={setPaidChange} />
         ) : (
           <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">
             Sesi kas belum dibuka.{" "}

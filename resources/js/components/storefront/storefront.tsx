@@ -819,7 +819,7 @@ function CheckoutForm({ onBack, onPlaced }: { onBack: () => void; onPlaced: (res
             Pesan menu di luar daftar <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
           </Label>
           <Textarea id="customRequest" name="customRequest" maxLength={200} rows={2} placeholder="mis. Matcha latte oat milk 1 gelas" />
-          <p className="text-xs text-muted-foreground">Dibuat bila bahannya ada; harga dikonfirmasi kasir.</p>
+          <p className="text-xs text-muted-foreground">Dibuat bila bahannya ada. Harganya diisi kasir dulu; bayar setelah total final muncul di halaman status pesanan.</p>
         </div>
 
         <fieldset className="flex flex-col gap-2">

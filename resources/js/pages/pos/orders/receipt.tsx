@@ -115,6 +115,13 @@ export default function ReceiptPage({ order }: { order: StaffOrder }) {
             {line.notes ? <p className="pl-3">* {line.notes}</p> : null}
           </div>
         ))}
+        {/* Permintaan di luar menu yang dibuat (harga diisi kasir); yang tidak tersedia tidak dicetak. */}
+        {order.customRequest?.status === "priced" ? (
+          <div className="mb-1 flex justify-between gap-2">
+            <span className="min-w-0">1x Request: {order.customRequest.text}</span>
+            <span className="shrink-0">{formatRupiah(order.customRequest.price ?? 0)}</span>
+          </div>
+        ) : null}
         <hr className="my-2 border-dashed border-black" />
         <div className="flex justify-between text-sm font-bold">
           <span>TOTAL</span>

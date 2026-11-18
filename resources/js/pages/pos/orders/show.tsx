@@ -1,9 +1,13 @@
 import { Head, Link, router } from "@inertiajs/react";
-import { ArrowLeftIcon, QrCodeIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, Loader2Icon, QrCodeIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 
 import { ConfirmAction } from "@/components/confirm-action";
+import { MoneyInput } from "@/components/money-input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { amountFromDigits } from "@/lib/money";
+import { cn } from "@/lib/utils";
 
 import { LiveRefresh } from "@/components/orders/live-refresh";
 import { OrderActions, type OrderActionFlags } from "@/components/orders/order-actions";
@@ -30,6 +34,7 @@ const HISTORY_LABELS: Record<string, string> = {
   "payment.refunded": "Uang dikembalikan (refund tunai)",
   "order.expired": "Kedaluwarsa (tidak dibayar tepat waktu)",
   "inventory.sale_posted": "Stok produk jadi dipotong",
+  "order.custom_request_priced": "Harga permintaan di luar menu diisi",
 };
 
 const METHOD_LABELS: Record<string, string> = { cash: "Tunai", qris: "QRIS" };
@@ -99,7 +104,8 @@ export default function PosOrderPage({
                     Pesanan dibatalkan setelah dibayar. Uang belum dikembalikan, catat refund saat uang diserahkan.
                   </p>
                 ) : null}
-                {unpaid && flags.canConfirmCash && order.payments.some((p) => p.method === "qris" && p.status === "pending") ? (
+                {order.customRequest ? <CustomRequestPricing order={order} area={area} canPrice={unpaid && flags.canConfirmCash} /> : null}
+                {unpaid && flags.canConfirmCash && order.customRequest?.status !== "pending" && order.payments.some((p) => p.method === "qris" && p.status === "pending") ? (
                   <ConfirmQris orderId={order.id} total={order.total} area={area} />
                 ) : null}
                 <OrderActions area={area} order={order} flags={flags} cashSessionOpen={cashSessionOpen} />
@@ -183,7 +189,7 @@ export default function PosOrderPage({
                 <CardTitle>Item</CardTitle>
               </CardHeader>
               <CardContent>
-                <OrderLines lines={order.lines} total={order.total} />
+                <OrderLines lines={order.lines} total={order.total} customRequest={order.customRequest} />
               </CardContent>
             </Card>
           </div>
@@ -210,6 +216,81 @@ export default function PosOrderPage({
           </div>
         </div>
     </AreaPage>
+  );
+}
+
+/**
+ * Permintaan di luar menu (keputusan owner 17 November 2026): kasir mengisi harganya, atau menandai
+ * tidak tersedia, sebelum pembayaran diterima. Bisa dikoreksi selama belum lunas.
+ */
+function CustomRequestPricing({ order, area, canPrice }: { order: StaffOrder; area: Area; canPrice: boolean }) {
+  const request = order.customRequest!;
+  const [changing, setChanging] = useState(false);
+  const [price, setPrice] = useState(request.price ? String(request.price) : "");
+  const [pending, setPending] = useState(false);
+  const showForm = canPrice && (request.status === "pending" || changing);
+  const amount = amountFromDigits(price);
+  const submit = (data: { action: "price" | "decline"; price?: number }) =>
+    router.post(`${areaBase(area)}/orders/${order.id}/custom-request`, data, {
+      preserveScroll: true,
+      onStart: () => setPending(true),
+      onFinish: () => setPending(false),
+      onFlash: (flash) => {
+        if ((flash as { success?: string }).success) setChanging(false);
+      },
+    });
+
+  return (
+    <div className={cn("flex flex-col gap-2 rounded-lg border p-3", request.status === "pending" ? "border-warning bg-warning/10" : "")} data-testid="custom-request-pricing">
+      <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Permintaan di luar menu</p>
+      <p className="font-medium break-words">“{request.text}”</p>
+      {showForm ? (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (amount !== null) submit({ action: "price", price: amount });
+          }}
+        >
+          <Label htmlFor="request-price">Harga permintaan</Label>
+          <MoneyInput id="request-price" value={price} onValueChange={setPrice} placeholder="0" className="h-11 text-base font-semibold" />
+          <p className="text-xs text-muted-foreground">Total baru {formatRupiah(order.total - (request.price ?? 0) + (amount ?? 0))}. Pelanggan baru bisa membayar setelah harga disimpan.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={amount === null || pending} className="flex-1">
+              {pending ? <Loader2Icon className="animate-spin" /> : <CheckIcon />} Simpan harga
+            </Button>
+            <ConfirmAction
+              trigger={
+                <Button type="button" variant="outline" disabled={pending}>
+                  <XIcon /> Tidak tersedia
+                </Button>
+              }
+              title="Permintaan tidak bisa dibuat?"
+              description="Permintaan ditandai tidak tersedia (Rp0) dan pelanggan melihatnya di halaman status. Pesanan lain tetap jalan."
+              confirmLabel="Ya, tidak tersedia"
+              destructive={false}
+              onConfirm={() => submit({ action: "decline" })}
+            />
+            {changing ? (
+              <Button type="button" variant="ghost" disabled={pending} onClick={() => setChanging(false)}>
+                Batal
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      ) : (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className={request.status === "declined" ? "text-muted-foreground" : "font-semibold tabular-nums"}>
+            {request.status === "pending" ? "Menunggu harga dari kasir" : request.status === "declined" ? "Tidak tersedia (Rp0)" : formatRupiah(request.price ?? 0)}
+          </span>
+          {canPrice && request.status !== "pending" ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setChanging(true)}>
+              Ubah
+            </Button>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 

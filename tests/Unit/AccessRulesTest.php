@@ -143,6 +143,7 @@ class AccessRulesTest extends TestCase
         $this->assertFalse(RouteAccess::canAccess($barista, '/push/subscriptions'), 'notifikasi pesanan hanya untuk yang memproses pesanan');
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos'));
         $this->assertFalse(RouteAccess::canAccess($barista, '/pos/orders'));
+        $this->assertFalse(RouteAccess::canAccess($barista, '/pos/orders/x/custom-request'), 'harga permintaan di luar menu hanya kasir');
     }
 
     public function test_kasir_pusat_pesanan_tanpa_area_admin(): void
@@ -155,6 +156,8 @@ class AccessRulesTest extends TestCase
         $this->assertTrue(RouteAccess::canAccess($cashier, '/push/subscriptions'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos'));
         $this->assertTrue(RouteAccess::canAccess($cashier, '/pos/orders'));
+        // Harga permintaan di luar menu diisi kasir (17 November 2026).
+        $this->assertTrue(RouteAccess::canAccess($cashier, '/pos/orders/x/custom-request'));
         $this->assertFalse(RouteAccess::canAccess($cashier, '/admin'));
     }
 

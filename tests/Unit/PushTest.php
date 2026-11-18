@@ -56,6 +56,12 @@ class PushTest extends TestCase
         $payload = NewOrderPush::payload($pickup);
         $this->assertSame('Pesanan baru '.OrderEngine::reference($desk['id']), $payload['title']);
         $this->assertSame('Tanpa nama · Ambil di counter · menunggu bayar', $payload['body']);
+
+        // Permintaan di luar menu yang belum diberi harga (17 November 2026): kasir diingatkan.
+        $request = NewOrderPush::payload((object) [...$desk, 'status' => 'queued', 'custom_request_status' => 'pending']);
+        $this->assertSame('Rina · Antar ke meja · Lantai 2 · dekat jendela · isi harga request', $request['body']);
+        $priced = NewOrderPush::payload((object) [...$desk, 'custom_request_status' => 'priced']);
+        $this->assertSame('Rina · Antar ke meja · Lantai 2 · dekat jendela', $priced['body']);
     }
 
     public function test_kunci_vapid_dari_env_atau_dibuat_dengan_format_yang_benar(): void

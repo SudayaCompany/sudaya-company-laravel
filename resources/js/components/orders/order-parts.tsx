@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { formatPriceDelta, formatRupiah } from "@/lib/format";
-import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, type OrderLine, type OrderStatus, type PaymentStatus } from "@/lib/orders";
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, type CustomRequest, type OrderLine, type OrderStatus, type PaymentStatus } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 // Peta status tunggal (docs/UI_UX_DESIGN_SYSTEM.md §2.2). Teks memakai token "-strong" agar
@@ -54,8 +54,28 @@ export function OrderStatusBadges({ status, paymentStatus }: { status: OrderStat
   );
 }
 
-/** Daftar item order (snapshot harga saat order dibuat). */
-export function OrderLines({ lines, total }: { lines: OrderLine[]; total: number }) {
+/** Baris permintaan di luar menu: harganya diisi kasir sebelum pembayaran (keputusan owner 17 November 2026). */
+export function CustomRequestRow({ request }: { request: CustomRequest }) {
+  return (
+    <li className="flex gap-3 py-2.5" data-testid="custom-request-line">
+      <span className="w-8 font-medium tabular-nums">1×</span>
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">Permintaan di luar menu</p>
+        <p className={cn("text-xs break-words text-muted-foreground italic", request.status === "declined" && "line-through")}>“{request.text}”</p>
+      </div>
+      {request.status === "pending" ? (
+        <span className="h-fit shrink-0 rounded-md bg-warning/20 px-1.5 py-0.5 text-xs font-semibold text-warning-strong">menunggu harga</span>
+      ) : request.status === "declined" ? (
+        <span className="shrink-0 text-xs text-muted-foreground">tidak tersedia</span>
+      ) : (
+        <span className="tabular-nums">{formatRupiah(request.price ?? 0)}</span>
+      )}
+    </li>
+  );
+}
+
+/** Daftar item order (snapshot harga saat order dibuat) + permintaan di luar menu bila ada. */
+export function OrderLines({ lines, total, customRequest }: { lines: OrderLine[]; total: number; customRequest?: CustomRequest | null }) {
   return (
     <div className="flex flex-col text-sm">
       <ul className="flex flex-col divide-y">
@@ -74,11 +94,15 @@ export function OrderLines({ lines, total }: { lines: OrderLine[]; total: number
             <span className="tabular-nums">{formatRupiah(line.lineTotal)}</span>
           </li>
         ))}
+        {customRequest ? <CustomRequestRow request={customRequest} /> : null}
       </ul>
       <div className="flex justify-between border-t pt-3 text-base font-semibold">
         <span>Total</span>
         <span className="tabular-nums">{formatRupiah(total)}</span>
       </div>
+      {customRequest?.status === "pending" ? (
+        <p className="pt-1 text-xs text-muted-foreground">Belum termasuk permintaan di luar menu; harganya diisi kasir.</p>
+      ) : null}
     </div>
   );
 }

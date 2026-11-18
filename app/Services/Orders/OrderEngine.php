@@ -63,7 +63,7 @@ final class OrderEngine
             ->where('status', 'pending_payment')->where('payment_status', 'pending')->where('channel', '!=', 'pos')
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', DB::raw('now()')))
             ->orderBy('created_at')->limit(30)
-            ->get(['id', 'channel', 'type', 'customer_name', 'customer_department', 'table_number', 'location_note', 'total', 'created_at'])
+            ->get(['id', 'channel', 'type', 'customer_name', 'customer_department', 'table_number', 'location_note', 'total', 'created_at', 'custom_request', 'custom_request_status', 'custom_request_price'])
             ->map(fn ($o) => [
                 'id' => $o->id,
                 'reference' => self::reference($o->id),
@@ -75,7 +75,23 @@ final class OrderEngine
                 'locationNote' => $o->location_note,
                 'total' => (int) $o->total,
                 'createdAt' => date(DATE_ATOM, strtotime((string) $o->created_at)),
+                'customRequest' => self::customRequest($o),
             ])->values()->all();
+    }
+
+    /**
+     * Permintaan di luar menu untuk tampilan (keputusan owner 17 November 2026): status `pending`
+     * = belum ada harga (pembayaran belum bisa diterima), `priced`, atau `declined` (tidak tersedia).
+     *
+     * @return array{text: string, status: string, price: ?int}|null
+     */
+    public static function customRequest(object $order): ?array
+    {
+        return ($order->custom_request ?? null) === null ? null : [
+            'text' => $order->custom_request,
+            'status' => $order->custom_request_status,
+            'price' => $order->custom_request_price === null ? null : (int) $order->custom_request_price,
+        ];
     }
 
     /**
@@ -203,11 +219,13 @@ final class OrderEngine
         $requestHash = CheckoutInput::requestHash($input);
 
         return DB::transaction(function () use ($channel, $row, $actor, $input, $quote, $subtotal, $total, $payOnDelivery, $token, $requestHash, $context) {
+            // Permintaan di luar menu: baris tanpa harga (status pending) yang diisi kasir sebelum
+            // pembayaran bisa diterima; total awal hanya menu yang ada di daftar.
             $inserted = DB::selectOne(
                 'insert into orders (company_id, brand_id, outlet_id, channel, type, status, payment_status,
                     idempotency_key, request_hash, customer_name, customer_phone, customer_department, table_number, location_note,
-                    delivery_address, notes, subtotal, discount_total, total, pay_on_delivery, access_token_hash, expires_at, created_by)
-                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?::boolean, ?,
+                    delivery_address, notes, custom_request, custom_request_status, subtotal, discount_total, total, pay_on_delivery, access_token_hash, expires_at, created_by)
+                 values (?, ?, ?, ?::order_channel, ?::order_type, \'pending_payment\', \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?::boolean, ?,
                     case when ?::boolean then null else now() + make_interval(mins => ?::int) end, ?)
                  on conflict (outlet_id, idempotency_key) do nothing
                  returning id',
@@ -217,7 +235,8 @@ final class OrderEngine
                     $input['type'] === 'dine_in' ? $input['tableNumber'] : null,
                     $input['type'] === 'dine_in' ? $input['locationNote'] : null,
                     $input['type'] === 'delivery' ? $input['deliveryAddress'] : null,
-                    $input['notes'], $subtotal, $total, $payOnDelivery, $token['hash'] ?? null,
+                    $input['notes'], $input['customRequest'], $input['customRequest'] === null ? null : 'pending',
+                    $subtotal, $total, $payOnDelivery, $token['hash'] ?? null,
                     $payOnDelivery, $row->pending_payment_ttl_minutes, $actor?->id,
                 ],
             );
@@ -315,6 +334,8 @@ final class OrderEngine
                     'payOnDelivery' => $payOnDelivery,
                     'items' => array_sum(array_column($quote['lines'], 'quantity')),
                     'paymentMethod' => $input['paymentMethod'],
+                    // Hanya dicatat bila ada; isi audit pesanan biasa tidak berubah.
+                    ...($input['customRequest'] !== null ? ['customRequest' => true] : []),
                 ],
             ], $context);
             if ($payOnDelivery) {
@@ -563,8 +584,10 @@ final class OrderEngine
             'paymentMethod' => $method,
             'payOnDelivery' => (bool) $order->pay_on_delivery,
             'locationNote' => $order->location_note,
-            // QRIS statis outlet ditampilkan selama pesanan QRIS menunggu dibayar.
-            'qrisImageUrl' => $method === 'qris' && $order->payment_status === 'pending' ? MenuImages::url($order->qris_image_path) : null,
+            // QRIS statis outlet ditampilkan selama pesanan QRIS menunggu dibayar, dan baru setelah
+            // kasir mengisi harga permintaan di luar menu (total final dulu, baru bayar).
+            'qrisImageUrl' => $method === 'qris' && $order->payment_status === 'pending' && $order->custom_request_status !== 'pending'
+                ? MenuImages::url($order->qris_image_path) : null,
             'lines' => $this->lines([$order->id])[$order->id] ?? [],
             // Topik realtime turunan hash token: hanya pemegang token yang tahu.
             'topic' => GuestTokens::topic($order->access_token_hash),
@@ -583,7 +606,7 @@ final class OrderEngine
         if (! $actor->can('kds.view', AccessScope::outlet($outlet['id']))) {
             throw AccessException::forbidden();
         }
-        $columns = ['id', 'order_number', 'queue_number', 'status', 'payment_status', 'pay_on_delivery', 'total', 'type', 'channel', 'customer_name', 'customer_phone', 'customer_department', 'table_number', 'location_note', 'notes', 'paid_at', 'created_at', 'preparing_at', 'ready_at', 'completed_at'];
+        $columns = ['id', 'order_number', 'queue_number', 'status', 'payment_status', 'pay_on_delivery', 'total', 'type', 'channel', 'customer_name', 'customer_phone', 'customer_department', 'table_number', 'location_note', 'notes', 'paid_at', 'created_at', 'preparing_at', 'ready_at', 'completed_at', 'custom_request', 'custom_request_status', 'custom_request_price'];
         $active = DB::table('orders')
             ->where('outlet_id', $outlet['id'])
             ->where('company_id', $actor->company_id)
@@ -626,6 +649,7 @@ final class OrderEngine
             'readyAt' => $this->iso($o->ready_at),
             'completedAt' => $this->iso($o->completed_at),
             'lines' => $lines[$o->id] ?? [],
+            'customRequest' => self::customRequest($o),
         ])->values()->all();
     }
 
@@ -645,6 +669,7 @@ final class OrderEngine
             'tableNumber' => $order->table_number,
             'customerName' => $order->customer_name,
             'notes' => $order->notes,
+            'customRequest' => self::customRequest($order),
             'total' => (int) $order->total,
             'createdAt' => $this->iso($order->created_at),
         ];

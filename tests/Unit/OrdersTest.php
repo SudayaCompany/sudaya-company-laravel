@@ -43,6 +43,21 @@ class OrdersTest extends TestCase
         }
     }
 
+    /** Permintaan di luar menu (keputusan owner 17 November 2026) disimpan terpisah dari catatan; sidik checkout tetap sama dengan bentuk lama. */
+    public function test_permintaan_di_luar_menu_terpisah_dari_catatan_dan_sidik_tetap(): void
+    {
+        $input = CheckoutInput::parse(self::checkout(['notes' => 'tanpa sedotan', 'customRequest' => '  Matcha oat milk  ']));
+        $this->assertSame(['tanpa sedotan', 'Matcha oat milk'], [$input['notes'], $input['customRequest']]);
+        $this->assertNull(CheckoutInput::parse(self::checkout(['customRequest' => '   ']))['customRequest']);
+        // Dulu request digabung ke catatan: sidiknya sama, jadi retry lintas versi tetap pesanan yang sama.
+        $legacy = CheckoutInput::parse(self::checkout(['notes' => "tanpa sedotan\nPermintaan di luar menu: Matcha oat milk"]));
+        $this->assertSame(CheckoutInput::requestHash($legacy), CheckoutInput::requestHash($input));
+        $other = CheckoutInput::parse(self::checkout(['notes' => 'tanpa sedotan', 'customRequest' => 'Teh tarik']));
+        $this->assertNotSame(CheckoutInput::requestHash($input), CheckoutInput::requestHash($other));
+        $this->assertSame(CheckoutInput::requestHash(CheckoutInput::parse(self::checkout())), CheckoutInput::requestHash(CheckoutInput::parse(self::checkout(['customRequest' => null]))));
+        $this->assertSame('Permintaan di luar menu maksimal 200 karakter.', self::parseError(self::checkout(['customRequest' => str_repeat('a', 201)])));
+    }
+
     public function test_parses_minimal_checkout_and_normalizes_fields(): void
     {
         $input = CheckoutInput::parse(self::checkout([

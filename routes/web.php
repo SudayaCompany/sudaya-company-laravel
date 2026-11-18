@@ -92,6 +92,8 @@ Route::middleware(['auth', EnsureActiveStaff::class])->group(function () {
         Route::get('/pos/orders/{order}/receipt', [PosOrderController::class, 'receipt']);
         Route::post('/pos/orders/{order}/pay', [OrderActionController::class, 'pay']);
         Route::post('/pos/orders/{order}/confirm-qris', [OrderActionController::class, 'confirmQris']);
+        // Harga permintaan di luar menu diisi kasir sebelum pembayaran (keputusan owner 17 November 2026).
+        Route::post('/pos/orders/{order}/custom-request', [OrderActionController::class, 'customRequest']);
         Route::post('/pos/orders/{order}/cancel', [OrderActionController::class, 'cancel']);
         Route::post('/pos/orders/{order}/refund', [OrderActionController::class, 'refund']);
         Route::post('/pos/approvals/{approval}/decide', [OrderActionController::class, 'decide']);

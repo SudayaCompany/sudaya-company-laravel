@@ -71,6 +71,14 @@ final class SalesReport
             ->groupBy('categories.name')
             ->selectRaw("coalesce(categories.name, 'Tanpa kategori') as name, sum(order_items.quantity) as qty, sum(order_items.line_total) as revenue")
             ->orderByDesc('revenue')->get();
+        // Permintaan di luar menu yang dibayar (harga diisi kasir, 17 November 2026) bukan item menu:
+        // tampil sebagai baris sendiri agar rincian kategori sama dengan pendapatan.
+        $requests = $paid($from, $to)->where('orders.custom_request_status', 'priced')->where('orders.custom_request_price', '>', 0)
+            ->selectRaw('count(*) as n, coalesce(sum(orders.custom_request_price), 0) as revenue')->first();
+        if ((int) $requests->n > 0) {
+            $categories = $categories->push((object) ['name' => 'Permintaan di luar menu', 'qty' => (int) $requests->n, 'revenue' => (int) $requests->revenue])
+                ->sortByDesc(fn ($c) => (int) $c->revenue)->values();
+        }
         $methods = DB::table('payments')->joinSub($paid($from, $to)->select('orders.id'), 'p', 'p.id', '=', 'payments.order_id')
             ->where('payments.status', 'paid')->groupBy('payments.method')
             ->selectRaw('payments.method, count(*) as n, sum(payments.amount) as amount')->orderByDesc('amount')->get();
