@@ -671,8 +671,18 @@ Permintaan owner 18 November: "sambil nunggu vps dan domain, kerjakan yang belom
 ### Temuan saat QA
 1. Live OrderEngineTest membandingkan isi audit `order.created` secara persis; penanda `customRequest` kini hanya dicatat bila ada request, jadi audit pesanan biasa tidak berubah.
 2. Test baru sempat memakai token pelanggan lama setelah kirim ulang pesanan yang sama; kirim ulang memang menerbitkan token baru. Test diperbaiki memakai token terbaru (perilaku aplikasi benar).
-3. Toast sukses sesekali tidak muncul bila muat ulang otomatis di latar berjalan bersamaan dengan aksi: request yang selesai belakangan menyimpan salinan sesi lama sehingga pesan flash hilang (log server: GET halaman yang sama dimulai sebelum POST selesai). Data tetap tersimpan dan tampilan langsung berubah. Perilaku lama (muat ulang otomatis sejak 13 November), belum diubah; perbaikan yang mungkin: session blocking untuk rute aksi.
+3. Toast sukses sesekali tidak muncul bila muat ulang otomatis di latar berjalan bersamaan dengan aksi: request yang selesai belakangan menyimpan salinan sesi lama sehingga pesan flash hilang (log server: GET halaman yang sama dimulai sebelum POST selesai). Data tetap tersimpan dan tampilan langsung berubah. Perilaku lama (muat ulang otomatis sejak 13 November), belum diubah. Perbaikan yang disarankan: aksi pesanan memakai panggilan JSON seperti POS (4 November) sehingga pesan sukses/gagal tidak lewat sesi. Session blocking pada rute aksi saja tidak cukup, karena muat ulang di latar tidak ikut menunggu kunci; mengunci semua halaman memperlambat perpindahan menu. Di production (server dan database sama-sama di Singapura) jendela tabrakannya jauh lebih kecil daripada di dev (database Irlandia).
 4. Satu kali `SupabaseTokenVerifierTest` (rotasi kunci) gagal di unit suite, lalu lolos saat diulang sendiri dan di dua putaran penuh berikutnya; tidak terkait perubahan ini.
 
 ### Hasil QA
 Unit + feature **215/215**; tsc 0; Pint bersih; Live (Supabase dev, berurutan): **CustomRequest 2/2 (baru, 41 assertion)**, OrderEngine 19/19, DeskOrder 4/4, OrderAlarm 1/1, SalesReport 5/5, PushNotification 2/2, PaymentFlow 19/19; E2E: **DeskFlow 3/3 (alur request lewat HTTP: QRIS ditolak sebelum harga, barista 403, harga Rp12.000 → total Rp60.000 → QRIS tampil → dikonfirmasi)**, Orders 6/6, PaymentFlow 5/5; browser `m1/run-request.sh` putaran 3 di build final: **15/15** + cek database (pelanggan antar ke meja + tunai dengan request → "menunggu harga" → kartu kasir PERLU HARGA → form terima uang terkunci → harga Rp12.000 → total Rp27.000 di kasir dan halaman pelanggan tanpa muat ulang → terima Rp30.000, kembalian Rp3.000 → lunas; tanpa error console di kasir maupun pelanggan). Tanpa sisa data uji.
+
+### Regresi penuh setelah semua perubahan 13–18 November
+Dijalankan 18 November 12.46–16.00 di server lokal (`npm run serve`) + Supabase dev, berurutan tanpa test lain bersamaan, di atas commit `3fb14a8`. Mencakup satu aplikasi per peran (13 November), wajib foto wajah dan Web Push kasir (17 November), pembaruan keamanan Laravel 13.42 / Symfony 8.1.11, dan harga request (18 November).
+
+| Suite | Hasil | Durasi |
+|---|---|---|
+| Live penuh (25 file) | **166/166** (1.434 assertion) | 114 menit |
+| E2E penuh (11 file) | **56/56** (717 assertion) | 80 menit |
+
+Tanpa test gagal, dilewati, atau diulang. Pengecek fixture (company `test-*`, akun `sudaya-test-*`) kosong setelah run: tanpa sisa data uji.

@@ -1,6 +1,6 @@
 # Kesiapan go-live Sudaya Coffee (Laravel)
 
-Diperbarui 12 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 November tetap sebagai riwayat). Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
+Diperbarui 18 November 2026 (ringkasan serah terima di bawah; tabel rinci per 5 November tetap sebagai riwayat). Status per butir: **PASS** (terbukti dengan test atau QA yang tercatat), **FAIL**, **BLOCKED** (menunggu keputusan atau pihak luar), **NOT TESTED**.
 
 **Kesimpulan:** belum siap production. Fitur transaksi tunai inti terbukti di lingkungan development (database dan Supabase dev). Hosting, database production, HTTPS, backup/restore, monitoring, data menu asli, perangkat outlet, dan UAT belum ada. Seluruh PASS di bawah adalah *Development Verified*, bukan bukti production.
 
@@ -21,6 +21,7 @@ Langkah dari server kosong sampai live: [DEPLOY_VPS.md](DEPLOY_VPS.md). Perawata
 | Form pesan dari QR meja: nama, **department** (semua pesanan), lantai + bagian meja (antar), **WhatsApp opsional**; notif 1 ketukan saat diantar + "siapkan uang tunai"; ambil di counter = nama + department | PASS (dev) | Tanpa nomor WhatsApp pelanggan dikabari lewat halaman status (banner, bunyi, notifikasi web). WhatsApp otomatis penuh butuh WhatsApp Business API (berbayar) |
 | Absen dengan **foto wajah terdaftar** + cek admin | PASS (dev) | Daftar sekali dengan persetujuan; admin membandingkan selfie absen berdampingan dengan foto terdaftar; reset admin menghapus foto lama. Pencocokan wajah otomatis butuh penyedia biometrik |
 | Stiker QR meja + struk printer Bluetooth 58/80 mm | PASS (dev) | Admin → Outlet & meja → daftarkan meja → **Cetak QR meja**. Printer diuji dengan perangkat outlet saat UAT ([PANDUAN_PENGGUNA.md](PANDUAN_PENGGUNA.md) §6) |
+| Regresi penuh setelah perubahan 13–18 November | PASS (dev) | 18 November: Live **166/166**, E2E **56/56**, unit + feature 215/215; tanpa sisa data uji. Rincian: [QA_CHECKPOINT.md](QA_CHECKPOINT.md) bagian 18 November |
 | VPS, domain, project Supabase production | BLOCKED | Owner membeli/membuat; lalu ikuti DEPLOY_VPS.md langkah 1–9 |
 | Uji di VPS dan Supabase sungguhan, UAT outlet | NOT TESTED | Setelah langkah di atas; skenario di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md) |
 
