@@ -656,3 +656,23 @@ Unit + feature **214/214**; tsc 0; Pint bersih; Live (Supabase dev, berurutan): 
 ### Catatan
 - Uji di HP sungguhan menunggu alamat https (VPS + domain): skenario UAT 57 di [SUDAYA_OUTLET_UAT.md](SUDAYA_OUTLET_UAT.md). iPhone hanya bila Sudaya dipasang ke layar utama (iOS 16.4+).
 - Alarm keras berulang tetap butuh aplikasi terbuka; saat aplikasi tertutup yang muncul adalah notifikasi sistem (bunyi notifikasi HP + getar).
+
+## Harga permintaan di luar menu diisi kasir dulu (18 November 2026)
+
+Permintaan owner 18 November: "sambil nunggu vps dan domain, kerjakan yang belom selesai". Yang bisa dikerjakan tanpa pihak luar adalah aturan yang sudah diputuskan 17 November: *"Request masuk sebagai baris tanpa harga; kasir mengisi harganya, lalu pelanggan baru bisa bayar. Total selalu jelas sebelum bayar."* Butir lain masih menunggu keputusan aturan atau layanan berbayar (promo/poin, WhatsApp otomatis, QRIS otomatis, pengenalan wajah) atau domain (stiker QR).
+
+### Perubahan
+- `orders`: kolom `custom_request`, `custom_request_status` (`pending` / `priced` / `declined`), `custom_request_price`, `custom_request_priced_by`, `custom_request_priced_at`. Migration aditif `2026_11_18_000001` dengan check constraint konsistensi, sudah dijalankan di dev. Request tidak lagi digabung ke catatan pesanan; sidik checkout dihitung dengan bentuk lama sehingga kirim ulang lintas versi tetap pesanan yang sama.
+- `OrderWorkflow::priceCustomRequest` (`POST /pos/orders/{id}/custom-request`, izin `payment.confirm_cash`, RBAC tidak berubah): harga, atau **Tidak tersedia** (Rp0). Total = subtotal + harga; tagihan yang menunggu dibayar ikut; batas bayar dihitung ulang dari saat harga diisi; bisa dikoreksi sampai lunas; audit `order.custom_request_priced`; sinyal realtime ke kasir dan pelanggan.
+- `settle()` menolak tunai, QRIS, dan bayar saat diantar selama request belum diberi harga: "Isi dulu harga permintaan di luar menu…".
+- Tampilan: kartu Pesanan masuk dan daftar Menunggu bayar bertanda **PERLU HARGA** (tombol **Isi harga**); detail pesanan: kotak harga dengan pratinjau total, **Simpan harga**, **Tidak tersedia**, **Ubah**; form terima uang dan konfirmasi QRIS tersembunyi sampai harga diisi; halaman status pelanggan: baris "menunggu harga", QRIS dan instruksi bayar baru tampil dengan total final; struk mencetak baris Request; notifikasi push menambah "isi harga request"; laporan penjualan: baris kategori "Permintaan di luar menu" agar rincian sama dengan pendapatan.
+- Perbaikan bug lama: notifikasi "pesanan siap" di halaman status pelanggan memakai `new Notification()`, yang di Chrome Android melempar TypeError di effect React (halaman pelanggan bisa kosong saat pesanan siap). Kini lewat `showSystemNotification`, sama dengan perbaikan layar kasir 17 November.
+
+### Temuan saat QA
+1. Live OrderEngineTest membandingkan isi audit `order.created` secara persis; penanda `customRequest` kini hanya dicatat bila ada request, jadi audit pesanan biasa tidak berubah.
+2. Test baru sempat memakai token pelanggan lama setelah kirim ulang pesanan yang sama; kirim ulang memang menerbitkan token baru. Test diperbaiki memakai token terbaru (perilaku aplikasi benar).
+3. Toast sukses sesekali tidak muncul bila muat ulang otomatis di latar berjalan bersamaan dengan aksi: request yang selesai belakangan menyimpan salinan sesi lama sehingga pesan flash hilang (log server: GET halaman yang sama dimulai sebelum POST selesai). Data tetap tersimpan dan tampilan langsung berubah. Perilaku lama (muat ulang otomatis sejak 13 November), belum diubah; perbaikan yang mungkin: session blocking untuk rute aksi.
+4. Satu kali `SupabaseTokenVerifierTest` (rotasi kunci) gagal di unit suite, lalu lolos saat diulang sendiri dan di dua putaran penuh berikutnya; tidak terkait perubahan ini.
+
+### Hasil QA
+Unit + feature **215/215**; tsc 0; Pint bersih; Live (Supabase dev, berurutan): **CustomRequest 2/2 (baru, 41 assertion)**, OrderEngine 19/19, DeskOrder 4/4, OrderAlarm 1/1, SalesReport 5/5, PushNotification 2/2, PaymentFlow 19/19; E2E: **DeskFlow 3/3 (alur request lewat HTTP: QRIS ditolak sebelum harga, barista 403, harga Rp12.000 → total Rp60.000 → QRIS tampil → dikonfirmasi)**, Orders 6/6, PaymentFlow 5/5; browser `m1/run-request.sh` putaran 3 di build final: **15/15** + cek database (pelanggan antar ke meja + tunai dengan request → "menunggu harga" → kartu kasir PERLU HARGA → form terima uang terkunci → harga Rp12.000 → total Rp27.000 di kasir dan halaman pelanggan tanpa muat ulang → terima Rp30.000, kembalian Rp3.000 → lunas; tanpa error console di kasir maupun pelanggan). Tanpa sisa data uji.
